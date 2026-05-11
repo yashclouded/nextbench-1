@@ -1,0 +1,377 @@
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import { ShieldCheck, ChevronLeft, Star, MessageSquare, Heart, Share2, X, Send } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, addDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
+import { useAuth } from '../../lib/AuthContext';
+import { useToast } from '../../lib/ToastContext';
+import { createNotification } from '../../lib/notifications';
+
+interface ProductData {
+  id: string;
+  title: string;
+  price: number;
+  category: string;
+  condition: string;
+  image: string;
+  description: string;
+  meetupAvailable: boolean;
+  deliveryAvailable: boolean;
+  status: string;
+  sellerId: string;
+  sellerName: string;
+  sellerSchool: string;
+  reservedById?: string;
+}
+
+interface Review {
+  id: string;
+  reviewerId: string;
+  reviewerName: string;
+  rating: number;
+  comment: string;
+  createdAt: any;
+}
+
+export default function ProductDetail() {
+  const { id } = useParams();
+  const { user, userData } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+  const [product, setProduct] = useState<ProductData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isReserving, setIsReserving] = useState(false);
+  const [isStartingChat, setIsStartingChat] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [wishlistDocId, setWishlistDocId] = useState<string | null>(null);
+
+  // Reviews
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) return;
+      try {
+        const docSnap = await getDoc(doc(db, 'products', id));
+        if (docSnap.exists()) {
+          setProduct({ id: docSnap.id, ...docSnap.data() } as ProductData);
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `products/${id}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProduct();
+  }, [id]);
+
+  // Load reviews
+  useEffect(() => {
+    if (!id) return;
+    const q = query(collection(db, 'reviews'), where('productId', '==', id));
+    const unsub = onSnapshot(q, (snap) => {
+      const r: Review[] = [];
+      snap.forEach(d => r.push({ id: d.id, ...d.data() } as Review));
+      setReviews(r.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+    });
+    return () => unsub();
+  }, [id]);
+
+  // Check wishlist status
+  useEffect(() => {
+    if (!user || !id) return;
+    const q = query(collection(db, 'wishlists'), where('userId', '==', user.uid), where('productId', '==', id));
+    const unsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        setIsWishlisted(true);
+        setWishlistDocId(snap.docs[0].id);
+      } else {
+        setIsWishlisted(false);
+        setWishlistDocId(null);
+      }
+    });
+    return () => unsub();
+  }, [user, id]);
+
+  const toggleWishlist = async () => {
+    if (!user) { showToast('Please log in', 'warning'); return; }
+    if (!id) return;
+    try {
+      if (isWishlisted && wishlistDocId) {
+        await deleteDoc(doc(db, 'wishlists', wishlistDocId));
+        showToast('Removed from wishlist', 'info');
+      } else {
+        await addDoc(collection(db, 'wishlists'), { userId: user.uid, productId: id, createdAt: serverTimestamp() });
+        showToast('Added to wishlist ♥', 'success');
+      }
+    } catch { showToast('Failed to update wishlist', 'error'); }
+  };
+
+  const handleShare = async () => {
+    if (!product) return;
+    const shareData = { title: product.title, text: `Check out "${product.title}" on NextBench — ₹${product.price}`, url: window.location.href };
+    try {
+      if (navigator.share) { await navigator.share(shareData); }
+      else { await navigator.clipboard.writeText(window.location.href); showToast('Link copied to clipboard!', 'success'); }
+    } catch { /* cancelled */ }
+  };
+
+  const handleContactSeller = async () => {
+    if (!user || !userData) { showToast('Please log in to contact the seller.', 'warning'); return; }
+    if (!product || !id) return;
+    if (product.sellerId === user.uid) { showToast('This is your listing.', 'info'); return; }
+    setIsStartingChat(true);
+    try {
+      const q = query(collection(db, 'chatRooms'), where('participants', 'array-contains', user.uid), where('productId', '==', id));
+      const snapshot = await getDocs(q);
+      let roomId = '';
+      if (!snapshot.empty) { roomId = snapshot.docs[0].id; }
+      else {
+        const newRoom = await addDoc(collection(db, 'chatRooms'), {
+          participants: [user.uid, product.sellerId], productId: id, productTitle: product.title, updatedAt: serverTimestamp()
+        });
+        roomId = newRoom.id;
+        createNotification({ userId: product.sellerId, type: 'new_message', title: 'New inquiry', message: `${userData.name} wants to chat about "${product.title}"`, link: `/chat/${roomId}` });
+      }
+      navigate(`/chat/${roomId}`);
+    } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'chatRooms'); }
+    finally { setIsStartingChat(false); }
+  };
+
+  const handleReserve = async () => {
+    if (!user || !userData) { showToast('Please log in to reserve items.', 'warning'); return; }
+    if (!userData.verified) { showToast('Only verified students can reserve items.', 'warning'); return; }
+    if (!product || !id || product.sellerId === user.uid) return;
+    setIsReserving(true);
+    try {
+      await updateDoc(doc(db, 'products', id), { status: 'reserved', reservedById: user.uid, updatedAt: serverTimestamp() });
+      setProduct(prev => prev ? { ...prev, status: 'reserved', reservedById: user.uid } : null);
+      showToast('Item reserved! Contact the seller to arrange meetup.', 'success');
+      createNotification({ userId: product.sellerId, type: 'item_reserved', title: 'Item Reserved', message: `${userData.name} reserved "${product.title}"`, link: `/product/${id}` });
+    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `products/${id}`); }
+    finally { setIsReserving(false); }
+  };
+
+  const handleMarkSold = async () => {
+    if (!user || !product || !id) return;
+    if (product.sellerId !== user.uid) return;
+    try {
+      await updateDoc(doc(db, 'products', id), { status: 'sold', updatedAt: serverTimestamp() });
+      setProduct(prev => prev ? { ...prev, status: 'sold' } : null);
+      showToast('Item marked as sold!', 'success');
+      if (product.reservedById) {
+        createNotification({ userId: product.reservedById, type: 'item_sold', title: 'Transaction Complete', message: `"${product.title}" has been marked as sold. Leave a review!`, link: `/product/${id}` });
+      }
+    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `products/${id}`); }
+  };
+
+  const handleUnreserve = async () => {
+    if (!user || !product || !id) return;
+    if (product.sellerId !== user.uid && product.reservedById !== user.uid) return;
+    try {
+      await updateDoc(doc(db, 'products', id), { status: 'available', reservedById: null, updatedAt: serverTimestamp() });
+      setProduct(prev => prev ? { ...prev, status: 'available', reservedById: undefined } : null);
+      showToast('Reservation cancelled', 'info');
+    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `products/${id}`); }
+  };
+
+  const submitReview = async () => {
+    if (!user || !userData || !id) return;
+    setSubmittingReview(true);
+    try {
+      await addDoc(collection(db, 'reviews'), {
+        productId: id, sellerId: product?.sellerId, reviewerId: user.uid, reviewerName: userData.name,
+        rating: reviewRating, comment: reviewComment, createdAt: serverTimestamp()
+      });
+      showToast('Review submitted!', 'success');
+      setShowReviewModal(false);
+      setReviewComment('');
+      setReviewRating(5);
+      if (product?.sellerId) {
+        createNotification({ userId: product.sellerId, type: 'new_review', title: 'New Review', message: `${userData.name} left a ${reviewRating}★ review`, link: `/product/${id}` });
+      }
+    } catch { showToast('Failed to submit review', 'error'); }
+    finally { setSubmittingReview(false); }
+  };
+
+  if (loading) return <div className="pt-32 text-center text-xs font-bold uppercase tracking-widest text-brand-teal/40">Loading Item...</div>;
+  if (!product) return <div className="pt-32 text-center text-xs font-bold uppercase tracking-widest text-red-400">Product Not Found</div>;
+
+  const isSeller = user?.uid === product.sellerId;
+  const isReserved = product.status === 'reserved';
+  const isSold = product.status === 'sold';
+  const canReserve = !isSeller && product.status === 'available';
+  const avgRating = reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1) : null;
+
+  return (
+    <div className="pt-32 pb-20 px-6 max-w-7xl mx-auto">
+      <Link to="/marketplace" className="inline-flex items-center gap-2 text-luxury-ink/40 hover:text-luxury-ink transition-colors mb-12 text-sm font-medium">
+        <ChevronLeft size={16} /> Back to Marketplace
+      </Link>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+        {/* Left: Image */}
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+          <div className="aspect-square bg-white shadow-[0_40px_100px_-20px_rgba(58,139,149,0.15)] border border-brand-teal/5 p-4 relative rounded-2xl overflow-hidden">
+            {isSold && (
+              <div className="absolute inset-0 bg-luxury-ink/40 backdrop-blur-sm z-10 flex items-center justify-center rounded-2xl">
+                <span className="bg-white text-luxury-ink px-6 py-3 rounded-full font-bold text-sm uppercase tracking-widest">Sold</span>
+              </div>
+            )}
+            {isReserved && (
+              <div className="absolute top-6 right-6 bg-amber-500 text-white px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest z-10 shadow-lg">Reserved</div>
+            )}
+            <img src={product.image} alt={product.title} className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" />
+          </div>
+        </motion.div>
+
+        {/* Right: Details */}
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col">
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="px-3 py-1 bg-brand-teal/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-brand-teal">{product.condition}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30">{product.category}</span>
+              {avgRating && (
+                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-500">
+                  <Star size={12} className="fill-amber-500" /> {avgRating} ({reviews.length})
+                </span>
+              )}
+            </div>
+            <h1 className="text-4xl md:text-5xl font-serif font-bold text-luxury-ink mb-4 leading-tight">{product.title}</h1>
+            <p className="text-3xl font-serif font-bold text-brand-pink mb-6 italic">₹{product.price}</p>
+            <p className="text-luxury-ink/60 leading-relaxed text-base mb-8 max-w-lg whitespace-pre-wrap">{product.description}</p>
+
+            {/* Action buttons row */}
+            <div className="flex items-center gap-3 mb-6">
+              <button onClick={toggleWishlist} className={`p-3 rounded-xl border transition-all ${isWishlisted ? 'bg-brand-pink/10 border-brand-pink/20 text-brand-pink' : 'border-luxury-ink/5 text-luxury-ink/30 hover:text-brand-pink'}`}>
+                <Heart size={20} className={isWishlisted ? 'fill-brand-pink' : ''} />
+              </button>
+              <button onClick={handleShare} className="p-3 rounded-xl border border-luxury-ink/5 text-luxury-ink/30 hover:text-brand-teal transition-all">
+                <Share2 size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              <div className="p-4 bg-white border border-brand-teal/5 shadow-sm rounded-xl">
+                <div className="text-[9px] uppercase tracking-widest font-bold text-brand-teal/60 mb-1">Meetup</div>
+                <div className="text-xs font-bold text-luxury-ink">{product.meetupAvailable ? 'Campus Specified' : 'Unavailable'}</div>
+              </div>
+              <div className="p-4 bg-white border border-brand-teal/5 shadow-sm rounded-xl">
+                <div className="text-[9px] uppercase tracking-widest font-bold text-brand-teal/60 mb-1">Service</div>
+                <div className="text-xs font-bold text-luxury-ink">{product.deliveryAvailable ? 'Porter Supported' : 'Meetup Only'}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {/* Seller controls */}
+              {isSeller && isReserved && (
+                <div className="flex gap-3">
+                  <button onClick={handleMarkSold} className="flex-1 py-4 bg-brand-teal text-white text-xs font-bold uppercase tracking-[0.2em] shadow-lg hover:bg-brand-mint transition-all rounded-lg">Mark as Sold</button>
+                  <button onClick={handleUnreserve} className="flex-1 py-4 border-2 border-luxury-ink/10 text-luxury-ink/50 text-xs font-bold uppercase tracking-[0.2em] hover:border-red-300 hover:text-red-400 transition-all rounded-lg">Cancel Reservation</button>
+                </div>
+              )}
+
+              {/* Buyer controls */}
+              {!isSeller && (
+                <>
+                  <button onClick={handleReserve} disabled={!canReserve || isReserving}
+                    className={`w-full py-4 text-white text-xs font-bold uppercase tracking-[0.2em] shadow-lg transition-all rounded-lg ${
+                      isSold ? 'bg-luxury-ink/20 cursor-not-allowed' : isReserved ? 'bg-amber-500 cursor-not-allowed' : 'bg-brand-teal shadow-brand-teal/20 hover:bg-brand-pink'
+                    }`}>
+                    {isReserving ? 'Reserving...' : isSold ? 'Sold Out' : isReserved ? 'Already Reserved' : 'Reserve Now'}
+                  </button>
+                  <button onClick={handleContactSeller} disabled={isStartingChat}
+                    className="w-full py-4 border-2 border-brand-teal text-brand-teal text-xs font-bold uppercase tracking-[0.2em] hover:bg-brand-teal/5 transition-all disabled:opacity-50 rounded-lg">
+                    {isStartingChat ? 'Starting Chat...' : 'Contact Seller'}
+                  </button>
+                </>
+              )}
+
+              {/* Review button — show if sold and user was buyer */}
+              {isSold && user && product.reservedById === user.uid && (
+                <button onClick={() => setShowReviewModal(true)}
+                  className="w-full py-4 bg-amber-500 text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-amber-600 transition-all rounded-lg flex items-center justify-center gap-2">
+                  <Star size={16} /> Leave a Review
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Seller Card */}
+          <div className="mt-auto pt-8 border-t border-luxury-ink/5">
+            <h4 className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30 mb-4">Listed by Verified Student</h4>
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-full bg-brand-teal/10 flex items-center justify-center text-xl font-serif font-bold text-brand-teal shrink-0">
+                {product.sellerName?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-lg font-bold text-luxury-ink">{product.sellerName}</p>
+                  <ShieldCheck size={14} className="text-brand-teal" />
+                </div>
+                <p className="text-sm text-luxury-ink/50 font-medium">{product.sellerSchool}</p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Reviews Section */}
+      {reviews.length > 0 && (
+        <div className="mt-20 pt-12 border-t border-luxury-ink/5">
+          <h2 className="text-2xl font-serif font-bold text-luxury-ink mb-8 italic">Reviews <span className="not-italic text-luxury-ink/30 text-lg">({reviews.length})</span></h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {reviews.map(r => (
+              <div key={r.id} className="bg-white rounded-2xl p-6 luxury-shadow border border-luxury-ink/5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-brand-teal/10 flex items-center justify-center text-sm font-serif font-bold text-brand-teal">
+                    {r.reviewerName?.[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-bold text-luxury-ink text-sm">{r.reviewerName}</p>
+                    <div className="flex items-center gap-1">
+                      {[1,2,3,4,5].map(s => <Star key={s} size={12} className={s <= r.rating ? 'text-amber-500 fill-amber-500' : 'text-luxury-ink/10'} />)}
+                    </div>
+                  </div>
+                </div>
+                {r.comment && <p className="text-luxury-ink/60 text-sm leading-relaxed">{r.comment}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      <AnimatePresence>
+        {showReviewModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl w-full max-w-md p-8 relative shadow-2xl border border-luxury-ink/5">
+              <button onClick={() => setShowReviewModal(false)} className="absolute top-4 right-4 p-2 text-luxury-ink/40 hover:text-luxury-ink"><X size={20} /></button>
+              <h3 className="text-xl font-bold text-luxury-ink mb-2">Rate this Transaction</h3>
+              <p className="text-xs font-bold uppercase tracking-widest text-luxury-ink/40 mb-6">How was your experience?</p>
+              <div className="flex items-center gap-2 mb-6 justify-center">
+                {[1,2,3,4,5].map(s => (
+                  <button key={s} onClick={() => setReviewRating(s)} className="p-1 transition-transform hover:scale-125">
+                    <Star size={32} className={s <= reviewRating ? 'text-amber-500 fill-amber-500' : 'text-luxury-ink/10'} />
+                  </button>
+                ))}
+              </div>
+              <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} rows={3} maxLength={500} placeholder="Share your experience (optional)..."
+                className="w-full bg-surface-base border border-luxury-ink/5 rounded-xl py-4 px-6 focus:outline-none focus:border-brand-teal text-sm font-medium resize-none mb-4" />
+              <button onClick={submitReview} disabled={submittingReview}
+                className="w-full py-4 bg-brand-teal text-white text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg hover:bg-brand-pink transition-colors disabled:opacity-50 rounded-xl">
+                {submittingReview ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

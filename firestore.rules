@@ -1,0 +1,204 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+
+    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(["name", "email", "school", "verified", "reputation", "isAdmin", "createdAt", "updatedAt"])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 150
+        && data.school is string && data.school.size() > 0 && data.school.size() <= 100
+        && data.verified is bool
+        && data.reputation is number
+        && data.isAdmin is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!data.keys().hasAny(['profilePicture']) || (data.profilePicture == null || (data.profilePicture is string && data.profilePicture.size() <= 1000)))
+        && (!data.keys().hasAny(['about']) || (data.about == null || (data.about is string && data.about.size() <= 600)));
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      
+      allow create: if isVerified() 
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUser(incoming())
+        && incoming().email == request.auth.token.email
+        && incoming().verified == false
+        && incoming().reputation == 5.0
+        && incoming().isAdmin == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+        
+      allow update: if isVerified() && isValidId(userId) && (
+        (incoming().diff(existing()).affectedKeys().hasOnly(['name', 'school', 'profilePicture', 'about', 'updatedAt']) 
+          && request.auth.uid == userId
+          && isValidUser(incoming())
+          && incoming().updatedAt == request.time)
+        ||
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['verified', 'reputation', 'isAdmin', 'updatedAt'])
+          && isValidUser(incoming())
+          && incoming().updatedAt == request.time)
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(["sellerId", "sellerName", "sellerSchool", "title", "price", "condition", "category", "image", "description", "meetupAvailable", "deliveryAvailable", "status", "createdAt", "updatedAt"])
+        && data.sellerId is string && data.sellerId.size() > 0 && data.sellerId.size() <= 128
+        && data.sellerName is string && data.sellerName.size() > 0 && data.sellerName.size() <= 100
+        && data.sellerSchool is string && data.sellerSchool.size() > 0 && data.sellerSchool.size() <= 100
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 100
+        && data.price is number && data.price >= 0
+        && data.condition is string && data.condition in ['Brand New', 'Like New', 'Good', 'Used']
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 50
+        && data.image is string && data.image.size() > 0 && data.image.size() <= 1000
+        && data.description is string && data.description.size() <= 2000
+        && data.meetupAvailable is bool
+        && data.deliveryAvailable is bool
+        && data.status is string && data.status in ['pending', 'available', 'reserved', 'sold', 'rejected']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!data.keys().hasAny(['reservedById']) || (data.reservedById == null || (data.reservedById is string && data.reservedById.size() > 0 && data.reservedById.size() <= 128)));
+    }
+
+    match /products/{productId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      
+      allow create: if isVerified() 
+        && isValidId(productId)
+        && request.auth.uid == incoming().sellerId
+        && isValidProduct(incoming())
+        && (!incoming().keys().hasAny(['reservedById']))
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+        
+      allow update: if isVerified() && isValidId(productId) && isValidProduct(incoming()) && (
+        // Seller updates product details
+        (request.auth.uid == existing().sellerId 
+          && existing().status in ['pending', 'available']
+          && incoming().status == existing().status
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'price', 'condition', 'category', 'image', 'description', 'meetupAvailable', 'deliveryAvailable', 'updatedAt'])
+          && incoming().updatedAt == request.time)
+        ||
+        // Buyer reserves product
+        (existing().status == 'available'
+          && incoming().status == 'reserved'
+          && request.auth.uid != existing().sellerId
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reservedById', 'updatedAt'])
+          && incoming().reservedById == request.auth.uid
+          && incoming().updatedAt == request.time)
+        ||
+        // Seller or buyer unreserves
+        (existing().status == 'reserved'
+          && incoming().status == 'available'
+          && (request.auth.uid == existing().sellerId || request.auth.uid == existing().reservedById)
+          && incoming().updatedAt == request.time)
+        ||
+        // Seller marks as sold
+        (existing().status == 'reserved'
+          && incoming().status == 'sold'
+          && request.auth.uid == existing().sellerId
+          && incoming().updatedAt == request.time)
+        ||
+        // Admin overrides (including approval)
+        (isAdmin() && incoming().updatedAt == request.time)
+      );
+      
+      allow delete: if isVerified() && isValidId(productId) && (request.auth.uid == existing().sellerId || isAdmin());
+    }
+
+    // === CHAT ROOMS ===
+    function isValidChatRoom(data) {
+      return data.keys().hasAll(['participants', 'productId', 'updatedAt'])
+        && data.participants is list && data.participants.size() == 2
+        && data.productId is string && data.productId.size() > 0
+        && data.updatedAt is timestamp;
+    }
+
+    match /chatRooms/{roomId} {
+      allow get: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      
+      allow create: if isVerified() 
+        && isValidId(roomId)
+        && request.auth.uid in incoming().participants
+        && isValidChatRoom(incoming());
+        
+      allow update: if isVerified() && isValidId(roomId)
+        && request.auth.uid in existing().participants
+        && (incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt'])
+          || isAdmin());
+
+      match /messages/{messageId} {
+        allow list: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
+        allow create: if isVerified() 
+          && isValidId(messageId)
+          && request.auth.uid == incoming().senderId
+          && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
+          && incoming().createdAt == request.time;
+      }
+    }
+
+    // === WISHLISTS ===
+    match /wishlists/{wishlistId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && incoming().userId == request.auth.uid
+        && incoming().productId is string
+        && incoming().productId.size() > 0;
+
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // === REVIEWS ===
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && incoming().reviewerId == request.auth.uid
+        && incoming().reviewerName is string
+        && incoming().productId is string
+        && incoming().rating is number
+        && incoming().rating >= 1
+        && incoming().rating <= 5
+        && incoming().createdAt == request.time;
+    }
+
+    // === NOTIFICATIONS ===
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && incoming().userId is string
+        && incoming().type is string
+        && incoming().title is string
+        && incoming().read == false;
+
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

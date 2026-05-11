@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A verified student user.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "school": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "reputation": { "type": "number" },
+        "isAdmin": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "profilePicture": { "type": "string" },
+        "about": { "type": "string" }
+      },
+      "required": ["name", "email", "school", "verified", "reputation", "isAdmin", "createdAt", "updatedAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "An item uploaded by a student to sell.",
+      "type": "object",
+      "properties": {
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "sellerSchool": { "type": "string" },
+        "title": { "type": "string" },
+        "price": { "type": "number" },
+        "condition": { "type": "string" },
+        "category": { "type": "string" },
+        "image": { "type": "string" },
+        "description": { "type": "string" },
+        "meetupAvailable": { "type": "boolean" },
+        "deliveryAvailable": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["pending", "available", "reserved", "sold", "rejected"] },
+        "reservedById": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["sellerId", "sellerName", "sellerSchool", "title", "price", "condition", "category", "image", "description", "meetupAvailable", "deliveryAvailable", "status", "createdAt", "updatedAt"]
+    },
+    "ChatRoom": {
+      "title": "Chat Room",
+      "description": "A conversation between two users regarding a product.",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "productId": { "type": "string" },
+        "productTitle": { "type": "string" },
+        "lastMessage": { "type": "string" },
+        "lastSenderId": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["participants", "productId", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A single message in a chat room.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Stores products for sale."
+    },
+    "chatRooms/{roomId}": {
+      "schema": { "$ref": "#/entities/ChatRoom" },
+      "description": "Stores chat room metadata."
+    },
+    "chatRooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Stores messages within a specific chat room."
+    }
+  }
+}
