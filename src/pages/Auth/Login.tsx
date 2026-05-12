@@ -3,7 +3,7 @@ import { ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import React, { useState } from 'react';
 import { auth, db } from '../../lib/firebase';
-import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 
 export default function Login() {
@@ -17,34 +17,51 @@ export default function Login() {
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      
-      // Check if user exists in database
-      const docRef = doc(db, 'users', result.user.uid);
-      const docSnap = await getDoc(docRef);
-      
-      if (!docSnap.exists()) {
-        await signOut(auth);
-        setError("Account not found. Please sign up first.");
-        return;
-      }
-      
-      const data = docSnap.data();
-      if (data.verificationStatus === 'rejected') {
-        navigate('/verification?rejected=true');
-        return;
-      }
-      
-      // Verified users go straight to marketplace; others go to verification
-      if (data.verified) {
-        navigate('/marketplace');
-      } else {
-        navigate('/verification');
-      }
+      // Use redirect instead of popup for better mobile/in-app browser support
+      await signInWithRedirect(auth, provider);
     } catch (err: any) {
-      setError(err.message || 'Failed to authenticate');
+      console.error("Login Error Details:", err);
+      setError(err.message || 'Failed to initialize authentication');
     }
   };
+
+  // Handle the redirect result when the page reloads
+  React.useEffect(() => {
+    const handleRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          // Check if user exists in database
+          const docRef = doc(db, 'users', result.user.uid);
+          const docSnap = await getDoc(docRef);
+          
+          if (!docSnap.exists()) {
+            await signOut(auth);
+            setError("Account not found. Please sign up first.");
+            return;
+          }
+          
+          const data = docSnap.data();
+          if (data.verificationStatus === 'rejected') {
+            navigate('/verification?rejected=true');
+            return;
+          }
+          
+          // Verified users go straight to marketplace; others go to verification
+          if (data.verified) {
+            navigate('/marketplace');
+          } else {
+            navigate('/verification');
+          }
+        }
+      } catch (err: any) {
+        console.error("Redirect Result Error:", err);
+        setError(err.message || 'Failed to complete authentication');
+      }
+    };
+
+    handleRedirect();
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-surface-base flex items-center justify-center px-6 pt-20 pb-10">
