@@ -3,7 +3,7 @@ import { User, Mail, Lock, Building, ArrowRight, ShieldCheck, X } from 'lucide-r
 import { Link, useNavigate } from 'react-router-dom';
 import React, { useState } from 'react';
 import { auth, db } from '../../lib/firebase';
-import { signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 const SCHOOLS = [
@@ -137,71 +137,59 @@ export default function Signup() {
       return;
     }
 
+    const provider = new GoogleAuthProvider();
+
     try {
-      // Store school in localStorage to persist across redirect
-      localStorage.setItem('pending_school', school);
-      const provider = new GoogleAuthProvider();
-      // Use redirect instead of popup for better mobile/in-app browser support
-      await signInWithRedirect(auth, provider);
+      // Try popup first (works on desktop & most mobile browsers)
+      let result;
+      try {
+        result = await signInWithPopup(auth, provider);
+      } catch (popupErr: any) {
+        // If popup is blocked (in-app browsers like Instagram), fall back to redirect
+        if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+          localStorage.setItem('pending_school', school);
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+        throw popupErr;
+      }
+      
+      const user = result.user;
+      
+      // Check if user already exists
+      const docRef = doc(db, 'users', user.uid);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        await setDoc(docRef, {
+          name: user.displayName || 'Unknown Student',
+          email: user.email || '',
+          school: school,
+          verified: false,
+          verificationStatus: 'pending',
+          reputation: 5.0,
+          isAdmin: false,
+          profilePicture: user.photoURL || null,
+          idCardUrl: null,
+          selfieUrl: null,
+          about: null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        navigate('/verification');
+      } else {
+        const existingData = docSnap.data();
+        if (existingData.verified) {
+          navigate('/marketplace');
+        } else {
+          navigate('/verification');
+        }
+      }
     } catch (err: any) {
       console.error("Signup Error Details:", err);
-      setError(err.message || 'Failed to initialize authentication');
+      setError(err.message || 'Failed to authenticate');
     }
   };
-
-  // Handle the redirect result when the page reloads
-  React.useEffect(() => {
-    const handleRedirect = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          const user = result.user;
-          const savedSchool = localStorage.getItem('pending_school');
-          
-          if (!savedSchool) {
-            setError('School selection lost. Please try again.');
-            return;
-          }
-
-          const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (!docSnap.exists()) {
-            await setDoc(docRef, {
-              name: user.displayName || 'Unknown Student',
-              email: user.email || '',
-              school: savedSchool,
-              verified: false,
-              verificationStatus: 'pending',
-              reputation: 5.0,
-              isAdmin: false,
-              profilePicture: user.photoURL || null,
-              idCardUrl: null,
-              selfieUrl: null,
-              about: null,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            });
-            localStorage.removeItem('pending_school');
-            navigate('/verification');
-          } else {
-            localStorage.removeItem('pending_school');
-            const existingData = docSnap.data();
-            if (existingData.verified) {
-              navigate('/marketplace');
-            } else {
-              navigate('/verification');
-            }
-          }
-        }
-      } catch (err: any) {
-        console.error("Redirect Result Error:", err);
-        setError(err.message || 'Failed to complete authentication');
-      }
-    };
-
-    handleRedirect();
-  }, [navigate]);
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 pt-20 bg-surface-base">
