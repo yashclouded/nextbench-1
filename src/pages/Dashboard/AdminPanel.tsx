@@ -248,6 +248,18 @@ export default function AdminPanel() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/20">Rep: {u.reputation?.toFixed(1)}</span>
+                
+                {u.idCardUrl && (
+                  <a href={u.idCardUrl} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-lg border border-luxury-ink/5 hover:bg-brand-teal/5 hover:text-brand-teal transition-all text-luxury-ink/30" title="View ID Card">
+                    <IdCard size={16} />
+                  </a>
+                )}
+                {u.selfieUrl && (
+                  <a href={u.selfieUrl} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-lg border border-luxury-ink/5 hover:bg-brand-pink/5 hover:text-brand-pink transition-all text-luxury-ink/30" title="View Selfie">
+                    <Camera size={16} />
+                  </a>
+                )}
+
                 <button onClick={() => toggleAdmin(u.id, u.isAdmin, u.name)}
                   className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${u.isAdmin ? 'bg-brand-pink/10 text-brand-pink hover:bg-red-50 hover:text-red-500 border border-brand-pink/20' : 'bg-luxury-ink/5 text-luxury-ink/30 hover:bg-brand-teal/10 hover:text-brand-teal border border-luxury-ink/5'
                     }`}>
