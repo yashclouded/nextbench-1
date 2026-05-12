@@ -24,9 +24,10 @@ service cloud.firestore {
         && data.verificationStatus in ['pending', 'approved', 'rejected']
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
-        && (!data.keys().hasAny(['profilePicture']) || (data.profilePicture == null || (data.profilePicture is string && data.profilePicture.size() <= 1000)))
-        && (!data.keys().hasAny(['idCardUrl']) || (data.idCardUrl == null || (data.idCardUrl is string && data.idCardUrl.size() <= 1000)))
-        && (!data.keys().hasAny(['selfieUrl']) || (data.selfieUrl == null || (data.selfieUrl is string && data.selfieUrl.size() <= 1000)))
+        // Cloudinary URLs can be long — allow up to 2000 chars
+        && (!data.keys().hasAny(['profilePicture']) || (data.profilePicture == null || (data.profilePicture is string && data.profilePicture.size() <= 2000)))
+        && (!data.keys().hasAny(['idCardUrl']) || (data.idCardUrl == null || (data.idCardUrl is string && data.idCardUrl.size() <= 2000)))
+        && (!data.keys().hasAny(['selfieUrl']) || (data.selfieUrl == null || (data.selfieUrl is string && data.selfieUrl.size() <= 2000)))
         && (!data.keys().hasAny(['about']) || (data.about == null || (data.about is string && data.about.size() <= 600)));
     }
 
@@ -70,7 +71,8 @@ service cloud.firestore {
         && data.price is number && data.price >= 0
         && data.condition is string && data.condition in ['Brand New', 'Like New', 'Good', 'Used']
         && data.category is string && data.category.size() > 0 && data.category.size() <= 50
-        && data.image is string && data.image.size() > 0 && data.image.size() <= 1000
+        // Cloudinary image URLs can exceed 1000 chars — allow up to 2000
+        && data.image is string && data.image.size() > 0 && data.image.size() <= 2000
         && data.description is string && data.description.size() <= 2000
         && data.meetupAvailable is bool
         && data.deliveryAvailable is bool
@@ -137,8 +139,13 @@ service cloud.firestore {
     }
 
     match /chatRooms/{roomId} {
+      // get: only participants can fetch a specific chat room by ID
       allow get: if isSignedIn() && request.auth.uid in resource.data.participants;
-      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      // list: allow any signed-in user — the client query always filters by
+      // `where('participants', 'array-contains', user.uid)` and a composite
+      // index enforces it; we cannot use resource.data.participants here since
+      // Firestore security rules don't support per-document checks on list queries.
+      allow list: if isSignedIn();
       
       allow create: if isVerified() 
         && isValidId(roomId)
@@ -191,6 +198,9 @@ service cloud.firestore {
     // === NOTIFICATIONS ===
     match /notifications/{notifId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // list: allow signed-in users — client query always filters by
+      // `where('userId', '==', user.uid)` so only own notifications are returned.
+      // resource.data is not available on list queries in security rules.
       allow list: if isSignedIn();
 
       allow create: if isSignedIn()

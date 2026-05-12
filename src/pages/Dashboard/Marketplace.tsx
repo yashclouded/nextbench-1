@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, SlidersHorizontal, ShieldCheck, CheckCircle, Heart, X, ChevronDown } from 'lucide-react';
+import { Search, SlidersHorizontal, CheckCircle, Heart, X, Tag } from 'lucide-react';
 import { categories } from '../../mockData';
 import { Link } from 'react-router-dom';
 import { collection, onSnapshot, query, where, addDoc, deleteDoc, doc, getDocs, serverTimestamp } from 'firebase/firestore';
@@ -48,9 +48,10 @@ export default function Marketplace() {
   const [sortBy, setSortBy] = useState('newest');
 
   useEffect(() => {
+    // Fetch both available and sold products so the marketplace feels populated
     const q = query(
       collection(db, 'products'),
-      where('status', '==', 'available')
+      where('status', 'in', ['available', 'sold'])
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -312,32 +313,52 @@ export default function Marketplace() {
                 className="group"
               >
                 <Link to={`/product/${product.id}`}>
-                  <div className="bg-white p-5 shadow-[0_40px_100px_-20px_rgba(58,139,149,0.15)] border border-brand-teal/5 group-hover:border-brand-pink transition-all duration-500 relative rounded-xl">
+                  <div className={`bg-white p-5 shadow-[0_40px_100px_-20px_rgba(58,139,149,0.15)] border transition-all duration-500 relative rounded-xl ${
+                      product.status === 'sold'
+                        ? 'border-luxury-ink/10 opacity-75 pointer-events-none'
+                        : 'border-brand-teal/5 group-hover:border-brand-pink'
+                    }`}>
                     <div className="aspect-[4/3] overflow-hidden relative mb-5 bg-surface-base rounded-lg">
                       <img 
                         src={product.image} 
                         alt={product.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 grayscale-[0.3] group-hover:grayscale-0"
+                        className={`w-full h-full object-cover transition-transform duration-700 ${
+                          product.status === 'sold'
+                            ? 'grayscale-[0.6]'
+                            : 'group-hover:scale-105 grayscale-[0.3] group-hover:grayscale-0'
+                        }`}
                         referrerPolicy="no-referrer"
                       />
                       <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-lg text-[9px] font-bold uppercase tracking-widest text-brand-teal">
                         {product.condition}
                       </div>
 
-                      {/* Wishlist button */}
-                      <button
-                        onClick={(e) => toggleWishlist(e, product.id)}
-                        className="absolute top-3 right-3 p-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-md hover:scale-110 transition-all"
-                      >
-                        <Heart
-                          size={16}
-                          className={`transition-colors ${
-                            wishlisted.has(product.id)
-                              ? 'text-brand-pink fill-brand-pink'
-                              : 'text-luxury-ink/30'
-                          }`}
-                        />
-                      </button>
+                      {/* SOLD overlay */}
+                      {product.status === 'sold' && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-luxury-ink/20 backdrop-blur-[1px]">
+                          <div className="flex items-center gap-2 bg-luxury-ink text-white px-5 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg">
+                            <Tag size={12} />
+                            Sold
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Wishlist button — only for available items */}
+                      {product.status !== 'sold' && (
+                        <button
+                          onClick={(e) => toggleWishlist(e, product.id)}
+                          className="absolute top-3 right-3 p-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-md hover:scale-110 transition-all"
+                        >
+                          <Heart
+                            size={16}
+                            className={`transition-colors ${
+                              wishlisted.has(product.id)
+                                ? 'text-brand-pink fill-brand-pink'
+                                : 'text-luxury-ink/30'
+                            }`}
+                          />
+                        </button>
+                      )}
                     </div>
                     
                     <div className="flex justify-between items-start mb-3">
@@ -361,8 +382,12 @@ export default function Marketplace() {
                       </div>
                     </div>
                     
-                    <button className="w-full py-3.5 bg-brand-teal text-white text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-brand-teal/20 group-hover:bg-brand-pink transition-colors rounded-lg">
-                      View Details
+                    <button className={`w-full py-3.5 text-white text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg transition-colors rounded-lg ${
+                      product.status === 'sold'
+                        ? 'bg-luxury-ink/40 cursor-not-allowed shadow-none'
+                        : 'bg-brand-teal shadow-brand-teal/20 group-hover:bg-brand-pink'
+                    }`}>
+                      {product.status === 'sold' ? 'Item Sold' : 'View Details'}
                     </button>
                   </div>
                 </Link>

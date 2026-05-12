@@ -35,7 +35,12 @@ export default function Login() {
         return;
       }
       
-      navigate('/dashboard');
+      // Verified users go straight to marketplace; others go to verification
+      if (data.verified) {
+        navigate('/marketplace');
+      } else {
+        navigate('/verification');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to authenticate');
     }

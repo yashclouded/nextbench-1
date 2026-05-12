@@ -159,13 +159,21 @@ export default function Signup() {
           isAdmin: false,
           profilePicture: user.photoURL || null,
           idCardUrl: null,
+          selfieUrl: null,
           about: null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
+        navigate('/verification');
+      } else {
+        // User already exists — redirect based on verification status
+        const existingData = docSnap.data();
+        if (existingData.verified) {
+          navigate('/marketplace');
+        } else {
+          navigate('/verification');
+        }
       }
-
-      navigate('/verification');
     } catch (err: any) {
       console.error("Signup Error Details:", err);
       setError(err.message || 'Failed to authenticate');

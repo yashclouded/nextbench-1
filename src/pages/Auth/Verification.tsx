@@ -25,6 +25,11 @@ export default function Verification() {
   const selfieInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
+    // Already verified → go straight to marketplace
+    if (userData?.verified) {
+      navigate('/marketplace');
+      return;
+    }
     // If user already submitted and is pending, jump to step 3 immediately
     if (userData?.verificationStatus === 'pending' && userData?.idCardUrl) {
       setStep(3);
@@ -69,6 +74,10 @@ export default function Verification() {
       }
       setIsUploading(true);
       try {
+        // Force-refresh the Firebase auth token so Firestore security rules
+        // see the latest claims (email_verified, etc.) before we write.
+        await user.getIdToken(true);
+
         const [idUrl, selfieUrl] = await Promise.all([
           uploadToCloudinary(idFile, 'ids'),
           uploadToCloudinary(selfieFile, 'ids')
