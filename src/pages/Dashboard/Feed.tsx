@@ -308,16 +308,39 @@ export default function Feed() {
       where('status', '==', 'approved')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const userCache: Record<string, any> = {};
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       try {
+        // 1. Identify uncached authors
+        const uncachedIds = new Set<string>();
+        snapshot.forEach(docSnap => {
+          const authorId = docSnap.data().authorId;
+          if (authorId && !userCache[authorId]) uncachedIds.add(authorId);
+        });
+
+        // 2. Fetch missing authors concurrently
+        if (uncachedIds.size > 0) {
+          const promises = Array.from(uncachedIds).map(async (uid) => {
+            const uDoc = await getDoc(doc(db, 'users', uid));
+            if (uDoc.exists()) userCache[uid] = uDoc.data();
+            else userCache[uid] = {}; // Cache empty to avoid refetching
+          });
+          await Promise.all(promises);
+        }
+
+        // 3. Build post list with real-time author data
         const fetchedPosts: Post[] = [];
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
+          const authorData = userCache[data.authorId] || {};
+          
           fetchedPosts.push({
             id: docSnap.id,
             ...data,
-            authorName: data.authorName || 'Unknown User',
-            authorProfilePicture: data.authorProfilePicture || null,
+            // Prioritize real-time user data, fallback to denormalized data
+            authorName: authorData.name || data.authorName || 'Unknown User',
+            authorProfilePicture: authorData.profilePicture || data.authorProfilePicture || null,
           } as Post);
         });
         setRawPosts(fetchedPosts);
