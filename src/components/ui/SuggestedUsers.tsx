@@ -137,7 +137,7 @@ export default function SuggestedUsers() {
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="w-10 h-10 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-sm shrink-0 overflow-hidden border border-brand-teal/5">
                     {suggestion.profilePicture ? (
-                      <img src={getOptimizedImageUrl(suggestion.profilePicture)} alt="" className="w-full h-full object-cover" />
+                      <img src={getOptimizedImageUrl(suggestion.profilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : suggestion.name[0]?.toUpperCase()}
                   </div>
                   <div className="min-w-0 pr-2">
