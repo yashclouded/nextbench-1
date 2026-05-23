@@ -231,6 +231,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
   const handleFollow = async () => {
     if (!user || !targetUserId) return;
+    if (!userData?.verified) {
+      showToast('You must be verified to follow users.', 'error');
+      return;
+    }
     setFollowAnimating(true);
     try {
       if (isFollowing) {
@@ -267,6 +271,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
   const handleBlock = async () => {
     if (!user || !targetUserId) return;
+    if (!userData?.verified) {
+      showToast('You must be verified to block users.', 'error');
+      return;
+    }
     try {
       if (isBlocked) {
         await unblockUser(user.uid, targetUserId);

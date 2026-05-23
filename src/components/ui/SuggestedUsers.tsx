@@ -6,6 +6,7 @@ import { useFollowingIds, followUser, unfollowUser } from '../../lib/follows';
 import { Link } from 'react-router-dom';
 import { UserCheck, UserPlus } from 'lucide-react';
 import { getOptimizedImageUrl } from '../../lib/utils';
+import { useToast } from '../../lib/ToastContext';
 
 interface SuggestedUser {
   id: string;
@@ -16,6 +17,7 @@ interface SuggestedUser {
 
 export default function SuggestedUsers() {
   const { user, userData } = useAuth();
+  const { showToast } = useToast();
   const { followingIds } = useFollowingIds();
   const [suggestions, setSuggestions] = useState<SuggestedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +84,10 @@ export default function SuggestedUsers() {
   const toggleFollow = async (e: React.MouseEvent, targetId: string) => {
     e.preventDefault();
     if (!user) return;
+    if (!userData?.verified) {
+      showToast('You must be verified to follow users.', 'error');
+      return;
+    }
     
     if (followingIds.has(targetId)) {
       await unfollowUser(user.uid, targetId);

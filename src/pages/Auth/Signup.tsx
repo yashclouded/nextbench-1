@@ -274,14 +274,10 @@ export default function Signup() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
-        navigate('/verification');
+        navigate('/dashboard');
       } else {
-        const existingData = docSnap.data();
-        if (existingData.verified) {
-          navigate('/dashboard');
-        } else {
-          navigate('/verification');
-        }
+        // Navigate everyone to dashboard, where interaction guards will restrict them
+        navigate('/dashboard');
       }
     } catch (err: any) {
       console.error("Signup Error Details:", err);

@@ -583,6 +583,10 @@ export default function Feed() {
       window.location.href = '/login';
       return;
     }
+    if (!userData?.verified) {
+      showToast('You must be verified to reply.', 'error');
+      return;
+    }
     if (!selectedPost || !replyContent.trim() || isSubmitting) return;
 
     setIsSubmitting(true);

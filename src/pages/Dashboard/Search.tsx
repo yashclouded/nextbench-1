@@ -9,10 +9,12 @@ import PostCard from '../../components/ui/PostCard';
 import ProductCard from '../../components/ui/ProductCard';
 import { useFollowingIds, followUser, unfollowUser } from '../../lib/follows';
 import { useAuth } from '../../lib/AuthContext';
+import { useToast } from '../../lib/ToastContext';
 import { AnimatePresence, motion } from 'motion/react';
 
 export default function Search() {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
+  const { showToast } = useToast();
   const { followingIds } = useFollowingIds();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'users' | 'posts' | 'products'>('all');
@@ -101,6 +103,10 @@ export default function Search() {
     e.preventDefault();
     if (!user) {
       window.location.href = '/login';
+      return;
+    }
+    if (!userData?.verified) {
+      showToast('You must be verified to follow users.', 'error');
       return;
     }
     if (followingIds.has(targetId)) {
