@@ -131,7 +131,7 @@ export default function ProductDetail() {
 
   const handleContactSeller = async () => {
     if (!user || !userData) { showToast('Please log in to contact the seller.', 'warning'); return; }
-    if (!userData.verified) { showToast('Only verified students can message sellers.', 'warning'); return; }
+    if (!userData || !userData.verified) { showToast('Only verified students can message sellers.', 'warning'); return; }
     if (!product || !id) return;
     if (product.sellerId === user.uid) { showToast('This is your listing.', 'info'); return; }
     setIsStartingChat(true);
@@ -154,7 +154,7 @@ export default function ProductDetail() {
 
   const handleReserve = async () => {
     if (!user || !userData) { showToast('Please log in to reserve items.', 'warning'); return; }
-    if (!userData.verified) { showToast('Only verified students can reserve items.', 'warning'); return; }
+    if (!userData || !userData.verified) { showToast('Only verified students can reserve items.', 'warning'); return; }
     if (!product || !id || product.sellerId === user.uid) return;
     setIsReserving(true);
     try {

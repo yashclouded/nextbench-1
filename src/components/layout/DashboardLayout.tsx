@@ -3,8 +3,12 @@ import SidebarNav from './SidebarNav';
 import BottomNav from './BottomNav';
 import MobileHeader from './MobileHeader';
 import SuggestedUsers from '../ui/SuggestedUsers';
+import { useAuth } from '../../lib/AuthContext';
+import UsernameSetup from '../ui/UsernameSetup';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  const { userData } = useAuth();
+  const needsUsername = !!(userData && userData.verified && !userData.username);
   return (
     <div className="min-h-screen bg-surface-base font-sans selection:bg-brand-teal/20 selection:text-brand-teal text-luxury-ink relative">
       {/* Ambient decoration orbs */}
@@ -33,6 +37,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       {/* Bottom Nav for Mobile */}
       <BottomNav />
+      
+      {needsUsername && <UsernameSetup isOpen={true} mandatory={true} onClose={() => {}} />}
     </div>
   );
 }

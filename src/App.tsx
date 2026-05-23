@@ -81,8 +81,8 @@ export default function App() {
           <Route path="/sell" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
           <Route path="/profile/:userId" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
-          <Route path="/messages" element={<ProtectedRoute requireAuth><ChatList /></ProtectedRoute>} />
-          <Route path="/chat/:roomId" element={<ProtectedRoute requireAuth><ChatRoom /></ProtectedRoute>} />
+          <Route path="/messages" element={<ProtectedRoute requireAuth requireVerified><ChatList /></ProtectedRoute>} />
+          <Route path="/chat/:roomId" element={<ProtectedRoute requireAuth requireVerified><ChatRoom /></ProtectedRoute>} />
           <Route path="/wishlist" element={<ProtectedRoute requireAuth><Wishlist /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute requireAuth><Notifications /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requireAuth requireAdmin><AdminPanel /></ProtectedRoute>} />
