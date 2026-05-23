@@ -251,7 +251,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     setIsDMing(true);
     try {
       const roomId = await getOrCreateDMRoom(user.uid, targetUserId);
-      navigate(`/chat/${roomId}`);
+      navigate(`/chat/${roomId}`, { state: { otherUser: profileUser } });
     } catch (err) {
       showToast('Failed to start conversation', 'error');
     } finally {

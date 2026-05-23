@@ -162,7 +162,8 @@ export default function ChatList() {
       const roomId = await getOrCreateDMRoom(user.uid, otherUserId);
       setShowNewDM(false);
       setSearchUsers('');
-      navigate(`/chat/${roomId}`);
+      const u = userResults.find(u => u.id === otherUserId);
+      navigate(`/chat/${roomId}`, { state: { otherUser: u } });
     } catch (err) {
       console.error('Failed to create DM:', err);
     } finally {
@@ -251,6 +252,7 @@ export default function ChatList() {
             return (
               <Link 
                 to={`/chat/${room.id}`} 
+                state={{ otherUser: room.otherUser, roomData: room }}
                 key={room.id}
                 className="block group px-2 md:px-0"
               >

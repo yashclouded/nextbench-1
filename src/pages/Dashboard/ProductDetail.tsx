@@ -147,7 +147,7 @@ export default function ProductDetail() {
         roomId = newRoom.id;
         createNotification({ userId: product.sellerId, type: 'new_message', title: 'New inquiry', message: `${userData.name} wants to chat about "${product.title}"`, link: `/chat/${roomId}` });
       }
-      navigate(`/chat/${roomId}`);
+      navigate(`/chat/${roomId}`, { state: { otherUser: { id: product.sellerId, name: product.sellerName, school: product.sellerSchool } } });
     } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'chatRooms'); }
     finally { setIsStartingChat(false); }
   };
