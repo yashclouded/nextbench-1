@@ -10,7 +10,7 @@ import { useToast } from '../../lib/ToastContext';
 import { uploadProfilePicture } from '../../lib/storage';
 import { isHeicFile, convertHeicToJpeg } from '../../lib/heic-converter';
 import { getOptimizedImageUrl } from '../../lib/utils';
-import { followUser, unfollowUser, useFollowStatus, useFollowCounts, useFollowersList, useFollowingList } from '../../lib/follows';
+import { followUser, unfollowUser, useFollowStatus, useFollowCounts } from '../../lib/follows';
 import { getOrCreateDMRoom } from '../../lib/dm';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useBlockStatus, blockUser, unblockUser } from '../../lib/blocks';
@@ -74,8 +74,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
   const { isFollowing, isFollowedBy, isFriend } = useFollowStatus(targetUserId);
   const { followersCount, followingCount } = useFollowCounts(targetUserId);
-  const followerIds = useFollowersList(targetUserId);
-  const followingIds = useFollowingList(targetUserId);
+  // followerIds / followingIds are fetched on-demand when modals open
   const { isBlocked, isBlockedBy } = useBlockStatus(targetUserId);
 
   // Close more menu on outside click
@@ -231,6 +230,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
   const handleFollow = async () => {
     if (!user || !targetUserId) return;
+    if (!userData?.verified) {
+      showToast('You must be verified to follow users.', 'error');
+      return;
+    }
     setFollowAnimating(true);
     try {
       if (isFollowing) {
@@ -267,6 +270,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
   const handleBlock = async () => {
     if (!user || !targetUserId) return;
+    if (!userData?.verified) {
+      showToast('You must be verified to block users.', 'error');
+      return;
+    }
     try {
       if (isBlocked) {
         await unblockUser(user.uid, targetUserId);
@@ -300,13 +307,14 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     setLoadingFollowList(true);
     try {
       const users: any[] = [];
-      for (const uid of userIds.slice(0, 50)) {
+      // Fetch concurrently instead of sequentially
+      const promises = userIds.slice(0, 50).map(async (uid) => {
         const docSnap = await getDoc(doc(db, 'users', uid));
-        if (docSnap.exists()) {
-          users.push({ id: docSnap.id, ...docSnap.data() });
-        }
-      }
-      setFollowListUsers(users);
+        if (docSnap.exists()) return { id: docSnap.id, ...docSnap.data() };
+        return null;
+      });
+      const results = await Promise.all(promises);
+      setFollowListUsers(results.filter(Boolean));
     } catch (err) {
       console.error('Error loading follow list:', err);
     } finally {
@@ -314,16 +322,24 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     }
   };
 
-  const openFollowers = () => {
+  const openFollowers = async () => {
     setShowFollowersModal(true);
     setShowFollowingModal(false);
-    loadFollowList(followerIds);
+    // Fetch follower IDs on demand
+    const { collection: coll, query: q, where: w, getDocs: gd } = await import('firebase/firestore');
+    const snap = await gd(q(coll(db, 'follows'), w('followingId', '==', targetUserId)));
+    const ids = snap.docs.map(d => d.data().followerId);
+    loadFollowList(ids);
   };
 
-  const openFollowing = () => {
+  const openFollowing = async () => {
     setShowFollowingModal(true);
     setShowFollowersModal(false);
-    loadFollowList(followingIds);
+    // Fetch following IDs on demand
+    const { collection: coll, query: q, where: w, getDocs: gd } = await import('firebase/firestore');
+    const snap = await gd(q(coll(db, 'follows'), w('followerId', '==', targetUserId)));
+    const ids = snap.docs.map(d => d.data().followingId);
+    loadFollowList(ids);
   };
 
   // ─── Blocked States ─────────────────────────────────────

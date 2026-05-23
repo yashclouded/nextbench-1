@@ -1,13 +1,4 @@
-/**
- * Follow System — Firestore-backed follows with friend detection
- * 
- * Collection: `follows`
- * Document schema: { followerId: string, followingId: string, createdAt: Timestamp }
- * 
- * "Friends" = mutual follow (A follows B AND B follows A)
- */
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   collection, query, where, onSnapshot,
   addDoc, deleteDoc, getDocs, serverTimestamp
@@ -182,11 +173,16 @@ export function useFollowingIds() {
     return () => { unsub1(); unsub2(); };
   }, [user]);
 
-  // Compute friends: people I follow who also follow me back
-  const friendIds = new Set<string>();
-  followingIds.forEach(id => {
-    if (followerIdsSet.has(id)) friendIds.add(id);
-  });
+  // CRITICAL: Memoize friendIds so it's a stable reference.
+  // Without this, friendIds is a new Set on every render, causing any
+  // useEffect with it in its dependency array to re-fire endlessly.
+  const friendIds = useMemo(() => {
+    const friends = new Set<string>();
+    followingIds.forEach(id => {
+      if (followerIdsSet.has(id)) friends.add(id);
+    });
+    return friends;
+  }, [followingIds, followerIdsSet]);
 
   return { followingIds, friendIds };
 }

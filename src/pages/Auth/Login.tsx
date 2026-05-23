@@ -57,11 +57,8 @@ export default function Login() {
 
       const data = docSnap.data();
 
-      if (data.verified) {
-        navigate('/dashboard', { replace: true });
-      } else {
-        navigate('/verification', { replace: true });
-      }
+      // Everyone goes to dashboard, where interaction guards will restrict them
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       console.error('Login Error:', err);
       setError(err.message || 'Failed to authenticate. Please try again.');

@@ -1,29 +1,41 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import DashboardLayout from './components/layout/DashboardLayout';
-
-import LandingPage from './pages/LandingPage';
-import Login from './pages/Auth/Login';
-import Signup from './pages/Auth/Signup';
-import Verification from './pages/Auth/Verification';
-import ProductDetail from './pages/Dashboard/ProductDetail';
-import Profile from './pages/Dashboard/Profile';
-import SellItem from './pages/Dashboard/SellItem';
-import AdminPanel from './pages/Dashboard/AdminPanel';
-import ChatList from './pages/Dashboard/ChatList';
-import ChatRoom from './pages/Dashboard/ChatRoom';
-import Wishlist from './pages/Dashboard/Wishlist';
-import Notifications from './pages/Dashboard/Notifications';
-import TermsPage from './pages/Legal/TermsPage';
-import PrivacyPage from './pages/Legal/PrivacyPage';
-import Feed from './pages/Dashboard/Feed';
-import Search from './pages/Dashboard/Search';
-import UsernameProfile from './pages/Dashboard/UsernameProfile';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 import { useAuth } from './lib/AuthContext';
+
+// ─── Lazy-loaded pages ─────────────────────────────────────
+// Each page is only downloaded when the user navigates to it,
+// cutting the initial JS bundle dramatically.
+const LandingPage = React.lazy(() => import('./pages/LandingPage'));
+const Login = React.lazy(() => import('./pages/Auth/Login'));
+const Signup = React.lazy(() => import('./pages/Auth/Signup'));
+const Verification = React.lazy(() => import('./pages/Auth/Verification'));
+const Feed = React.lazy(() => import('./pages/Dashboard/Feed'));
+const Search = React.lazy(() => import('./pages/Dashboard/Search'));
+const ProductDetail = React.lazy(() => import('./pages/Dashboard/ProductDetail'));
+const Profile = React.lazy(() => import('./pages/Dashboard/Profile'));
+const SellItem = React.lazy(() => import('./pages/Dashboard/SellItem'));
+const AdminPanel = React.lazy(() => import('./pages/Dashboard/AdminPanel'));
+const ChatList = React.lazy(() => import('./pages/Dashboard/ChatList'));
+const ChatRoom = React.lazy(() => import('./pages/Dashboard/ChatRoom'));
+const Wishlist = React.lazy(() => import('./pages/Dashboard/Wishlist'));
+const Notifications = React.lazy(() => import('./pages/Dashboard/Notifications'));
+const TermsPage = React.lazy(() => import('./pages/Legal/TermsPage'));
+const PrivacyPage = React.lazy(() => import('./pages/Legal/PrivacyPage'));
+const UsernameProfile = React.lazy(() => import('./pages/Dashboard/UsernameProfile'));
+
+// Minimal loading fallback — fast and non-disruptive
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 /** Redirects logged-in-but-unverified users to /verification, and not-logged-in to /signup */
 function VerificationGuard({ children }: { children: React.ReactNode }) {
@@ -59,41 +71,43 @@ export default function App() {
         <meta name="description" content="Nextbench is the exclusive marketplace and community for verified students. Buy, sell, and connect." />
       </Helmet>
       
-      <Routes>
-        {/* Public Marketing/Auth Layout (Navbar + Footer) */}
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/verification" element={<VerificationGuard><Verification /></VerificationGuard>} />
-        </Route>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Public Marketing/Auth Layout (Navbar + Footer) */}
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/verification" element={<VerificationGuard><Verification /></VerificationGuard>} />
+          </Route>
 
-        {/* Dashboard 3-Column Layout */}
-        <Route element={<DashLayout />}>
-          {/* Protected Routes */}
-          {/* Publicly Accessible Dashboard Routes */}
-          <Route path="/dashboard" element={<Feed />} />
-          <Route path="/community" element={<Feed />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/product/:id" element={<ProductDetail />} />
-          <Route path="/sell" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
-          <Route path="/profile/:userId" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
-          <Route path="/messages" element={<ProtectedRoute requireAuth requireVerified><ChatList /></ProtectedRoute>} />
-          <Route path="/chat/:roomId" element={<ProtectedRoute requireAuth requireVerified><ChatRoom /></ProtectedRoute>} />
-          <Route path="/wishlist" element={<ProtectedRoute requireAuth><Wishlist /></ProtectedRoute>} />
-          <Route path="/notifications" element={<ProtectedRoute requireAuth><Notifications /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute requireAuth requireAdmin><AdminPanel /></ProtectedRoute>} />
-          
-          {/* Username route — MUST be last in dashboard routes */}
-          <Route path="/:username" element={<UsernameProfile />} />
-        </Route>
+          {/* Dashboard 3-Column Layout */}
+          <Route element={<DashLayout />}>
+            {/* Protected Dashboard Routes */}
+            <Route path="/dashboard" element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
+            <Route path="/community" element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
+            <Route path="/search" element={<ProtectedRoute requireAuth><Search /></ProtectedRoute>} />
+            <Route path="/product/:id" element={<ProtectedRoute requireAuth><ProductDetail /></ProtectedRoute>} />
+            <Route path="/sell" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
+            <Route path="/profile/:userId" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
+            <Route path="/messages" element={<ProtectedRoute requireAuth requireVerified><ChatList /></ProtectedRoute>} />
+            <Route path="/chat/:roomId" element={<ProtectedRoute requireAuth requireVerified><ChatRoom /></ProtectedRoute>} />
+            <Route path="/wishlist" element={<ProtectedRoute requireAuth requireVerified><Wishlist /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute requireAuth requireVerified><Notifications /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute requireAuth requireAdmin><AdminPanel /></ProtectedRoute>} />
+            
+            {/* Username route — MUST be last in dashboard routes */}
+            <Route path="/:username" element={<ProtectedRoute requireAuth><UsernameProfile /></ProtectedRoute>} />
+          </Route>
 
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }
+

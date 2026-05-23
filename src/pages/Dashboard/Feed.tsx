@@ -266,7 +266,6 @@ function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelet
 // ─── Main Posts Component ─────────────────────────────────
 
 export default function Feed() {
-  const [posts, setPosts] = useState<Post[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -298,62 +297,53 @@ export default function Feed() {
   const [wishlisted, setWishlisted] = useState<Set<string>>(new Set());
   const [wishlistMap, setWishlistMap] = useState<Record<string, string>>({});
 
+  const [rawPosts, setRawPosts] = useState<Post[]>([]);
+
+  // Firestore listener — stable subscription, no dependency on followingIds/friendIds.
+  // This listener only fires when Firestore posts actually change,
+  // NOT when the user's follows change.
   useEffect(() => {
     const q = query(
       collection(db, 'posts'),
       where('status', '==', 'approved')
     );
 
-    const now = Date.now();
+    const userCache: Record<string, any> = {};
+
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       try {
-        const fetchedPosts: Post[] = [];
-        const authorPostCount: Record<string, number> = {};
-        
-        // Pre-fetch unique authors (REMOVED to prevent N+1 queries)
-        // Relying entirely on denormalized data on the post documents.
+        // 1. Identify uncached authors
+        const uncachedIds = new Set<string>();
+        snapshot.forEach(docSnap => {
+          const authorId = docSnap.data().authorId;
+          if (authorId && !userCache[authorId]) uncachedIds.add(authorId);
+        });
 
+        // 2. Fetch missing authors concurrently
+        if (uncachedIds.size > 0) {
+          const promises = Array.from(uncachedIds).map(async (uid) => {
+            const uDoc = await getDoc(doc(db, 'users', uid));
+            if (uDoc.exists()) userCache[uid] = uDoc.data();
+            else userCache[uid] = {}; // Cache empty to avoid refetching
+          });
+          await Promise.all(promises);
+        }
+
+        // 3. Build post list with real-time author data
+        const fetchedPosts: Post[] = [];
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
-          const postTime = data.createdAt?.toMillis() || now;
-          const hoursPassed = Math.max(0, (now - postTime) / (1000 * 60 * 60));
-
-          // Improved algorithm
-          const baseHype = ((data.upvotesCount || 0) * 2) + ((data.repliesCount || 0) * 3);
-          const timePenalty = hoursPassed * 0.5;
-          const cityBoost = (userData?.city && data.city === userData.city) ? 10 : 0;
-          const schoolBoost = (userData?.school && data.school === userData.school) ? 15 : 0;
-          const followBoost = followingIds.has(data.authorId) ? 20 : 0;
-          const friendBoost = friendIds.has(data.authorId) ? 30 : 0;
-
-          // Diversity penalty
-          authorPostCount[data.authorId] = (authorPostCount[data.authorId] || 0) + 1;
-          const diversityPenalty = authorPostCount[data.authorId] > 2 ? (authorPostCount[data.authorId] - 2) * 10 : 0;
-
-          const feedScore = baseHype - timePenalty + cityBoost + schoolBoost + followBoost + friendBoost - diversityPenalty;
-
-          // Use denormalized data
-          const postData = {
+          const authorData = userCache[data.authorId] || {};
+          
+          fetchedPosts.push({
             id: docSnap.id,
-            feedScore,
             ...data,
-            authorName: data.authorName || 'Unknown User',
-            authorProfilePicture: data.authorProfilePicture || null,
-          } as Post;
-
-          fetchedPosts.push(postData);
+            // Prioritize real-time user data, fallback to denormalized data
+            authorName: authorData.name || data.authorName || 'Unknown User',
+            authorProfilePicture: authorData.profilePicture || data.authorProfilePicture || null,
+          } as Post);
         });
-
-        fetchedPosts.sort((a, b) => {
-          if (a.feedScore !== b.feedScore) {
-            return (b.feedScore || 0) - (a.feedScore || 0);
-          }
-          const timeA = a.createdAt?.toMillis() || 0;
-          const timeB = b.createdAt?.toMillis() || 0;
-          return timeB - timeA;
-        });
-
-        setPosts(fetchedPosts);
+        setRawPosts(fetchedPosts);
       } catch (err) {
         console.error("Error fetching posts:", err);
       } finally {
@@ -365,7 +355,41 @@ export default function Feed() {
     });
 
     return () => unsubscribe();
-  }, [userData, followingIds, friendIds]);
+  }, []); // Stable — no deps means no re-subscription
+
+  // Feed scoring — runs in useMemo, instant re-computation when follows/userData change.
+  // This never creates or destroys Firestore listeners.
+  const posts = useMemo(() => {
+    const now = Date.now();
+    const authorPostCount: Record<string, number> = {};
+
+    const scored = rawPosts.map(post => {
+      const postTime = post.createdAt?.toMillis() || now;
+      const hoursPassed = Math.max(0, (now - postTime) / (1000 * 60 * 60));
+
+      const baseHype = ((post.upvotesCount || 0) * 2) + ((post.repliesCount || 0) * 3);
+      const timePenalty = hoursPassed * 0.5;
+      const cityBoost = (userData?.city && post.city === userData.city) ? 10 : 0;
+      const schoolBoost = (userData?.school && post.school === userData.school) ? 15 : 0;
+      const followBoost = followingIds.has(post.authorId) ? 20 : 0;
+      const friendBoost = friendIds.has(post.authorId) ? 30 : 0;
+
+      authorPostCount[post.authorId] = (authorPostCount[post.authorId] || 0) + 1;
+      const diversityPenalty = authorPostCount[post.authorId] > 2 ? (authorPostCount[post.authorId] - 2) * 10 : 0;
+
+      const feedScore = baseHype - timePenalty + cityBoost + schoolBoost + followBoost + friendBoost - diversityPenalty;
+      return { ...post, feedScore };
+    });
+
+    scored.sort((a, b) => {
+      if (a.feedScore !== b.feedScore) return (b.feedScore || 0) - (a.feedScore || 0);
+      const timeA = a.createdAt?.toMillis() || 0;
+      const timeB = b.createdAt?.toMillis() || 0;
+      return timeB - timeA;
+    });
+
+    return scored;
+  }, [rawPosts, userData, followingIds, friendIds]);
 
   // Fetch Products
   useEffect(() => {
@@ -581,6 +605,10 @@ export default function Feed() {
     e.preventDefault();
     if (!user) {
       window.location.href = '/login';
+      return;
+    }
+    if (!userData?.verified) {
+      showToast('You must be verified to reply.', 'error');
       return;
     }
     if (!selectedPost || !replyContent.trim() || isSubmitting) return;

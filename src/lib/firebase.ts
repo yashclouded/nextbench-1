@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,5 +11,12 @@ const firebaseConfig = {
 const firestoreDbId = import.meta.env.VITE_FIREBASE_FIRESTORE_DB || '(default)';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firestoreDbId);
+
+// Enable persistent local cache — data survives page refreshes and tab switches.
+// This eliminates cold-start latency: the app renders from cache instantly while
+// syncing with the server in the background.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+}, firestoreDbId);
+
 export const auth = getAuth(app);

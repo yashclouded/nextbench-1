@@ -31,7 +31,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, isWishlisted, wishlistDocId }: ProductCardProps) {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -40,6 +40,10 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
     e.stopPropagation();
     if (!user) {
       showToast('Please log in to save items', 'warning');
+      return;
+    }
+    if (!userData?.verified) {
+      showToast('You must be verified to save items', 'warning');
       return;
     }
 

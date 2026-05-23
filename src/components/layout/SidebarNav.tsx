@@ -119,7 +119,7 @@ export default function SidebarNav() {
             >
               <div className="w-11 h-11 rounded-full bg-brand-teal/10 flex items-center justify-center overflow-hidden shrink-0 border border-brand-teal/20 group-hover:border-brand-teal/40 transition-colors">
                 {userData?.profilePicture ? (
-                  <img src={getOptimizedImageUrl(userData.profilePicture)} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={getOptimizedImageUrl(userData.profilePicture)} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
                   <span className="text-brand-teal font-black text-sm">
                     {(userData?.name || user.email || 'U')[0].toUpperCase()}

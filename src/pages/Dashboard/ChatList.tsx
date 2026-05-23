@@ -260,7 +260,7 @@ export default function ChatList() {
                   <div className="relative shrink-0">
                     <div className="w-14 h-14 rounded-full bg-brand-teal/5 flex items-center justify-center overflow-hidden">
                       {room.otherUser?.profilePicture ? (
-                        <img src={getOptimizedImageUrl(room.otherUser.profilePicture)} alt="" className="w-full h-full object-cover" />
+                        <img src={getOptimizedImageUrl(room.otherUser.profilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
                         <User size={24} className="text-brand-teal" />
                       )}

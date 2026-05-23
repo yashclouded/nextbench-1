@@ -5,6 +5,8 @@ import MobileHeader from './MobileHeader';
 import SuggestedUsers from '../ui/SuggestedUsers';
 import { useAuth } from '../../lib/AuthContext';
 import UsernameSetup from '../ui/UsernameSetup';
+import { ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { userData } = useAuth();
@@ -14,6 +16,16 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Ambient decoration orbs */}
       <div className="ambient-orb ambient-orb-teal" />
       <div className="ambient-orb ambient-orb-pink" />
+      
+      {userData && !userData.verified && (
+        <div className="bg-brand-teal text-white px-4 py-3 text-center text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-3 z-50 relative">
+          <ShieldAlert size={16} />
+          <span>Your account is unverified. You can browse, but interactions are disabled.</span>
+          <Link to="/verification" className="bg-white text-brand-teal px-3 py-1 rounded-full hover:bg-brand-pink hover:text-white transition-colors">
+            Verify Now
+          </Link>
+        </div>
+      )}
       
       <MobileHeader />
       {/* 3-column Layout for Desktop */}
