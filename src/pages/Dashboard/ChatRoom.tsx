@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Phone, Flag, Camera, X, Image as ImageIcon, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, where, getDocs, writeBatch, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, where, getDocs, writeBatch, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useToast } from '../../lib/ToastContext';
 import { uploadChatImage } from '../../lib/storage';
@@ -102,11 +102,11 @@ export default function ChatRoom() {
     };
     fetchRoom();
 
-    const q = query(collection(db, 'chatRooms', roomId, 'messages'), orderBy('createdAt', 'asc'));
+    const q = query(collection(db, 'chatRooms', roomId, 'messages'), orderBy('createdAt', 'desc'), limit(100));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs: Message[] = [];
       snapshot.forEach((doc) => msgs.push({ id: doc.id, ...doc.data() } as Message));
-      setMessages(msgs);
+      setMessages(msgs.reverse());
     }, (err) => {
       handleFirestoreError(err, OperationType.LIST, `chatRooms/${roomId}/messages`);
     });

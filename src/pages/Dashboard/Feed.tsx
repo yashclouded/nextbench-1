@@ -310,19 +310,8 @@ export default function Feed() {
         const fetchedPosts: Post[] = [];
         const authorPostCount: Record<string, number> = {};
         
-        // Cache unique authors to minimize reads
-        const userCache: Record<string, any> = {};
-        
-        // Pre-fetch unique authors
-        const uniqueAuthorIds = new Set<string>();
-        snapshot.docs.forEach(d => uniqueAuthorIds.add(d.data().authorId));
-        
-        for (const authorId of uniqueAuthorIds) {
-          if (authorId) {
-            const uDoc = await getDoc(doc(db, 'users', authorId));
-            userCache[authorId] = uDoc.data();
-          }
-        }
+        // Pre-fetch unique authors (REMOVED to prevent N+1 queries)
+        // Relying entirely on denormalized data on the post documents.
 
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
@@ -343,14 +332,13 @@ export default function Feed() {
 
           const feedScore = baseHype - timePenalty + cityBoost + schoolBoost + followBoost + friendBoost - diversityPenalty;
 
-          // Merge live user data
-          const liveUser = userCache[data.authorId];
+          // Use denormalized data
           const postData = {
             id: docSnap.id,
             feedScore,
             ...data,
-            authorName: liveUser?.name || data.authorName || 'Unknown User',
-            authorProfilePicture: liveUser?.profilePicture || data.authorProfilePicture || null,
+            authorName: data.authorName || 'Unknown User',
+            authorProfilePicture: data.authorProfilePicture || null,
           } as Post;
 
           fetchedPosts.push(postData);
@@ -389,26 +377,16 @@ export default function Feed() {
       try {
         const fetchedProducts: Product[] = [];
         
-        // Cache unique sellers to minimize reads
-        const userCache: Record<string, any> = {};
-        const uniqueSellerIds = new Set<string>();
-        snapshot.docs.forEach(d => uniqueSellerIds.add(d.data().sellerId));
-        
-        for (const sellerId of uniqueSellerIds) {
-          if (sellerId) {
-            const uDoc = await getDoc(doc(db, 'users', sellerId));
-            userCache[sellerId] = uDoc.data();
-          }
-        }
+        // Removed N+1 getDoc queries for sellers to improve speed
+        // Relying purely on denormalized data.
 
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
-          const liveUser = userCache[data.sellerId];
           fetchedProducts.push({
             id: docSnap.id,
             ...data,
-            sellerName: liveUser?.name || data.sellerName || 'Unknown User',
-            sellerSchool: liveUser?.school || data.sellerSchool || 'Unknown School',
+            sellerName: data.sellerName || 'Unknown User',
+            sellerSchool: data.sellerSchool || 'Unknown School',
           } as Product);
         });
 

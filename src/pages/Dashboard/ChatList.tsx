@@ -47,6 +47,8 @@ export default function ChatList() {
   useEffect(() => {
     if (!user) return;
 
+    const userCache: { [key: string]: any } = {};
+
     const q = query(
       collection(db, 'chatRooms'),
       where('participants', 'array-contains', user.uid)
@@ -55,17 +57,32 @@ export default function ChatList() {
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       try {
         const rooms: ChatRoom[] = [];
-        const userCache: { [key: string]: any } = {};
 
+        // 1. Identify uncached users
+        const uncachedUserIds = new Set<string>();
+        for (const roomDoc of snapshot.docs) {
+          const data = roomDoc.data() as ChatRoom;
+          const otherUserId = data.participants.find(id => id !== user.uid);
+          if (otherUserId && !userCache[otherUserId]) {
+            uncachedUserIds.add(otherUserId);
+          }
+        }
+
+        // 2. Fetch missing users concurrently
+        if (uncachedUserIds.size > 0) {
+          const fetchPromises = Array.from(uncachedUserIds).map(async (userId) => {
+            const uDoc = await getDoc(doc(db, 'users', userId));
+            userCache[userId] = uDoc.data();
+          });
+          await Promise.all(fetchPromises);
+        }
+
+        // 3. Build room list
         for (const roomDoc of snapshot.docs) {
           const data = roomDoc.data() as ChatRoom;
           const otherUserId = data.participants.find(id => id !== user.uid);
           
           if (otherUserId) {
-            if (!userCache[otherUserId]) {
-              const uDoc = await getDoc(doc(db, 'users', otherUserId));
-              userCache[otherUserId] = uDoc.data();
-            }
             rooms.push({ id: roomDoc.id, ...data, otherUser: userCache[otherUserId] });
           }
         }
