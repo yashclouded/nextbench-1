@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Phone, Flag, Camera, X, Image as ImageIcon, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
@@ -47,10 +47,11 @@ export default function ChatRoom() {
   const { roomId } = useParams<{ roomId: string }>();
   const { user, userData } = useAuth();
   const { showToast } = useToast();
+  const location = useLocation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [roomData, setRoomData] = useState<ChatRoomData | null>(null);
-  const [otherUser, setOtherUser] = useState<any>(null);
+  const [roomData, setRoomData] = useState<ChatRoomData | null>(location.state?.roomData || null);
+  const [otherUser, setOtherUser] = useState<any>(location.state?.otherUser || null);
   const [showOptions, setShowOptions] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
@@ -83,11 +84,16 @@ export default function ChatRoom() {
         const roomDoc = await getDoc(doc(db, 'chatRooms', roomId));
         if (roomDoc.exists()) {
           const data = roomDoc.data() as ChatRoomData;
-          setRoomData(data);
+          if (!roomData) setRoomData(data); // only set if we didn't have it
+          
           const otherUserId = data.participants.find(id => id !== user.uid);
-          if (otherUserId) {
+          if (otherUserId && !otherUser) {
             const userDoc = await getDoc(doc(db, 'users', otherUserId));
-            if (userDoc.exists()) setOtherUser({ id: otherUserId, ...userDoc.data() });
+            if (userDoc.exists()) {
+              setOtherUser({ id: otherUserId, ...userDoc.data() });
+            } else {
+              setOtherUser({ id: otherUserId, name: 'Deleted User', profilePicture: null });
+            }
           }
           
           if (data.unreadBy && data.unreadBy.includes(user.uid)) {
@@ -100,7 +106,9 @@ export default function ChatRoom() {
         handleFirestoreError(err, OperationType.GET, `chatRooms/${roomId}`);
       }
     };
-    fetchRoom();
+    if (!roomData || !otherUser) {
+      fetchRoom();
+    }
 
     const q = query(collection(db, 'chatRooms', roomId, 'messages'), orderBy('createdAt', 'desc'), limit(100));
     const unsubscribe = onSnapshot(q, (snapshot) => {
