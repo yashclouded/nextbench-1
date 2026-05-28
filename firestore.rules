@@ -55,13 +55,13 @@ service cloud.firestore {
           && (!incoming().keys().hasAny(['anonymousPersonaName']) || (incoming().anonymousPersonaName == null || incoming().anonymousPersonaName is string))
           && incoming().updatedAt == request.time)
         ||
-        (incoming().diff(existing()).affectedKeys().hasOnly(['username', 'lastUsernameChange', 'name', 'school', 'city', 'profilePicture', 'about', 'idCardUrl', 'selfieUrl', 'verificationStatus', 'updatedAt', 'anonymousPersonaName']) 
+        (incoming().diff(existing()).affectedKeys().hasOnly(['username', 'lastUsernameChange', 'name', 'city', 'profilePicture', 'about', 'idCardUrl', 'selfieUrl', 'verificationStatus', 'updatedAt', 'anonymousPersonaName']) 
           && request.auth.uid == userId
           && isValidUser(incoming())
           && (incoming().get('verificationStatus', 'approved') == existing().get('verificationStatus', 'approved') || (existing().get('verificationStatus', 'approved') == 'rejected' && incoming().get('verificationStatus', 'approved') == 'pending'))
           && incoming().updatedAt == request.time)
         ||
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['verified', 'reputation', 'isAdmin', 'verificationStatus', 'city', 'updatedAt'])
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['verified', 'reputation', 'isAdmin', 'verificationStatus', 'city', 'school', 'updatedAt'])
           && isValidUser(incoming())
           && incoming().updatedAt == request.time)
       );
@@ -377,7 +377,7 @@ service cloud.firestore {
         && incoming().status == 'pending'
         && incoming().createdAt == request.time;
 
-      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
       allow delete: if isAdmin();
     }
 

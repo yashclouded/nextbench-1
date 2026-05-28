@@ -24,6 +24,9 @@ export default function AdminPanel() {
   const [pendingPosts, setPendingPosts] = useState<PendingPost[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [allUsers, setAllUsers] = useState<PendingUser[]>([]);
+  const [schools, setSchools] = useState<{name: string, city: string}[]>([]);
+  const [editingSchoolId, setEditingSchoolId] = useState<string | null>(null);
+  const [selectedSchoolName, setSelectedSchoolName] = useState<string>('');
   const [stats, setStats] = useState({ totalUsers: 0, verifiedUsers: 0, totalProducts: 0, pendingProducts: 0 });
   const { userData, loading } = useAuth();
   const { showToast } = useToast();
@@ -41,6 +44,14 @@ export default function AdminPanel() {
           totalUsers: usersSnap.size, verifiedUsers: verifiedSnap.size,
           totalProducts: productsSnap.size, pendingProducts: pendingSnap.size
         });
+        
+        const schoolsSnap = await getDocs(collection(db, 'schools'));
+        const fetchedSchools = schoolsSnap.docs.map(d => ({
+          name: d.data().name as string,
+          city: d.data().city as string || 'Lucknow'
+        }));
+        fetchedSchools.sort((a, b) => a.name.localeCompare(b.name));
+        setSchools(fetchedSchools);
       } catch (err) { console.error(err); }
     };
     fetchStats();
@@ -126,6 +137,21 @@ export default function AdminPanel() {
       const body = encodeURIComponent(`Hi ${userName},\n\nUnfortunately, your application to Nextbench has been rejected because your ID card photo was unclear or invalid.\n\nPlease log in to Nextbench again and re-upload a clear photo of your official school ID to be verified.\n\nThanks,\nThe Nextbench Team`);
       window.location.href = `mailto:${userEmail}?subject=${subject}&body=${body}`;
     } catch (err) { handleFirestoreError(err, OperationType.DELETE, `users/${userId}`); }
+  };
+
+  const handleUpdateSchool = async (userId: string, currentSchool: string) => {
+    if (!selectedSchoolName || selectedSchoolName === currentSchool) {
+      setEditingSchoolId(null);
+      return;
+    }
+    try {
+      const selectedSchoolData = schools.find(s => s.name === selectedSchoolName);
+      const newCity = selectedSchoolData?.city || 'Lucknow';
+      await updateDoc(doc(db, 'users', userId), { school: selectedSchoolName, city: newCity, updatedAt: serverTimestamp() });
+      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, school: selectedSchoolName, city: newCity } : u));
+      setEditingSchoolId(null);
+      showToast('School updated successfully', 'success');
+    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`); }
   };
 
   const handleApproveListing = async (productId: string, title: string, sellerId?: string) => {
@@ -369,7 +395,34 @@ export default function AdminPanel() {
                   {u.verified && <ShieldCheck size={14} className="text-brand-teal" />}
                   {u.isAdmin && <Crown size={14} className="text-brand-pink" />}
                 </div>
-                <p className="text-xs text-luxury-ink/40">{u.email} • {u.school}</p>
+                <div className="text-xs text-luxury-ink/40 flex items-center gap-1.5 flex-wrap">
+                  {u.email} • 
+                  {editingSchoolId === u.id ? (
+                    <div className="flex items-center gap-2">
+                      <select 
+                        value={selectedSchoolName} 
+                        onChange={e => setSelectedSchoolName(e.target.value)}
+                        className="bg-surface-card border border-brand-teal/20 rounded px-2 py-1 text-xs text-luxury-ink focus:outline-none focus:border-brand-teal max-w-[200px]"
+                      >
+                        <option disabled value="">Select School</option>
+                        {schools.map(s => <option key={s.name} value={s.name}>{s.name} ({s.city})</option>)}
+                      </select>
+                      <button onClick={() => handleUpdateSchool(u.id, u.school)} className="text-brand-teal hover:text-brand-mint font-bold text-[10px] uppercase bg-brand-teal/10 px-2 py-1 rounded">Save</button>
+                      <button onClick={() => setEditingSchoolId(null)} className="text-luxury-ink/40 hover:text-luxury-ink/60 font-bold text-[10px] uppercase bg-luxury-ink/5 px-2 py-1 rounded">Cancel</button>
+                    </div>
+                  ) : (
+                    <>
+                      {u.school}
+                      <button 
+                        onClick={() => { setEditingSchoolId(u.id); setSelectedSchoolName(u.school); }} 
+                        className="text-brand-teal/60 hover:text-brand-teal ml-1"
+                        title="Edit School"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/20">Rep: {u.reputation?.toFixed(1)}</span>
