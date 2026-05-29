@@ -39,6 +39,7 @@ export default function Footer() {
             {userData?.isAdmin && (
               <Link to="/admin" className="text-[10px] font-bold uppercase tracking-widest text-brand-teal hover:text-brand-pink">Admin Portal</Link>
             )}
+            <Link to="/careers" className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 hover:text-brand-pink">Careers</Link>
             <Link to="/privacy" className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 hover:text-brand-pink">Privacy</Link>
             <Link to="/terms" className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 hover:text-brand-pink">Terms</Link>
           </div>
