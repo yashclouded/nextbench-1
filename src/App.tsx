@@ -26,6 +26,7 @@ const Wishlist = React.lazy(() => import('./pages/Dashboard/Wishlist'));
 const Notifications = React.lazy(() => import('./pages/Dashboard/Notifications'));
 const TermsPage = React.lazy(() => import('./pages/Legal/TermsPage'));
 const PrivacyPage = React.lazy(() => import('./pages/Legal/PrivacyPage'));
+const CareersPage = React.lazy(() => import('./pages/Legal/CareersPage'));
 const UsernameProfile = React.lazy(() => import('./pages/Dashboard/UsernameProfile'));
 
 // Minimal loading fallback — fast and non-disruptive
@@ -76,6 +77,7 @@ export default function App() {
           {/* Public Marketing/Auth Layout (Navbar + Footer) */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/careers" element={<CareersPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/login" element={<Login />} />
