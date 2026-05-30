@@ -255,28 +255,10 @@ export default function AdminPanel() {
     } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `reports/${reportId}`); }
   };
 
-  const handleRunMigration = async () => {
-    try {
-      showToast('Migration started...', 'info');
-      const collections = ['schools', 'users', 'products', 'posts', 'school_requests'];
-      for (const col of collections) {
-        const snap = await getDocs(collection(db, col));
-        for (const d of snap.docs) {
-          if (!d.data().city) {
-            await updateDoc(doc(db, col, d.id), { city: 'Lucknow' });
-          }
-        }
-      }
-      showToast('Migration completed successfully!', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Migration failed', 'error');
-    }
-  };
 
   if (loading || !userData?.isAdmin) return <div className="pt-32 text-center text-xs font-bold uppercase tracking-widest text-brand-teal/40">Loading Secure Portal...</div>;
 
-  const tabs = ['Verifications', 'Listings', 'Users', 'School Requests', 'Posts', 'Reports', 'System'];
+  const tabs = ['Verifications', 'Listings', 'Users', 'School Requests', 'Posts', 'Reports'];
 
   return (
     <div className="pt-32 pb-20 px-6 max-w-7xl mx-auto">
@@ -547,22 +529,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* System Tab */}
-      {activeTab === 'System' && (
-        <div className="theme-card rounded-2xl p-12 text-center border" style={{ borderColor: 'var(--color-border)' }}>
-          <Database className="mx-auto text-luxury-ink/20 mb-4" size={48} />
-          <h2 className="text-2xl font-serif font-bold text-luxury-ink italic mb-2">System Operations</h2>
-          <p className="text-sm text-luxury-ink/40 mb-8 max-w-md mx-auto">
-            Run manual database migrations and updates. Only use these if instructed.
-          </p>
-          <button
-            onClick={handleRunMigration}
-            className="bg-brand-pink text-white px-8 py-4 rounded-xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-brand-pink/20 hover:bg-brand-teal transition-all"
-          >
-            Run City Migration (Lucknow)
-          </button>
-        </div>
-      )}
+
     </div>
   );
 }
