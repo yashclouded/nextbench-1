@@ -12,9 +12,27 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          // Only precache the shell — hashed JS/CSS chunks are handled
+          // via runtime caching so deploys don't leave stale entries.
+          globPatterns: ['**/*.{html,ico,png,svg,woff2}'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+          // SPA: serve index.html for all navigation requests
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/(api|__)/],
+          // Clean up old precache entries from previous deploys
+          cleanupOutdatedCaches: true,
           runtimeCaching: [
+            // Same-origin JS & CSS — always check network first so
+            // new deploys are picked up immediately.
+            {
+              urlPattern: /\/assets\/.*\.(js|css)$/,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'app-chunks',
+                expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 7 },
+                networkTimeoutSeconds: 5,
+              }
+            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',

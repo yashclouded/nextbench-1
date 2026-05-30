@@ -5,29 +5,32 @@ import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ProtectedRoute from './components/ui/ProtectedRoute';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 import { useAuth } from './lib/AuthContext';
+import { lazyWithRetry } from './lib/lazyWithRetry';
 
 // ─── Lazy-loaded pages ─────────────────────────────────────
 // Each page is only downloaded when the user navigates to it,
 // cutting the initial JS bundle dramatically.
-const LandingPage = React.lazy(() => import('./pages/LandingPage'));
-const Login = React.lazy(() => import('./pages/Auth/Login'));
-const Signup = React.lazy(() => import('./pages/Auth/Signup'));
-const Verification = React.lazy(() => import('./pages/Auth/Verification'));
-const Feed = React.lazy(() => import('./pages/Dashboard/Feed'));
-const Search = React.lazy(() => import('./pages/Dashboard/Search'));
-const ProductDetail = React.lazy(() => import('./pages/Dashboard/ProductDetail'));
-const Profile = React.lazy(() => import('./pages/Dashboard/Profile'));
-const SellItem = React.lazy(() => import('./pages/Dashboard/SellItem'));
-const AdminPanel = React.lazy(() => import('./pages/Dashboard/AdminPanel'));
-const ChatList = React.lazy(() => import('./pages/Dashboard/ChatList'));
-const ChatRoom = React.lazy(() => import('./pages/Dashboard/ChatRoom'));
-const Wishlist = React.lazy(() => import('./pages/Dashboard/Wishlist'));
-const Notifications = React.lazy(() => import('./pages/Dashboard/Notifications'));
-const TermsPage = React.lazy(() => import('./pages/Legal/TermsPage'));
-const PrivacyPage = React.lazy(() => import('./pages/Legal/PrivacyPage'));
-const CareersPage = React.lazy(() => import('./pages/Legal/CareersPage'));
-const UsernameProfile = React.lazy(() => import('./pages/Dashboard/UsernameProfile'));
+// lazyWithRetry adds automatic retry + reload on stale chunk 404s.
+const LandingPage = lazyWithRetry(() => import('./pages/LandingPage'));
+const Login = lazyWithRetry(() => import('./pages/Auth/Login'));
+const Signup = lazyWithRetry(() => import('./pages/Auth/Signup'));
+const Verification = lazyWithRetry(() => import('./pages/Auth/Verification'));
+const Feed = lazyWithRetry(() => import('./pages/Dashboard/Feed'));
+const Search = lazyWithRetry(() => import('./pages/Dashboard/Search'));
+const ProductDetail = lazyWithRetry(() => import('./pages/Dashboard/ProductDetail'));
+const Profile = lazyWithRetry(() => import('./pages/Dashboard/Profile'));
+const SellItem = lazyWithRetry(() => import('./pages/Dashboard/SellItem'));
+const AdminPanel = lazyWithRetry(() => import('./pages/Dashboard/AdminPanel'));
+const ChatList = lazyWithRetry(() => import('./pages/Dashboard/ChatList'));
+const ChatRoom = lazyWithRetry(() => import('./pages/Dashboard/ChatRoom'));
+const Wishlist = lazyWithRetry(() => import('./pages/Dashboard/Wishlist'));
+const Notifications = lazyWithRetry(() => import('./pages/Dashboard/Notifications'));
+const TermsPage = lazyWithRetry(() => import('./pages/Legal/TermsPage'));
+const PrivacyPage = lazyWithRetry(() => import('./pages/Legal/PrivacyPage'));
+const CareersPage = lazyWithRetry(() => import('./pages/Legal/CareersPage'));
+const UsernameProfile = lazyWithRetry(() => import('./pages/Dashboard/UsernameProfile'));
 
 // Minimal loading fallback — fast and non-disruptive
 function PageLoader() {
@@ -37,6 +40,7 @@ function PageLoader() {
     </div>
   );
 }
+
 
 /** Redirects logged-in-but-unverified users to /verification, and not-logged-in to /signup */
 function VerificationGuard({ children }: { children: React.ReactNode }) {
@@ -66,50 +70,52 @@ function DashLayout() {
 
 export default function App() {
   return (
-    <div className="bg-surface-base font-sans select-none">
-      <Helmet>
-        <title>Nextbench | The Student Marketplace</title>
-        <meta name="description" content="Nextbench is the exclusive marketplace and community for verified students. Buy, sell, and connect." />
-      </Helmet>
-      
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          {/* Public Marketing/Auth Layout (Navbar + Footer) */}
-          <Route element={<MainLayout />}>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/careers" element={<CareersPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-            <Route path="/privacy" element={<PrivacyPage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/verification" element={<VerificationGuard><Verification /></VerificationGuard>} />
-          </Route>
+    <ErrorBoundary>
+      <div className="bg-surface-base font-sans select-none">
+        <Helmet>
+          <title>Nextbench | The Student Marketplace</title>
+          <meta name="description" content="Nextbench is the exclusive marketplace and community for verified students. Buy, sell, and connect." />
+        </Helmet>
+        
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* Public Marketing/Auth Layout (Navbar + Footer) */}
+            <Route element={<MainLayout />}>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/careers" element={<CareersPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/verification" element={<VerificationGuard><Verification /></VerificationGuard>} />
+            </Route>
 
-          {/* Dashboard 3-Column Layout */}
-          <Route element={<DashLayout />}>
-            {/* Protected Dashboard Routes */}
-            <Route path="/dashboard" element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
-            <Route path="/community" element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
-            <Route path="/search" element={<ProtectedRoute requireAuth><Search /></ProtectedRoute>} />
-            <Route path="/product/:id" element={<ProtectedRoute requireAuth><ProductDetail /></ProtectedRoute>} />
-            <Route path="/sell" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
-            <Route path="/profile/:userId" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
-            <Route path="/messages" element={<ProtectedRoute requireAuth requireVerified><ChatList /></ProtectedRoute>} />
-            <Route path="/chat/:roomId" element={<ProtectedRoute requireAuth requireVerified><ChatRoom /></ProtectedRoute>} />
-            <Route path="/wishlist" element={<ProtectedRoute requireAuth requireVerified><Wishlist /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute requireAuth requireVerified><Notifications /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute requireAuth requireAdmin><AdminPanel /></ProtectedRoute>} />
-            
-            {/* Username route — MUST be last in dashboard routes */}
-            <Route path="/:username" element={<ProtectedRoute requireAuth><UsernameProfile /></ProtectedRoute>} />
-          </Route>
+            {/* Dashboard 3-Column Layout */}
+            <Route element={<DashLayout />}>
+              {/* Protected Dashboard Routes */}
+              <Route path="/dashboard" element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
+              <Route path="/community" element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
+              <Route path="/search" element={<ProtectedRoute requireAuth><Search /></ProtectedRoute>} />
+              <Route path="/product/:id" element={<ProtectedRoute requireAuth><ProductDetail /></ProtectedRoute>} />
+              <Route path="/sell" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
+              <Route path="/profile/:userId" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
+              <Route path="/messages" element={<ProtectedRoute requireAuth requireVerified><ChatList /></ProtectedRoute>} />
+              <Route path="/chat/:roomId" element={<ProtectedRoute requireAuth requireVerified><ChatRoom /></ProtectedRoute>} />
+              <Route path="/wishlist" element={<ProtectedRoute requireAuth requireVerified><Wishlist /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute requireAuth requireVerified><Notifications /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute requireAuth requireAdmin><AdminPanel /></ProtectedRoute>} />
+              
+              {/* Username route — MUST be last in dashboard routes */}
+              <Route path="/:username" element={<ProtectedRoute requireAuth><UsernameProfile /></ProtectedRoute>} />
+            </Route>
 
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-    </div>
+            {/* Catch-all */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </div>
+    </ErrorBoundary>
   );
 }
 
