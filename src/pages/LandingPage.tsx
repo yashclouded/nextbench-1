@@ -171,20 +171,7 @@ export default function LandingPage() {
             <p className="text-luxury-ink/40 text-sm font-medium">No spam. Only verified student deals.</p>
           </div>
 
-          {/* Made by credit */}
-          <div className="flex flex-col items-center gap-4 pt-12 border-t border-luxury-ink/5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-luxury-ink/30">
-              Made by Maryam Fatima, a student of Loreto Convent Lucknow
-            </p>
-            <div className="flex items-center gap-3">
-              <img 
-                src="https://img.ezyschooling.com/image?url=https%3A%2F%2Fd3bat55ebwjhsf.cloudfront.net%2Fschools%2Fcover%2F11565%2Fuser_root_user%2540ezy.com%2Fimages.jpeg&width=400" 
-                alt="Loreto Convent Lucknow" 
-                className="w-8 h-8 rounded-full object-cover border border-luxury-ink/10"
-              />
-              <span className="text-[10px] font-medium text-luxury-ink/25 tracking-wide">Loreto Convent Lucknow</span>
-            </div>
-          </div>
+
         </div>
       </section>
     </div>

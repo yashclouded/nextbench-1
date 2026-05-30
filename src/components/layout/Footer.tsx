@@ -33,7 +33,7 @@ export default function Footer() {
 
         <div className="flex flex-col md:flex-row items-center justify-between pt-10 border-t border-brand-teal/5">
           <div className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/30 mb-4 md:mb-0">
-            © {currentYear} Nextbench · Made by Maryam Fatima, Loreto Convent Lucknow
+            © {currentYear} Nextbench
           </div>
           <div className="flex items-center gap-8">
             {userData?.isAdmin && (
