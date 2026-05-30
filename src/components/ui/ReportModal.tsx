@@ -53,15 +53,15 @@ export default function ReportModal({ isOpen, onClose, contentType, contentId }:
           initial={{ scale: 0.92, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.92, opacity: 0, y: 20 }}
-          className="w-full max-w-md relative rounded-3xl overflow-hidden shadow-2xl"
+          className="w-full max-w-md relative rounded-3xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col"
           style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border)' }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Warning header */}
-          <div className="h-2 w-full bg-gradient-to-r from-amber-400 via-red-400 to-amber-400" />
+          <div className="h-2 w-full bg-gradient-to-r from-amber-400 via-red-400 to-amber-400 shrink-0" />
           
-          <div className="p-8">
-            <button onClick={onClose} className="absolute top-6 right-6 p-2 text-luxury-ink/40 hover:text-luxury-ink transition-colors">
+          <div className="p-8 overflow-y-auto">
+            <button onClick={onClose} className="absolute top-6 right-6 p-2 text-luxury-ink/40 hover:text-luxury-ink transition-colors z-10 bg-surface-card rounded-full">
               <X size={20} />
             </button>
 
