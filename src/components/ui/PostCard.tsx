@@ -47,7 +47,7 @@ export default function PostCard({ post, hasUpvoted, onClick }: PostCardProps) {
   const navigate = useNavigate();
 
   const displayInfo = getPersonaDisplay(post, false);
-  const profileLink = displayInfo.isAnonymous ? '#' : (post.authorUsername ? `/${post.authorUsername}` : `/profile/${post.authorId}`);
+  const profileLink = displayInfo.isAnonymous ? '#' : (post.authorUsername ? `/u/${post.authorUsername}` : `/profile/${post.authorId}`);
 
   const totalReactions = post.type === 'confession' && post.reactionsCount
     ? Object.values(post.reactionsCount).reduce((a, b) => a + b, 0)

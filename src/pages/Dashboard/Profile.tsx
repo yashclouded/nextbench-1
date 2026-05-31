@@ -126,6 +126,13 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     fetchUser();
   }, [effectiveUserId, isOwnProfile, userData]);
 
+  // Auto-redirect to username URL if available and not already on it
+  useEffect(() => {
+    if (!usernameResolvedUserId && profileUser?.username) {
+      navigate(`/u/${profileUser.username}`, { replace: true });
+    }
+  }, [profileUser?.username, usernameResolvedUserId, navigate]);
+
   // Fetch user's listings
   useEffect(() => {
     if (!targetUserId) return;
