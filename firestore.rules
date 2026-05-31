@@ -30,7 +30,14 @@ service cloud.firestore {
         && (!data.keys().hasAny(['idCardUrl']) || (data.idCardUrl == null || (data.idCardUrl is string && data.idCardUrl.size() <= 2000)))
         && (!data.keys().hasAny(['selfieUrl']) || (data.selfieUrl == null || (data.selfieUrl is string && data.selfieUrl.size() <= 2000)))
         && (!data.keys().hasAny(['about']) || (data.about == null || (data.about is string && data.about.size() <= 600)))
-        && (!data.keys().hasAny(['anonymousPersonaName']) || (data.anonymousPersonaName == null || data.anonymousPersonaName is string));
+        && (!data.keys().hasAny(['anonymousPersonaName']) || (data.anonymousPersonaName == null || data.anonymousPersonaName is string))
+        // Organization fields
+        && (!data.keys().hasAny(['accountType']) || data.accountType in ['student', 'organization'])
+        && (!data.keys().hasAny(['orgName']) || (data.orgName == null || (data.orgName is string && data.orgName.size() <= 200)))
+        && (!data.keys().hasAny(['orgType']) || (data.orgType == null || data.orgType in ['company', 'school', 'coaching', 'ngo', 'other']))
+        && (!data.keys().hasAny(['orgDocumentUrl']) || (data.orgDocumentUrl == null || (data.orgDocumentUrl is string && data.orgDocumentUrl.size() <= 2000)))
+        && (!data.keys().hasAny(['orgWebsite']) || (data.orgWebsite == null || (data.orgWebsite is string && data.orgWebsite.size() <= 500)))
+        && (!data.keys().hasAny(['orgDescription']) || (data.orgDescription == null || (data.orgDescription is string && data.orgDescription.size() <= 600)));
     }
 
     match /users/{userId} {
@@ -55,7 +62,7 @@ service cloud.firestore {
           && (!incoming().keys().hasAny(['anonymousPersonaName']) || (incoming().anonymousPersonaName == null || incoming().anonymousPersonaName is string))
           && incoming().updatedAt == request.time)
         ||
-        (incoming().diff(existing()).affectedKeys().hasOnly(['username', 'lastUsernameChange', 'name', 'city', 'profilePicture', 'about', 'idCardUrl', 'selfieUrl', 'verificationStatus', 'updatedAt', 'anonymousPersonaName']) 
+        (incoming().diff(existing()).affectedKeys().hasOnly(['username', 'lastUsernameChange', 'name', 'city', 'profilePicture', 'about', 'idCardUrl', 'selfieUrl', 'verificationStatus', 'updatedAt', 'anonymousPersonaName', 'orgName', 'orgWebsite', 'orgDescription']) 
           && request.auth.uid == userId
           && isValidUser(incoming())
           && (incoming().get('verificationStatus', 'approved') == existing().get('verificationStatus', 'approved') || (existing().get('verificationStatus', 'approved') == 'rejected' && incoming().get('verificationStatus', 'approved') == 'pending'))

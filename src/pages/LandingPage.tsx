@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ArrowRight, ShieldCheck, Truck, RefreshCcw, GraduationCap, PackageCheck, MapPin } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Truck, RefreshCcw, GraduationCap, PackageCheck, MapPin, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/seo/SEO';
 
@@ -153,6 +153,48 @@ export default function LandingPage() {
           <div className="absolute right-12 md:right-24 top-1/2 -translate-y-1/2 hidden lg:flex items-center justify-center">
             <div className="w-64 h-64 rounded-full bg-brand-teal/5 flex items-center justify-center border border-brand-teal/10">
               <GraduationCap className="text-brand-teal/20" size={120} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Organizations Section */}
+      <section className="py-24 px-6">
+        <div className="max-w-7xl mx-auto theme-card rounded-[3rem] p-12 md:p-20 relative overflow-hidden">
+          <div className="relative z-10 flex flex-col md:flex-row items-center gap-12">
+            <div className="flex-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-pink/10 rounded-full border border-brand-pink/20 mb-8">
+                <Building2 className="text-brand-pink" size={14} />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-pink">For Organizations</span>
+              </div>
+              <h2 className="text-4xl md:text-5xl font-serif font-bold text-luxury-ink mb-6 leading-tight">
+                Schools, Companies &<br />
+                <span className="text-brand-pink-soft italic font-normal">Organizations.</span>
+              </h2>
+              <p className="text-lg text-luxury-ink/60 mb-8 leading-relaxed max-w-lg">
+                Sell products in bulk, promote events, and connect directly with the verified student community. Get your organization verified today.
+              </p>
+              <Link
+                to="/org-signup"
+                className="inline-flex items-center gap-3 bg-brand-pink text-white px-8 py-4 rounded-full font-bold hover:bg-luxury-ink transition-all text-sm"
+              >
+                <Building2 size={18} />
+                Register Your Organization
+              </Link>
+            </div>
+            <div className="hidden md:grid grid-cols-2 gap-4 max-w-xs">
+              {[
+                { emoji: '📦', label: 'Bulk Listings', desc: 'Sell to thousands of students at once' },
+                { emoji: '📅', label: 'Events', desc: 'Promote workshops, fests & competitions' },
+                { emoji: '🎓', label: 'Hiring', desc: 'Reach students for internships & jobs' },
+                { emoji: '🤝', label: 'Trust', desc: 'Verified badge builds credibility' },
+              ].map((item, idx) => (
+                <div key={idx} className="p-5 rounded-2xl bg-surface-soft border border-luxury-ink/5">
+                  <p className="text-2xl mb-2">{item.emoji}</p>
+                  <p className="text-xs font-bold text-luxury-ink mb-1">{item.label}</p>
+                  <p className="text-[10px] text-luxury-ink/40">{item.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>

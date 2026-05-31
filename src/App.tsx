@@ -16,6 +16,7 @@ import { lazyWithRetry } from './lib/lazyWithRetry';
 const LandingPage = lazyWithRetry(() => import('./pages/LandingPage'));
 const Login = lazyWithRetry(() => import('./pages/Auth/Login'));
 const Signup = lazyWithRetry(() => import('./pages/Auth/Signup'));
+const OrgSignup = lazyWithRetry(() => import('./pages/Auth/OrgSignup'));
 const Verification = lazyWithRetry(() => import('./pages/Auth/Verification'));
 const Feed = lazyWithRetry(() => import('./pages/Dashboard/Feed'));
 const Search = lazyWithRetry(() => import('./pages/Dashboard/Search'));
@@ -87,6 +88,7 @@ export default function App() {
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/org-signup" element={<OrgSignup />} />
               <Route path="/verification" element={<VerificationGuard><Verification /></VerificationGuard>} />
             </Route>
 

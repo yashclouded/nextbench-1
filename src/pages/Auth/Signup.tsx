@@ -375,6 +375,19 @@ export default function Signup() {
           <p className="mt-16 text-center text-[11px] font-bold uppercase tracking-widest text-brand-teal/40">
             Already a member? <Link to="/login" className="text-brand-teal hover:text-brand-pink transition-colors">Sign In</Link>
           </p>
+
+          <div className="mt-6 pt-6 border-t border-luxury-ink/5 text-center">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-luxury-ink/30 mb-3">
+              Not a student?
+            </p>
+            <Link 
+              to="/org-signup" 
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-teal/5 border border-brand-teal/10 rounded-full text-[11px] font-bold uppercase tracking-widest text-brand-teal hover:bg-brand-teal hover:text-white transition-all"
+            >
+              <Building size={14} />
+              Register as Organization
+            </Link>
+          </div>
         </div>
       </div>
 

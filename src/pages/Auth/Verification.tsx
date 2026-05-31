@@ -31,6 +31,11 @@ export default function Verification() {
       navigate('/dashboard');
       return;
     }
+    // Organization accounts skip ID + selfie steps — their document was uploaded at signup
+    if (userData?.accountType === 'organization') {
+      setStep(3);
+      return;
+    }
     // If user already submitted and is pending, jump to step 3 immediately
     if (userData?.verificationStatus === 'pending' && userData?.idCardUrl) {
       setStep(3);
@@ -261,7 +266,10 @@ export default function Verification() {
               </motion.div>
               <h2 className="text-3xl font-serif font-bold text-luxury-ink mb-6 italic">Submission <span className="not-italic">Complete.</span></h2>
               <p className="text-luxury-ink/50 mb-12 leading-relaxed text-lg">
-                Your credentials have been submitted for manual approval. This usually takes <span className="text-brand-teal font-bold">2-4 hours</span> during business days.
+                {userData?.accountType === 'organization'
+                  ? <>Your organization documents have been submitted for admin review. This usually takes <span className="text-brand-teal font-bold">24-48 hours</span> during business days.</>
+                  : <>Your credentials have been submitted for manual approval. This usually takes <span className="text-brand-teal font-bold">2-4 hours</span> during business days.</>
+                }
               </p>
               
               <div className="p-8 bg-brand-teal/5 rounded-3xl mb-12">

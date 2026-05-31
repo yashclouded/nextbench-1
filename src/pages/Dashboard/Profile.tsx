@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2 } from 'lucide-react';
+import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import React, { useState, useEffect, useRef } from 'react';
@@ -450,7 +450,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
           )}
           {profileUser.verified && (
             <div className="absolute bottom-0 right-0 bg-brand-teal text-white p-2 rounded-full shadow-md border-2" style={{ borderColor: 'var(--color-surface-base)' }}>
-              <ShieldCheck size={18} />
+              {profileUser.accountType === 'organization' ? <Building2 size={18} /> : <ShieldCheck size={18} />}
             </div>
           )}
         </div>
@@ -480,8 +480,21 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
               )}
               
               <p className="text-luxury-ink/50 font-medium flex items-center gap-1.5 text-sm mt-1">
-                <MapPin size={14} className="text-brand-teal/70" /> {profileUser.school}
+                <MapPin size={14} className="text-brand-teal/70" /> {profileUser.accountType === 'organization' ? (profileUser.city || profileUser.school) : profileUser.school}
               </p>
+              {/* Org type label */}
+              {profileUser.accountType === 'organization' && profileUser.orgType && (
+                <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-brand-pink/10 text-brand-pink rounded-full text-[10px] font-bold uppercase tracking-widest">
+                  <Building2 size={12} />
+                  {profileUser.orgType === 'company' ? 'Company' : profileUser.orgType === 'school' ? 'School' : profileUser.orgType === 'coaching' ? 'Coaching Centre' : profileUser.orgType === 'ngo' ? 'NGO / Club' : 'Organization'}
+                </span>
+              )}
+              {/* Org website */}
+              {profileUser.orgWebsite && (
+                <a href={profileUser.orgWebsite} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 mt-2 text-xs text-brand-teal hover:text-brand-pink transition-colors font-medium">
+                  <Globe size={13} /> {profileUser.orgWebsite.replace(/^https?:\/\//, '')}
+                </a>
+              )}
               {profileUser.about && <p className="text-sm text-luxury-ink/80 max-w-lg leading-relaxed mt-3">{profileUser.about}</p>}
             </div>
             

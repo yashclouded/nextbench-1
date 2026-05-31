@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ShieldCheck, XCircle, AlertTriangle, Filter, CheckCircle, Trash2, Ban, ChevronRight, Users, Package, Crown, Eye, RefreshCw, IdCard, Camera, School, FileText, Database } from 'lucide-react';
+import { ShieldCheck, XCircle, AlertTriangle, Filter, CheckCircle, Trash2, Ban, ChevronRight, Users, Package, Crown, Eye, RefreshCw, IdCard, Camera, School, FileText, Database, Building2, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, query, where, getDocs, getDoc, updateDoc, doc, deleteDoc, serverTimestamp, onSnapshot, getCountFromServer, addDoc } from 'firebase/firestore';
@@ -27,6 +27,7 @@ export default function AdminPanel() {
   const [schools, setSchools] = useState<{name: string, city: string}[]>([]);
   const [editingSchoolId, setEditingSchoolId] = useState<string | null>(null);
   const [selectedSchoolName, setSelectedSchoolName] = useState<string>('');
+  const [pendingOrgs, setPendingOrgs] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, verifiedUsers: 0, totalProducts: 0, pendingProducts: 0 });
   const { userData, loading } = useAuth();
   const { showToast } = useToast();
@@ -105,6 +106,15 @@ export default function AdminPanel() {
         } catch (err) { handleFirestoreError(err, OperationType.LIST, 'posts'); }
       };
       fetchPosts();
+    } else if (activeTab === 'Org Verifications') {
+      const fetchOrgs = async () => {
+        try {
+          const q = query(collection(db, 'users'), where('accountType', '==', 'organization'), where('verificationStatus', '==', 'pending'));
+          const snapshot = await getDocs(q);
+          setPendingOrgs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (err) { handleFirestoreError(err, OperationType.LIST, 'users'); }
+      };
+      fetchOrgs();
     } else if (activeTab === 'Reports') {
       const fetchReports = async () => {
         try {
@@ -256,9 +266,29 @@ export default function AdminPanel() {
   };
 
 
+  const handleApproveOrg = async (userId: string, orgName: string) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), { verified: true, verificationStatus: 'approved', updatedAt: serverTimestamp() });
+      setPendingOrgs(prev => prev.filter(o => o.id !== userId));
+      showToast(`${orgName} has been verified`, 'success');
+      createNotification({ userId, type: 'user_approved', title: 'Organization Verified!', message: `Your organization "${orgName}" has been verified. You can now list items and post events.`, link: '/dashboard' });
+    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`); }
+  };
+
+  const handleRejectOrg = async (userId: string, orgName: string, email: string) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), { verified: false, verificationStatus: 'rejected', updatedAt: serverTimestamp() });
+      setPendingOrgs(prev => prev.filter(o => o.id !== userId));
+      showToast(`${orgName} application rejected`, 'info');
+      const subject = encodeURIComponent('Nextbench Organization Application Rejected');
+      const body = encodeURIComponent(`Hi ${orgName},\n\nUnfortunately, your organization registration on Nextbench has been rejected. The verification document provided was insufficient.\n\nPlease re-register with a valid official document.\n\nThanks,\nThe Nextbench Team`);
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+    } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`); }
+  };
+
   if (loading || !userData?.isAdmin) return <div className="pt-32 text-center text-xs font-bold uppercase tracking-widest text-brand-teal/40">Loading Secure Portal...</div>;
 
-  const tabs = ['Verifications', 'Listings', 'Users', 'School Requests', 'Posts', 'Reports'];
+  const tabs = ['Verifications', 'Org Verifications', 'Listings', 'Users', 'School Requests', 'Posts', 'Reports'];
 
   return (
     <div className="pt-32 pb-20 px-6 max-w-7xl mx-auto">
@@ -524,6 +554,46 @@ export default function AdminPanel() {
                 </div>
               </div>
               {item.details && <p className="text-sm text-luxury-ink/60 whitespace-pre-wrap bg-surface-base p-4 rounded-xl w-full">{item.details}</p>}
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Org Verifications Tab */}
+      {activeTab === 'Org Verifications' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-serif font-bold text-luxury-ink italic mb-4">Pending Organization Verifications <span className="not-italic text-luxury-ink/30">({pendingOrgs.length})</span></h2>
+          {pendingOrgs.length === 0 && <div className="theme-card rounded-2xl p-12 text-center border text-luxury-ink/30 font-serif italic text-lg" style={{ borderColor: 'var(--color-border)' }}>No pending org verifications ✓</div>}
+          {pendingOrgs.map(org => (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={org.id}
+              className="theme-card rounded-2xl p-6 border flex flex-col md:flex-row items-center gap-6" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="w-14 h-14 rounded-xl bg-brand-pink/10 flex items-center justify-center text-brand-pink shrink-0">
+                <Building2 size={24} />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <Link to={`/profile/${org.id}`} className="text-base font-bold text-luxury-ink mb-1 hover:text-brand-teal transition-colors block">{org.orgName || org.name}</Link>
+                <p className="text-xs font-medium text-luxury-ink/40 mb-1">
+                  {org.orgType === 'company' ? 'Company' : org.orgType === 'school' ? 'School' : org.orgType === 'coaching' ? 'Coaching Centre' : org.orgType === 'ngo' ? 'NGO / Club' : 'Organization'}
+                  {' '}• {org.city || 'Unknown City'} • {org.email}
+                </p>
+                {org.orgWebsite && (
+                  <a href={org.orgWebsite} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold uppercase tracking-widest text-brand-teal hover:underline flex items-center gap-1 justify-center md:justify-start">
+                    <Globe size={12} /> Website
+                  </a>
+                )}
+                {org.orgDescription && (
+                  <p className="text-xs text-luxury-ink/50 mt-1 line-clamp-2">{org.orgDescription}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {org.orgDocumentUrl && (
+                  <a href={getOptimizedImageUrl(org.orgDocumentUrl)} target="_blank" rel="noopener noreferrer" className="p-3 rounded-xl border border-luxury-ink/5 hover:bg-brand-teal/5 hover:text-brand-teal transition-all text-luxury-ink/30" title="View Document">
+                    <FileText size={20} />
+                  </a>
+                )}
+                <button onClick={() => handleRejectOrg(org.id, org.orgName || org.name, org.email)} className="p-3 rounded-xl border border-luxury-ink/5 hover:bg-red-50 hover:text-red-500 transition-all text-luxury-ink/20"><XCircle size={20} /></button>
+                <button onClick={() => handleApproveOrg(org.id, org.orgName || org.name)} className="p-3 rounded-xl bg-brand-teal text-white hover:bg-brand-mint transition-all shadow-lg"><CheckCircle size={20} /></button>
+              </div>
             </motion.div>
           ))}
         </div>

@@ -72,3 +72,11 @@ export async function uploadPostImage(file: File): Promise<string> {
   return uploadToCloudinary(file, `nextbench/posts/${randomId}`);
 }
 
+/**
+ * Uploads a verification document for an organization (GSTIN, UDISE, registration cert).
+ */
+export async function uploadOrgDocument(file: File): Promise<string> {
+  const randomId = Math.random().toString(36).substring(2, 15);
+  return uploadToCloudinary(file, `nextbench/org_documents/${randomId}`);
+}
+

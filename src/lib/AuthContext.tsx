@@ -20,6 +20,13 @@ export interface UserData {
   city?: string;
   createdAt: string;
   updatedAt: string;
+  // Organization account fields
+  accountType?: 'student' | 'organization';
+  orgName?: string | null;
+  orgType?: 'company' | 'school' | 'coaching' | 'ngo' | 'other' | null;
+  orgDocumentUrl?: string | null;
+  orgWebsite?: string | null;
+  orgDescription?: string | null;
 }
 
 interface AuthContextType {
