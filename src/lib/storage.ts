@@ -80,3 +80,10 @@ export async function uploadOrgDocument(file: File): Promise<string> {
   return uploadToCloudinary(file, `nextbench/org_documents/${randomId}`);
 }
 
+/**
+ * Uploads an avatar/profile picture for a club.
+ */
+export async function uploadClubAvatar(file: File, clubId: string): Promise<string> {
+  return uploadToCloudinary(file, `nextbench/clubs/${clubId}`);
+}
+

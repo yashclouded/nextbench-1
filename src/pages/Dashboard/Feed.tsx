@@ -67,9 +67,93 @@ export const POST_TYPES = [
   { id: 'others', label: 'Others' },
 ];
 
+function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, replyUpvotedIds, isAdmin, user, level = 0 }: any) {
+  const children = repliesMap[reply.id] || [];
+  const hasUpvoted = replyUpvotedIds.has(reply.id);
+  return (
+    <div className={`mt-4 ${level > 0 ? 'ml-4 md:ml-6 border-l-2 border-brand-teal/20 pl-4 md:pl-6' : ''}`}>
+      <div className="bg-surface-soft/30 p-4 rounded-2xl border border-luxury-ink/5">
+        <div className="flex items-center gap-3 mb-2">
+          <Link to={`/profile/${reply.authorId}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="w-6 h-6 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-[10px] shrink-0">
+              {reply.authorName[0]?.toUpperCase()}
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-luxury-ink">{reply.authorName}</p>
+              <p className="text-[8px] font-bold uppercase tracking-widest text-luxury-ink/30">{reply.authorSchool}</p>
+            </div>
+          </Link>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => onUpvoteReply(reply.id)}
+              className={`flex items-center gap-1 p-1.5 rounded-full text-[10px] font-bold transition-all ${hasUpvoted ? 'text-brand-pink bg-brand-pink/10' : 'text-luxury-ink/40 hover:bg-surface-soft hover:text-brand-pink'}`}
+            >
+              <Heart size={14} className={hasUpvoted ? 'fill-brand-pink' : ''} />
+              {reply.upvotesCount || 0}
+            </button>
+            <button
+              onClick={() => onReply(reply.id, reply.authorName)}
+              className="flex items-center gap-1 p-1.5 hover:bg-surface-soft rounded-full text-[10px] font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
+            >
+              <MessageSquare size={14} />
+              Reply
+            </button>
+            {(isAdmin || reply.authorId === user?.uid) && onDeleteReply && (
+              <button
+                onClick={() => onDeleteReply(reply.id)}
+                className="p-1.5 hover:bg-red-500/10 hover:text-red-500 rounded-full text-luxury-ink/20 transition-all"
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-sm text-luxury-ink/80 leading-relaxed">{reply.content}</p>
+      </div>
+      {children.length > 0 && (
+        <div className="mt-2">
+          {children.map((child: any) => (
+            <Comment
+              key={child.id}
+              reply={child}
+              repliesMap={repliesMap}
+              onReply={onReply}
+              onDeleteReply={onDeleteReply}
+              onUpvoteReply={onUpvoteReply}
+              replyUpvotedIds={replyUpvotedIds}
+              isAdmin={isAdmin}
+              user={user}
+              level={level + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Post Detail Modal (Instagram-style) ──────────────────
 
-function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelete, onDeleteReply, isAdmin, replies, replyContent, setReplyContent, onSubmitReply, isSubmitting }: {
+function PostDetailModal({ 
+  post, 
+  onClose, 
+  onUpvote, 
+  hasUpvoted, 
+  onShare, 
+  onDelete, 
+  onDeleteReply,
+  onUpvoteReply,
+  onReply,
+  replyUpvotedIds,
+  replyingTo,
+  clearReplyingTo,
+  isAdmin, 
+  replies, 
+  replyContent, 
+  setReplyContent, 
+  onSubmitReply, 
+  isSubmitting 
+}: {
   post: Post;
   onClose: () => void;
   onUpvote: (post: Post) => void;
@@ -77,6 +161,11 @@ function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelet
   onShare: (post: Post) => void;
   onDelete?: (postId: string) => void;
   onDeleteReply?: (replyId: string) => void;
+  onUpvoteReply: (replyId: string) => void;
+  onReply: (replyId: string, authorName: string) => void;
+  replyUpvotedIds: Set<string>;
+  replyingTo: {id: string, name: string} | null;
+  clearReplyingTo: () => void;
   isAdmin?: boolean;
   replies: any[];
   replyContent: string;
@@ -93,6 +182,16 @@ function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelet
   const { user } = useAuth();
   
   const displayInfo = getPersonaDisplay(post, isAdmin);
+
+  const repliesMap = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    replies.forEach(r => {
+      const parentId = r.parentId || 'root';
+      if (!map[parentId]) map[parentId] = [];
+      map[parentId].push(r);
+    });
+    return map;
+  }, [replies]);
 
   useEffect(() => {
     if (user && post.type === 'confession') {
@@ -127,8 +226,10 @@ function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelet
         style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Image Section */}
-        {postImageUrls.length > 0 && (
+        {/* Scrollable Container */}
+        <div className="flex-1 overflow-y-auto flex flex-col">
+          {/* Image Section */}
+          {postImageUrls.length > 0 && (
           <div className="relative bg-luxury-ink/5 flex-shrink-0">
             <img
               src={getOptimizedImageUrl(postImageUrls[currentImageIndex])}
@@ -156,7 +257,7 @@ function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelet
         )}
 
         {/* Content Section */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="flex-1 p-6 md:p-8">
           {/* No image? show close button here */}
           {postImageUrls.length === 0 && (
             <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-surface-base text-luxury-ink/40 rounded-full hover:bg-surface-soft hover:text-luxury-ink transition-all">
@@ -220,34 +321,29 @@ function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelet
               </div>
             ) : (
               <div className="space-y-4 mb-6">
-                {replies.map(reply => (
-                  <div key={reply.id} className="bg-surface-soft/30 p-4 rounded-2xl border border-luxury-ink/5">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Link to={`/profile/${reply.authorId}`} onClick={onClose} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                        <div className="w-6 h-6 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-[10px] shrink-0">
-                          {reply.authorName[0]?.toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-bold text-luxury-ink">{reply.authorName}</p>
-                          <p className="text-[8px] font-bold uppercase tracking-widest text-luxury-ink/30">{reply.authorSchool}</p>
-                        </div>
-                      </Link>
-                      {(isAdmin || reply.authorId === user?.uid) && onDeleteReply && (
-                        <button
-                          onClick={() => onDeleteReply(reply.id)}
-                          className="ml-auto p-1.5 hover:bg-red-500/10 hover:text-red-500 rounded-full text-luxury-ink/20 transition-all"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-sm text-luxury-ink/80 leading-relaxed">{reply.content}</p>
-                  </div>
+                {repliesMap['root']?.map(reply => (
+                  <Comment
+                    key={reply.id}
+                    reply={reply}
+                    repliesMap={repliesMap}
+                    onReply={onReply}
+                    onDeleteReply={onDeleteReply}
+                    onUpvoteReply={onUpvoteReply}
+                    replyUpvotedIds={replyUpvotedIds}
+                    isAdmin={isAdmin}
+                    user={user}
+                  />
                 ))}
               </div>
             )}
             
             {/* Reply Input Form */}
+            {replyingTo && (
+              <div className="flex items-center justify-between bg-surface-soft p-3 rounded-xl mb-2 text-[11px] font-bold text-luxury-ink/60">
+                <span>Replying to {replyingTo.name}</span>
+                <button type="button" onClick={clearReplyingTo} className="hover:text-luxury-ink transition-colors"><X size={14} /></button>
+              </div>
+            )}
             <form onSubmit={onSubmitReply} className="flex gap-3 mt-4">
               <input
                 id="reply-input"
@@ -266,6 +362,7 @@ function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelet
               </button>
             </form>
           </div>
+        </div>
         </div>
 
         {/* Action Bar */}
@@ -358,6 +455,9 @@ export default function Feed() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [replies, setReplies] = useState<any[]>([]);
   const [replyContent, setReplyContent] = useState('');
+  const [replyingTo, setReplyingTo] = useState<{id: string, name: string} | null>(null);
+  const [replyUpvotedIds, setReplyUpvotedIds] = useState<Set<string>>(new Set());
+  const [replyUpvoteMap, setReplyUpvoteMap] = useState<Record<string, string>>({});
 
   // Lock body scroll when a modal is open
   useScrollLock(isModalOpen || !!selectedPost || cropImageSrc !== null);
@@ -516,6 +616,22 @@ export default function Feed() {
       });
       setUpvotedPostIds(ids);
       setUpvoteMap(map);
+    });
+    return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'reply_upvotes'), where('userId', '==', user.uid));
+    const unsub = onSnapshot(q, snap => {
+      const ids = new Set<string>();
+      const map: Record<string, string> = {};
+      snap.forEach(d => {
+        ids.add(d.data().replyId);
+        map[d.data().replyId] = d.id;
+      });
+      setReplyUpvotedIds(ids);
+      setReplyUpvoteMap(map);
     });
     return () => unsub();
   }, [user]);
@@ -684,6 +800,47 @@ export default function Feed() {
     }
   };
 
+  const handleUpvoteReply = async (replyId: string) => {
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
+    if (!userData?.verified) {
+      showToast('You must be verified to like.', 'error');
+      return;
+    }
+    try {
+      const isUpvoted = replyUpvotedIds.has(replyId);
+      const reply = replies.find(r => r.id === replyId);
+      if (!reply) return;
+
+      if (isUpvoted) {
+        const upvoteId = replyUpvoteMap[replyId];
+        if (upvoteId) await deleteDoc(doc(db, 'reply_upvotes', upvoteId));
+        await updateDoc(doc(db, 'post_replies', replyId), {
+          upvotesCount: Math.max(0, (reply.upvotesCount || 0) - 1),
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await addDoc(collection(db, 'reply_upvotes'), {
+          userId: user.uid,
+          replyId: replyId
+        });
+        await updateDoc(doc(db, 'post_replies', replyId), {
+          upvotesCount: (reply.upvotesCount || 0) + 1,
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'post_replies');
+    }
+  };
+
+  const handleReplyTo = (replyId: string, authorName: string) => {
+    setReplyingTo({ id: replyId, name: authorName });
+    document.getElementById('reply-input')?.focus();
+  };
+
   const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -704,7 +861,8 @@ export default function Feed() {
         authorId: user.uid,
         authorName: userData?.name || user.email?.split('@')[0] || 'Anonymous',
         authorSchool: userData?.school || 'Unknown School',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        ...(replyingTo && { parentId: replyingTo.id })
       };
 
       await addDoc(collection(db, 'post_replies'), replyData);
@@ -713,8 +871,20 @@ export default function Feed() {
       await updateDoc(postRef, {
         repliesCount: (selectedPost.repliesCount || 0) + 1
       });
+      
+      if (replyingTo) {
+        const parentReplyRef = doc(db, 'post_replies', replyingTo.id);
+        const parentReply = replies.find(r => r.id === replyingTo.id);
+        if (parentReply) {
+          await updateDoc(parentReplyRef, {
+            repliesCount: (parentReply.repliesCount || 0) + 1,
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
 
       setReplyContent('');
+      setReplyingTo(null);
       showToast('Reply posted!', 'success');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'post_replies');
@@ -956,12 +1126,17 @@ export default function Feed() {
         {selectedPost && (
           <PostDetailModal
             post={selectedPost}
-            onClose={() => setSelectedPost(null)}
+            onClose={() => { setSelectedPost(null); setReplyingTo(null); }}
             onUpvote={handleUpvote}
             hasUpvoted={upvotedPostIds.has(selectedPost.id)}
             onShare={handleShare}
             onDelete={handleDeletePost}
             onDeleteReply={handleDeleteReply}
+            onUpvoteReply={handleUpvoteReply}
+            onReply={handleReplyTo}
+            replyUpvotedIds={replyUpvotedIds}
+            replyingTo={replyingTo}
+            clearReplyingTo={() => setReplyingTo(null)}
             isAdmin={userData?.role === 'admin'}
             replies={replies}
             replyContent={replyContent}

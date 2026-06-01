@@ -4,10 +4,11 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useFollowingIds, followUser, unfollowUser } from '../../lib/follows';
 import { Link } from 'react-router-dom';
-import { UserCheck, UserPlus } from 'lucide-react';
+import { UserCheck, UserPlus, Users, ArrowRight } from 'lucide-react';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useToast } from '../../lib/ToastContext';
 import TrendingSidebar from './TrendingSidebar';
+import { usePublicClubs, joinClub, type ClubData } from '../../lib/clubs';
 
 interface SuggestedUser {
   id: string;
@@ -167,6 +168,9 @@ export default function SuggestedUsers() {
       <div className="bg-surface-soft/50 rounded-2xl p-6 border border-luxury-ink/5 mt-6">
         <TrendingSidebar />
       </div>
+
+      {/* Discover Clubs */}
+      <DiscoverClubs />
       
       <div className="mt-8 flex flex-wrap gap-x-3 gap-y-2 px-2">
         <Link to="/terms" className="text-[10px] uppercase tracking-widest font-bold text-luxury-ink/20 hover:text-luxury-ink/40 transition-colors">Terms</Link>
@@ -176,3 +180,61 @@ export default function SuggestedUsers() {
     </div>
   );
 }
+
+function DiscoverClubs() {
+  const { user, userData } = useAuth();
+  const { showToast } = useToast();
+  const { clubs, loading } = usePublicClubs(userData?.school, userData?.city, user?.uid);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+
+  const handleJoin = async (e: React.MouseEvent, clubId: string) => {
+    e.preventDefault();
+    if (!user || joiningId) return;
+    setJoiningId(clubId);
+    try {
+      await joinClub(user.uid, clubId);
+      showToast('Joined club!', 'success');
+    } catch {
+      showToast('Failed to join', 'error');
+    } finally {
+      setJoiningId(null);
+    }
+  };
+
+  if (loading || clubs.length === 0) return null;
+
+  return (
+    <div className="bg-surface-soft/50 rounded-2xl p-6 border border-luxury-ink/5 mt-6">
+      <h3 className="text-sm font-bold text-luxury-ink mb-4 flex items-center gap-2">
+        <Users size={16} className="text-brand-teal" /> Discover Clubs
+      </h3>
+      <div className="flex flex-col gap-4">
+        {clubs.slice(0, 4).map((club) => (
+          <Link key={club.id} to={`/club/${club.id}`} className="flex items-center justify-between group">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/15 to-brand-pink/15 flex items-center justify-center overflow-hidden shrink-0 border border-luxury-ink/5">
+                {club.avatar ? (
+                  <img src={getOptimizedImageUrl(club.avatar)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <Users size={16} className="text-brand-teal" />
+                )}
+              </div>
+              <div className="min-w-0 pr-2">
+                <p className="text-[13px] font-bold text-luxury-ink truncate group-hover:text-brand-teal transition-colors">{club.name}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30">{club.memberCount} members</p>
+              </div>
+            </div>
+            <button
+              onClick={(e) => handleJoin(e, club.id)}
+              disabled={joiningId === club.id}
+              className="px-3 py-1.5 bg-brand-teal text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-brand-pink transition-colors shadow-sm shrink-0 disabled:opacity-50"
+            >
+              {joiningId === club.id ? '...' : 'Join'}
+            </button>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+

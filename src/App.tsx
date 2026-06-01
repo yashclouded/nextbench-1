@@ -26,6 +26,9 @@ const SellItem = lazyWithRetry(() => import('./pages/Dashboard/SellItem'));
 const AdminPanel = lazyWithRetry(() => import('./pages/Dashboard/AdminPanel'));
 const ChatList = lazyWithRetry(() => import('./pages/Dashboard/ChatList'));
 const ChatRoom = lazyWithRetry(() => import('./pages/Dashboard/ChatRoom'));
+const ClubChat = lazyWithRetry(() => import('./pages/Dashboard/ClubChat'));
+const ClubSettings = lazyWithRetry(() => import('./pages/Dashboard/ClubSettings'));
+const ClubJoin = lazyWithRetry(() => import('./pages/Dashboard/ClubJoin'));
 const Wishlist = lazyWithRetry(() => import('./pages/Dashboard/Wishlist'));
 const Notifications = lazyWithRetry(() => import('./pages/Dashboard/Notifications'));
 const TermsPage = lazyWithRetry(() => import('./pages/Legal/TermsPage'));
@@ -107,6 +110,11 @@ export default function App() {
               <Route path="/wishlist" element={<ProtectedRoute requireAuth requireVerified><Wishlist /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute requireAuth requireVerified><Notifications /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireAuth requireAdmin><AdminPanel /></ProtectedRoute>} />
+              
+              {/* Club routes */}
+              <Route path="/club/join/:inviteCode" element={<ProtectedRoute requireAuth requireVerified><ClubJoin /></ProtectedRoute>} />
+              <Route path="/club/:clubId" element={<ProtectedRoute requireAuth requireVerified><ClubChat /></ProtectedRoute>} />
+              <Route path="/club/:clubId/settings" element={<ProtectedRoute requireAuth requireVerified><ClubSettings /></ProtectedRoute>} />
               
               {/* Username profile route */}
               <Route path="/u/:username" element={<ProtectedRoute requireAuth><UsernameProfile /></ProtectedRoute>} />
