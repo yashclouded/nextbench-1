@@ -12,6 +12,7 @@ import { getOptimizedImageUrl } from '../../lib/utils';
 import { createNotification } from '../../lib/notifications';
 import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import ReportModal from '../../components/ui/ReportModal';
+import MessageText from '../../components/ui/MessageText';
 
 
 interface Message {
@@ -534,7 +535,7 @@ export default function ChatRoom() {
                         />
                       </div>
                     )}
-                    {msg.text && <p className="leading-relaxed">{msg.text}</p>}
+                      {msg.text && <MessageText text={msg.text} />}
                   </>
                 )}
 
