@@ -70,14 +70,14 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="group w-full max-w-xl mx-auto mb-8"
+      className="group w-full"
     >
       <Link to={`/product/${product.id}`} className="block">
-        <div className={`theme-card p-5 transition-all duration-500 relative rounded-2xl ${
+        <div className={`p-4 transition-all duration-300 relative border-b ${
             product.status === 'sold'
               ? 'opacity-75 pointer-events-none'
-              : 'hover:scale-[1.005]'
-          }`}>
+              : 'hover:bg-surface-soft'
+          }`} style={{ borderColor: 'var(--color-border)' }}>
           
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
@@ -85,33 +85,33 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/profile/${product.sellerId}`); }} 
               className="shrink-0 cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-sm overflow-hidden border border-brand-teal/20">
+              <div className="w-9 h-9 rounded-full bg-surface-soft flex items-center justify-center text-brand-teal font-semibold text-sm overflow-hidden">
                 {product.sellerName[0]?.toUpperCase()}
               </div>
             </div>
             <div className="flex-1 min-w-0">
               <div 
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/profile/${product.sellerId}`); }} 
-                className="text-sm font-bold text-luxury-ink hover:text-brand-teal transition-colors truncate block cursor-pointer"
+                className="text-sm font-semibold text-luxury-ink hover:underline transition-colors truncate block cursor-pointer"
               >
                 {product.sellerName}
               </div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30 truncate">
+              <p className="text-[11px] text-luxury-ink/30 truncate">
                 {product.sellerSchool}
               </p>
             </div>
             <div className="text-right">
-              <div className="text-xl font-bold text-brand-pink italic">₹{product.price}</div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-teal/10 text-brand-teal rounded-full text-[9px] font-bold uppercase tracking-widest">
+              <div className="text-lg font-bold text-luxury-ink">₹{product.price}</div>
+              <span className="inline-flex items-center px-2 py-0.5 bg-brand-teal/8 text-brand-teal rounded-full text-[10px] font-semibold">
                 Marketplace
               </span>
             </div>
           </div>
 
-          <h3 className="text-lg font-bold text-luxury-ink mb-3 group-hover:text-brand-pink transition-colors truncate">{product.title}</h3>
+          <h3 className="text-[15px] font-semibold text-luxury-ink mb-3 truncate">{product.title}</h3>
 
           {/* Image */}
-          <div className="aspect-[4/3] overflow-hidden relative mb-5 bg-surface-soft rounded-xl">
+          <div className="aspect-[4/3] overflow-hidden relative mb-4 bg-surface-soft rounded-xl">
             <img 
               src={getOptimizedImageUrl(product.image)} 
               alt={product.title}
@@ -122,10 +122,10 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
               }`}
               referrerPolicy="no-referrer"
             />
-            <div className="absolute top-3 left-3 glass px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest text-brand-teal">
+            <div className="absolute top-3 left-3 bg-surface-card/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-semibold text-luxury-ink/70">
               {product.condition}
             </div>
-            <div className="absolute bottom-3 left-3 bg-luxury-ink/60 backdrop-blur-md text-white px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest">
+            <div className="absolute bottom-3 left-3 bg-luxury-ink/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold">
               {product.category}
             </div>
 
@@ -143,7 +143,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
             {product.status !== 'sold' && (
               <button
                 onClick={toggleWishlist}
-                className="absolute top-3 right-3 p-3 rounded-full glass shadow-md hover:scale-110 transition-all z-10"
+                className="absolute top-3 right-3 p-2.5 rounded-full bg-surface-card/80 backdrop-blur-sm shadow-sm hover:scale-110 transition-all z-10"
               >
                 <Heart
                   size={18}
@@ -158,13 +158,13 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
           </div>
           
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-luxury-ink/40">
-              <MapPin size={16} /> {product.city || 'Lucknow'}
+            <div className="flex items-center gap-1.5 text-xs text-luxury-ink/40">
+              <MapPin size={14} /> {product.city || 'Lucknow'}
             </div>
-            <button className={`px-5 py-2.5 text-white text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg transition-colors rounded-xl ${
+            <button className={`px-4 py-2 text-white text-xs font-semibold shadow-sm transition-colors rounded-lg ${
               product.status === 'sold'
-                ? 'bg-luxury-ink/40 cursor-not-allowed shadow-none'
-                : 'bg-brand-teal shadow-brand-teal/20 group-hover:bg-brand-pink'
+                ? 'bg-luxury-ink/30 cursor-not-allowed shadow-none'
+                : 'bg-brand-teal hover:bg-brand-teal/90'
             }`}>
               {product.status === 'sold' ? 'Sold' : 'View'}
             </button>
