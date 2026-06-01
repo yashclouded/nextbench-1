@@ -264,7 +264,17 @@
 }
 .theme-card:hover {
   border-color: var(--color-border-strong);
-  box-shadow: 0 12px 40px -10px var(--color-shadow-brand);
+  box-shadow: 0 4px 16px -6px var(--color-shadow-brand);
+}
+
+/* Clean post card — Substack/Reddit inspired */
+.post-card-clean {
+  background: var(--color-surface-card);
+  border-bottom: 1px solid var(--color-border);
+  transition: background-color 0.15s ease;
+}
+.post-card-clean:hover {
+  background: var(--color-surface-soft);
 }
 
 .theme-input {
