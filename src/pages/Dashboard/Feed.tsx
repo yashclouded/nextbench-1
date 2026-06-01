@@ -1246,12 +1246,32 @@ export default function Feed() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            onClick={(e) => {
+              if (isSubmitting) return;
+              const form = document.getElementById('create-post-form') as HTMLFormElement;
+              const titleNode = form?.elements.namedItem('title') as HTMLInputElement;
+              const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
+              const title = titleNode?.value || '';
+              const content = contentNode?.value || '';
+              if (title.trim() || content.trim() || imageFiles.length > 0) {
+                if (window.confirm('Discard your post?')) {
+                  setIsModalOpen(false);
+                  setImageFiles([]);
+                  setPendingFiles([]);
+                }
+              } else {
+                setIsModalOpen(false);
+                setImageFiles([]);
+                setPendingFiles([]);
+              }
+            }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
               className="bg-surface-card rounded-3xl w-full max-w-2xl relative shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               {/* Full-Screen Loading Overlay inside Modal */}
@@ -1271,7 +1291,7 @@ export default function Feed() {
               </AnimatePresence>
 
               <div className="p-6 md:p-8 overflow-y-visible flex-1 min-h-[60vh] flex flex-col">
-                <form onSubmit={handleCreatePost} className="flex flex-col h-full relative flex-1">
+                <form id="create-post-form" onSubmit={handleCreatePost} className="flex flex-col h-full relative flex-1">
                   <input type="hidden" name="type" value={selectedPostType} />
                   <input type="hidden" name="privacy" value={privacy} />
                   
@@ -1288,7 +1308,7 @@ export default function Feed() {
                       <span className="text-[15px] font-semibold text-luxury-ink">
                         {selectedPostType === 'confession' && isAnonymous 
                           ? userData?.anonymousPersonaName || 'Anonymous' 
-                          : `${userData?.firstName || 'User'} ${userData?.lastName || ''}`}
+                          : (userData?.firstName ? `${userData.firstName} ${userData.lastName || ''}`.trim() : user?.displayName || 'User')}
                       </span>
                       {selectedPostType === 'confession' && !isAnonymous && (
                         <span className="text-[11px] text-amber-500 font-semibold flex items-center gap-1">
@@ -1408,16 +1428,39 @@ export default function Feed() {
                       </div>
                       
                       {/* Active selections indicator */}
-                      <div className="ml-2 flex items-center gap-2 pointer-events-none">
-                        {privacy === 'private' && <span className="flex items-center gap-1 text-[10px] font-semibold bg-surface-soft text-luxury-ink/60 px-2 py-0.5 rounded-full"><Lock size={10} /> Friends</span>}
-                        {selectedPostType !== 'discussion' && <span className="flex items-center gap-1 text-[10px] font-semibold bg-surface-soft text-luxury-ink/60 px-2 py-0.5 rounded-full">{POST_TYPES.find(t => t.id === selectedPostType)?.label}</span>}
+                      <div className="ml-2 flex items-center gap-2">
+                        {privacy === 'private' && (
+                          <button type="button" onClick={() => setShowPostOptions(!showPostOptions)} className="flex items-center gap-1 text-[10px] font-semibold bg-surface-soft hover:bg-surface-soft/80 transition-colors text-luxury-ink/60 px-2 py-0.5 rounded-full cursor-pointer">
+                            <Lock size={10} /> Friends
+                          </button>
+                        )}
+                        <button type="button" onClick={() => setShowPostOptions(!showPostOptions)} className="flex items-center gap-1 text-[10px] font-semibold bg-surface-soft hover:bg-surface-soft/80 transition-colors text-luxury-ink/60 px-2 py-0.5 rounded-full cursor-pointer">
+                          {POST_TYPES.find(t => t.id === selectedPostType)?.label || 'Post Type'}
+                        </button>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setIsModalOpen(false)}
+                        onClick={() => {
+                          const form = document.getElementById('create-post-form') as HTMLFormElement;
+                          const titleNode = form?.elements.namedItem('title') as HTMLInputElement;
+                          const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
+                          const title = titleNode?.value || '';
+                          const content = contentNode?.value || '';
+                          if (title.trim() || content.trim() || imageFiles.length > 0) {
+                            if (window.confirm('Discard your post?')) {
+                              setIsModalOpen(false);
+                              setImageFiles([]);
+                              setPendingFiles([]);
+                            }
+                          } else {
+                            setIsModalOpen(false);
+                            setImageFiles([]);
+                            setPendingFiles([]);
+                          }
+                        }}
                         className="px-4 py-2 text-[14px] font-semibold text-luxury-ink/50 hover:text-luxury-ink transition-colors"
                       >
                         Cancel
