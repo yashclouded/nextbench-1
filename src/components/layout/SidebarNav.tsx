@@ -55,7 +55,7 @@ export default function SidebarNav() {
   }, [user]);
 
   const navLinks = [
-    { name: 'Home', path: '/dashboard', icon: Home },
+    { name: 'Home', path: '/', icon: Home },
     { name: 'Search', path: '/search', icon: Search },
     { name: 'Sell', path: '/sell', icon: PlusCircle },
     { name: 'Messages', path: '/messages', icon: MessageSquare },
@@ -67,7 +67,7 @@ export default function SidebarNav() {
   return (
     <div className="h-screen sticky top-0 flex flex-col pt-8 pb-6 px-4 md:px-5 xl:px-6 border-r" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-card)' }}>
       {/* Logo */}
-      <Link to="/dashboard" className="flex items-center gap-3 mb-10 px-3 group w-fit">
+      <Link to="/" className="flex items-center gap-3 mb-10 px-3 group w-fit">
         <img src="/logo.png" alt="Nextbench Logo" className="h-9 w-auto transition-all group-hover:scale-110 group-hover:-rotate-3 duration-300 drop-shadow-sm group-hover:drop-shadow-md" />
         <span className="text-2xl font-black tracking-tighter text-luxury-ink hidden xl:block group-hover:text-brand-teal transition-colors duration-300">nextbench</span>
       </Link>

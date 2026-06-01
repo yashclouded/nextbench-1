@@ -45,13 +45,32 @@ function PageLoader() {
   );
 }
 
-
 /** Redirects logged-in-but-unverified users to /verification, and not-logged-in to /signup */
 function VerificationGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/signup" replace />;
   return <>{children}</>;
+}
+
+/** Smart home route: logged-in → Feed in DashLayout, logged-out → LandingPage */
+function SmartHome() {
+  const { user, loading } = useAuth();
+  if (loading) return <PageLoader />;
+  if (user) {
+    return (
+      <DashboardLayout>
+        <Feed />
+      </DashboardLayout>
+    );
+  }
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+      <main className="flex-1"><LandingPage /></main>
+      <Footer />
+    </div>
+  );
 }
 
 function MainLayout() {
@@ -83,9 +102,11 @@ export default function App() {
         
         <Suspense fallback={<PageLoader />}>
           <Routes>
+            {/* Smart Home — Feed for logged-in, Landing for visitors */}
+            <Route path="/" element={<SmartHome />} />
+
             {/* Public Marketing/Auth Layout (Navbar + Footer) */}
             <Route element={<MainLayout />}>
-              <Route path="/" element={<LandingPage />} />
               <Route path="/careers" element={<CareersPage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
@@ -98,7 +119,7 @@ export default function App() {
             {/* Dashboard 3-Column Layout */}
             <Route element={<DashLayout />}>
               {/* Protected Dashboard Routes */}
-              <Route path="/dashboard" element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<Navigate to="/" replace />} />
               <Route path="/community" element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute requireAuth><Search /></ProtectedRoute>} />
               <Route path="/product/:id" element={<ProtectedRoute requireAuth><ProductDetail /></ProtectedRoute>} />
@@ -128,4 +149,3 @@ export default function App() {
     </ErrorBoundary>
   );
 }
-

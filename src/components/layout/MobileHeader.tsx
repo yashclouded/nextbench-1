@@ -27,14 +27,14 @@ export default function MobileHeader() {
 
   // Don't show header if we are not on main dashboard pages,
   // to avoid conflicting with modal headers or simple pages.
-  const showHeaderPaths = ['/dashboard', '/community', '/search', '/notifications'];
+  const showHeaderPaths = ['/', '/dashboard', '/community', '/search', '/notifications'];
   if (!showHeaderPaths.includes(location.pathname)) {
     return null;
   }
 
   return (
     <div className="md:hidden nav-glass border-b px-4 py-3 flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
-      <Link to="/dashboard" className="flex items-center gap-2">
+      <Link to="/" className="flex items-center gap-2">
         <img src="/logo.png" alt="Logo" className="h-6 w-auto" />
         <span className="text-xl font-bold tracking-tight text-luxury-ink">nextbench</span>
       </Link>
