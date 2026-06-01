@@ -10,6 +10,7 @@ import { useToast } from '../../lib/ToastContext';
 import { uploadChatImage } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import type { ClubData } from '../../lib/clubs';
+import MessageText from '../../components/ui/MessageText';
 
 interface Message {
   id: string;
@@ -487,7 +488,7 @@ export default function ClubChat() {
                           />
                         </div>
                       )}
-                      {msg.text && <p className="leading-relaxed">{msg.text}</p>}
+                      {msg.text && <MessageText text={msg.text} />}
                     </>
                   )}
 
