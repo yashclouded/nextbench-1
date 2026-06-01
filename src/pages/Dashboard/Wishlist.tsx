@@ -140,7 +140,7 @@ export default function Wishlist() {
               >
                 <div className="bg-surface-card rounded-2xl overflow-hidden luxury-shadow border border-luxury-ink/5 relative">
                   {item.product?.status !== 'available' && (
-                    <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-surface-card/70 backdrop-blur-sm z-10 flex items-center justify-center">
                       <span className="px-4 py-2 bg-luxury-ink text-surface-base text-xs font-bold uppercase tracking-widest rounded-full">
                         {item.product?.status === 'sold' ? 'Sold Out' : item.product?.status === 'reserved' ? 'Reserved' : 'Unavailable'}
                       </span>

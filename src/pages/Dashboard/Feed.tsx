@@ -1573,9 +1573,9 @@ function HorizontalDiscoverClubs() {
           <Link 
             key={club.id} 
             to={`/club/${club.id}`} 
-            className="snap-start flex-shrink-0 w-[160px] bg-white/70 backdrop-blur-sm rounded-2xl p-4 border border-luxury-ink/5 hover:border-brand-teal/20 transition-all group flex flex-col items-center text-center shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.08)] hover:-translate-y-1"
+            className="snap-start flex-shrink-0 w-[160px] bg-surface-card/70 backdrop-blur-sm rounded-2xl p-4 border border-luxury-ink/5 hover:border-brand-teal/20 transition-all group flex flex-col items-center text-center shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.08)] hover:-translate-y-1"
           >
-            <div className="w-16 h-16 rounded-full bg-surface-soft flex items-center justify-center overflow-hidden mb-3 border-[3px] border-white shadow-sm ring-1 ring-luxury-ink/5">
+            <div className="w-16 h-16 rounded-full bg-surface-soft flex items-center justify-center overflow-hidden mb-3 border-[3px] border-surface-card shadow-sm ring-1 ring-luxury-ink/5">
               {club.avatar ? (
                 <img src={getOptimizedImageUrl(club.avatar)} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
               ) : (
