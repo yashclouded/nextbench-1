@@ -359,7 +359,7 @@ service cloud.firestore {
     // === SAVED POSTS ===
     match /saved_posts/{saveId} {
       allow read: if isSignedIn();
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && incoming().userId == request.auth.uid && incoming().postId is string;
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
