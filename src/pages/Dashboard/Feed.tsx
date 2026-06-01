@@ -1076,7 +1076,9 @@ export default function Feed() {
                     key={`post-${item.id}`} 
                     post={item as Post} 
                     hasUpvoted={upvotedPostIds.has(item.id)} 
-                    onClick={() => setSelectedPost(item as Post)} 
+                    onClick={() => setSelectedPost(item as Post)}
+                    onUpvote={handleUpvote}
+                    onShare={handleShare}
                   />
                 );
 

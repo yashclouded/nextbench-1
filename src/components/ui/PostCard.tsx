@@ -35,6 +35,8 @@ interface PostCardProps {
   post: Post;
   hasUpvoted: boolean;
   onClick: () => void;
+  onUpvote?: (post: Post) => void;
+  onShare?: (post: Post) => void;
 }
 
 function timeAgo(date: any): string {
@@ -49,7 +51,7 @@ function timeAgo(date: any): string {
   return date.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function PostCard({ post, hasUpvoted, onClick }: PostCardProps) {
+export default function PostCard({ post, hasUpvoted, onClick, onUpvote, onShare }: PostCardProps) {
   const { showToast } = useToast();
   const postImageUrls = post.imageUrls && post.imageUrls.length > 0
     ? post.imageUrls
@@ -141,17 +143,26 @@ export default function PostCard({ post, hasUpvoted, onClick }: PostCardProps) {
         {/* Action Bar */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-5">
-            <span className={`flex items-center gap-1.5 text-[13px] transition-colors ${hasUpvoted && post.type !== 'confession' ? 'text-brand-pink font-semibold' : 'text-luxury-ink/40 hover:text-brand-pink'}`}>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onUpvote?.(post); }}
+              className={`flex items-center gap-1.5 text-[13px] transition-colors ${hasUpvoted && post.type !== 'confession' ? 'text-brand-pink font-semibold' : 'text-luxury-ink/40 hover:text-brand-pink'}`}
+            >
               <Heart size={18} className={hasUpvoted && post.type !== 'confession' ? 'fill-brand-pink' : ''} />
               {totalReactions || 0}
-            </span>
-            <span className="flex items-center gap-1.5 text-[13px] text-luxury-ink/40 hover:text-brand-teal transition-colors">
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onClick(); }}
+              className="flex items-center gap-1.5 text-[13px] text-luxury-ink/40 hover:text-brand-teal transition-colors"
+            >
               <MessageCircle size={18} />
               {post.repliesCount || 0}
-            </span>
-            <span className="flex items-center text-luxury-ink/40 hover:text-luxury-ink/60 transition-colors">
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onShare?.(post); }}
+              className="flex items-center text-luxury-ink/40 hover:text-luxury-ink/60 transition-colors"
+            >
               <Share2 size={16} />
-            </span>
+            </button>
           </div>
           <div className="flex items-center gap-3">
             <button
