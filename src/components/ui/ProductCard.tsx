@@ -76,8 +76,11 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
         <div className={`p-4 transition-all duration-300 relative border-b ${
             product.status === 'sold'
               ? 'opacity-75 pointer-events-none'
-              : 'hover:bg-surface-soft'
+              : 'hover:bg-gradient-to-br hover:from-brand-teal/5 hover:to-brand-pink/5'
           }`} style={{ borderColor: 'var(--color-border)' }}>
+          
+          {/* Subtle Accent Glow */}
+          <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-brand-teal/20 to-transparent"></div>
           
           {/* Header */}
           <div className="flex items-center gap-3 mb-4">
@@ -111,7 +114,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
           <h3 className="text-[15px] font-semibold text-luxury-ink mb-3 truncate">{product.title}</h3>
 
           {/* Image */}
-          <div className="aspect-[4/3] overflow-hidden relative mb-4 bg-surface-soft rounded-xl">
+          <div className="aspect-[4/3] overflow-hidden relative mb-4 rounded-xl" style={{ background: 'linear-gradient(135deg, var(--color-surface-soft) 0%, rgba(var(--color-brand-teal-rgb), 0.05) 100%)' }}>
             <img 
               src={getOptimizedImageUrl(product.image)} 
               alt={product.title}

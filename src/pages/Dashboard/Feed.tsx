@@ -40,6 +40,7 @@ interface Post {
   imageUrls?: string[];
   createdAt: any;
   upvotesCount: number;
+  downvotesCount?: number;
   repliesCount: number;
   feedScore?: number;
 }
@@ -139,6 +140,8 @@ function PostDetailModal({
   onClose, 
   onUpvote, 
   hasUpvoted, 
+  onDownvote,
+  hasDownvoted,
   onShare, 
   onDelete, 
   onDeleteReply,
@@ -158,6 +161,8 @@ function PostDetailModal({
   onClose: () => void;
   onUpvote: (post: Post) => void;
   hasUpvoted: boolean;
+  onDownvote: (post: Post) => void;
+  hasDownvoted: boolean;
   onShare: (post: Post) => void;
   onDelete?: (postId: string) => void;
   onDeleteReply?: (replyId: string) => void;
@@ -391,13 +396,25 @@ function PostDetailModal({
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
               {post.type !== 'confession' && (
-                <button
-                  onClick={() => onUpvote(post)}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${hasUpvoted ? 'bg-brand-pink/10 text-brand-pink' : 'hover:bg-surface-soft text-luxury-ink/40 hover:text-brand-pink'}`}
-                >
-                  <Heart size={24} className={hasUpvoted ? 'fill-brand-pink' : ''} />
-                  {post.upvotesCount || 0}
-                </button>
+                <div className="flex items-center gap-1 bg-surface-soft/50 rounded-2xl p-1">
+                  <button
+                    onClick={() => onUpvote(post)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasUpvoted ? 'bg-brand-pink/10 text-brand-pink' : 'hover:bg-white text-luxury-ink/40 hover:text-brand-pink'}`}
+                  >
+                    <Heart size={20} className={hasUpvoted ? 'fill-brand-pink' : ''} />
+                    {post.upvotesCount || 0}
+                  </button>
+                  <div className="w-[1px] h-6 bg-luxury-ink/10"></div>
+                  <button
+                    onClick={() => onDownvote(post)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasDownvoted ? 'bg-indigo-500/10 text-indigo-500' : 'hover:bg-white text-luxury-ink/40 hover:text-indigo-500'}`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={hasDownvoted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+                    </svg>
+                    {post.downvotesCount || 0}
+                  </button>
+                </div>
               )}
               <button
                 onClick={() => document.getElementById('reply-input')?.focus()}
@@ -451,6 +468,8 @@ export default function Feed() {
 
   const [upvotedPostIds, setUpvotedPostIds] = useState<Set<string>>(new Set());
   const [upvoteMap, setUpvoteMap] = useState<Record<string, string>>({});
+  const [downvotedPostIds, setDownvotedPostIds] = useState<Set<string>>(new Set());
+  const [downvoteMap, setDownvoteMap] = useState<Record<string, string>>({});
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [replies, setReplies] = useState<any[]>([]);
@@ -622,6 +641,22 @@ export default function Feed() {
 
   useEffect(() => {
     if (!user) return;
+    const q = query(collection(db, 'post_downvotes'), where('userId', '==', user.uid));
+    const unsub = onSnapshot(q, snap => {
+      const ids = new Set<string>();
+      const map: Record<string, string> = {};
+      snap.forEach(d => {
+        ids.add(d.data().postId);
+        map[d.data().postId] = d.id;
+      });
+      setDownvotedPostIds(ids);
+      setDownvoteMap(map);
+    });
+    return () => unsub();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
     const q = query(collection(db, 'reply_upvotes'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, snap => {
       const ids = new Set<string>();
@@ -786,13 +821,69 @@ export default function Feed() {
           updatedAt: serverTimestamp()
         });
       } else {
+        // Remove downvote if it exists
+        if (downvotedPostIds.has(post.id)) {
+          const downvoteId = downvoteMap[post.id];
+          if (downvoteId) await deleteDoc(doc(db, 'post_downvotes', downvoteId));
+          await updateDoc(doc(db, 'posts', post.id), {
+            upvotesCount: (post.upvotesCount || 0) + 1,
+            downvotesCount: Math.max(0, (post.downvotesCount || 0) - 1),
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          await updateDoc(doc(db, 'posts', post.id), {
+            upvotesCount: (post.upvotesCount || 0) + 1,
+            updatedAt: serverTimestamp()
+          });
+        }
         await addDoc(collection(db, 'post_upvotes'), {
           userId: user.uid,
           postId: post.id
         });
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'posts');
+    }
+  };
+
+  const handleDownvote = async (post: Post) => {
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
+    if (!userData?.verified) {
+      showToast('You must be verified to dislike.', 'error');
+      return;
+    }
+
+    try {
+      const isDownvoted = downvotedPostIds.has(post.id);
+      if (isDownvoted) {
+        const downvoteId = downvoteMap[post.id];
+        if (downvoteId) await deleteDoc(doc(db, 'post_downvotes', downvoteId));
         await updateDoc(doc(db, 'posts', post.id), {
-          upvotesCount: (post.upvotesCount || 0) + 1,
+          downvotesCount: Math.max(0, (post.downvotesCount || 0) - 1),
           updatedAt: serverTimestamp()
+        });
+      } else {
+        // Remove upvote if it exists
+        if (upvotedPostIds.has(post.id)) {
+          const upvoteId = upvoteMap[post.id];
+          if (upvoteId) await deleteDoc(doc(db, 'post_upvotes', upvoteId));
+          await updateDoc(doc(db, 'posts', post.id), {
+            downvotesCount: (post.downvotesCount || 0) + 1,
+            upvotesCount: Math.max(0, (post.upvotesCount || 0) - 1),
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          await updateDoc(doc(db, 'posts', post.id), {
+            downvotesCount: (post.downvotesCount || 0) + 1,
+            updatedAt: serverTimestamp()
+          });
+        }
+        await addDoc(collection(db, 'post_downvotes'), {
+          userId: user.uid,
+          postId: post.id
         });
       }
     } catch (e) {
@@ -924,6 +1015,10 @@ export default function Feed() {
       const upvotesQ = query(collection(db, 'post_upvotes'), where('postId', '==', postId));
       const upvotesSnap = await getDocs(upvotesQ);
       upvotesSnap.forEach(docSnap => batch.delete(docSnap.ref));
+
+      const downvotesQ = query(collection(db, 'post_downvotes'), where('postId', '==', postId));
+      const downvotesSnap = await getDocs(downvotesQ);
+      downvotesSnap.forEach(docSnap => batch.delete(docSnap.ref));
 
       const reactionsQ = query(collection(db, 'post_reactions'), where('postId', '==', postId));
       const reactionsSnap = await getDocs(reactionsQ);
@@ -1076,8 +1171,10 @@ export default function Feed() {
                     key={`post-${item.id}`} 
                     post={item as Post} 
                     hasUpvoted={upvotedPostIds.has(item.id)} 
+                    hasDownvoted={downvotedPostIds.has(item.id)}
                     onClick={() => setSelectedPost(item as Post)}
                     onUpvote={handleUpvote}
+                    onDownvote={handleDownvote}
                     onShare={handleShare}
                   />
                 );
@@ -1120,6 +1217,8 @@ export default function Feed() {
             onClose={() => { setSelectedPost(null); setReplyingTo(null); }}
             onUpvote={handleUpvote}
             hasUpvoted={upvotedPostIds.has(selectedPost.id)}
+            onDownvote={handleDownvote}
+            hasDownvoted={downvotedPostIds.has(selectedPost.id)}
             onShare={handleShare}
             onDelete={handleDeletePost}
             onDeleteReply={handleDeleteReply}

@@ -34,8 +34,10 @@ interface PostCardProps {
   key?: React.Key;
   post: Post;
   hasUpvoted: boolean;
+  hasDownvoted?: boolean;
   onClick: () => void;
   onUpvote?: (post: Post) => void;
+  onDownvote?: (post: Post) => void;
   onShare?: (post: Post) => void;
 }
 
@@ -51,7 +53,7 @@ function timeAgo(date: any): string {
   return date.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function PostCard({ post, hasUpvoted, onClick, onUpvote, onShare }: PostCardProps) {
+export default function PostCard({ post, hasUpvoted, hasDownvoted, onClick, onUpvote, onDownvote, onShare }: PostCardProps) {
   const { showToast } = useToast();
   const postImageUrls = post.imageUrls && post.imageUrls.length > 0
     ? post.imageUrls
@@ -143,13 +145,25 @@ export default function PostCard({ post, hasUpvoted, onClick, onUpvote, onShare 
         {/* Action Bar */}
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-5">
-            <button 
-              onClick={(e) => { e.stopPropagation(); onUpvote?.(post); }}
-              className={`flex items-center gap-1.5 text-[13px] transition-colors ${hasUpvoted && post.type !== 'confession' ? 'text-brand-pink font-semibold' : 'text-luxury-ink/40 hover:text-brand-pink'}`}
-            >
-              <Heart size={18} className={hasUpvoted && post.type !== 'confession' ? 'fill-brand-pink' : ''} />
-              {totalReactions || 0}
-            </button>
+            <div className="flex items-center gap-1.5 bg-surface-soft/50 rounded-full px-2 py-0.5">
+              <button 
+                onClick={(e) => { e.stopPropagation(); onUpvote?.(post); }}
+                className={`flex items-center gap-1.5 text-[13px] transition-colors ${hasUpvoted && post.type !== 'confession' ? 'text-brand-pink font-semibold' : 'text-luxury-ink/40 hover:text-brand-pink'}`}
+              >
+                <Heart size={16} className={hasUpvoted && post.type !== 'confession' ? 'fill-brand-pink' : ''} />
+                {totalReactions || 0}
+              </button>
+              <div className="w-[1px] h-3 bg-luxury-ink/10 mx-0.5"></div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDownvote?.(post); }}
+                className={`flex items-center gap-1.5 text-[13px] transition-colors ${hasDownvoted && post.type !== 'confession' ? 'text-indigo-500 font-semibold' : 'text-luxury-ink/40 hover:text-indigo-500'}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={hasDownvoted && post.type !== 'confession' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={hasDownvoted && post.type !== 'confession' ? 'text-indigo-500' : ''}>
+                  <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+                </svg>
+                {post.downvotesCount || 0}
+              </button>
+            </div>
             <button 
               onClick={(e) => { e.stopPropagation(); onClick(); }}
               className="flex items-center gap-1.5 text-[13px] text-luxury-ink/40 hover:text-brand-teal transition-colors"
