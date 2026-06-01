@@ -97,20 +97,30 @@ export default function ChatRoom() {
               setOtherUser({ id: otherUserId, name: 'Deleted User', profilePicture: null });
             }
           }
-          
-          if (data.unreadBy && data.unreadBy.includes(user.uid)) {
-            updateDoc(doc(db, 'chatRooms', roomId), {
-              unreadBy: arrayRemove(user.uid)
-            }).catch(console.error);
-          }
         }
       } catch (err) {
         handleFirestoreError(err, OperationType.GET, `chatRooms/${roomId}`);
       }
     };
+    
     if (!roomData || !otherUser) {
       fetchRoom();
     }
+
+    // Actively clear unread status whenever we are in the room
+    const unsubRoom = onSnapshot(doc(db, 'chatRooms', roomId), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as ChatRoomData;
+        // Update local state if needed
+        setRoomData(prev => prev ? { ...prev, ...data } : data);
+        
+        if (data.unreadBy?.includes(user.uid)) {
+          updateDoc(doc(db, 'chatRooms', roomId), {
+            unreadBy: arrayRemove(user.uid)
+          }).catch(console.error);
+        }
+      }
+    });
 
     const q = query(collection(db, 'chatRooms', roomId, 'messages'), orderBy('createdAt', 'desc'), limit(100));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -150,7 +160,10 @@ export default function ChatRoom() {
     };
     markMessagesAsRead();
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubRoom();
+    };
   }, [roomId, user]);
 
   const scrollToBottom = () => {
