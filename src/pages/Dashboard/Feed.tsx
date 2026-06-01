@@ -18,6 +18,7 @@ import { useScrollLock } from '../../hooks/useScrollLock';
 import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import { getPersonaDisplay } from '../../lib/confessions';
 import { togglePostReaction, getUserReaction, REACTION_TYPES, REACTION_KEYS, ReactionType } from '../../lib/reactions';
+import { usePublicClubs, joinClub } from '../../lib/clubs';
 
 interface Post {
   id: string;
@@ -68,7 +69,7 @@ export const POST_TYPES = [
 
 // ─── Post Detail Modal (Instagram-style) ──────────────────
 
-function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelete, isAdmin, replies, replyContent, setReplyContent, onSubmitReply, isSubmitting }: {
+function PostDetailModal({ post, onClose, onUpvote, hasUpvoted, onShare, onDelete, onDeleteReply, isAdmin, replies, replyContent, setReplyContent, onSubmitReply, isSubmitting }: {
   post: Post;
   onClose: () => void;
   onUpvote: (post: Post) => void;
@@ -837,12 +838,7 @@ export default function Feed() {
           >
             All
           </button>
-          <button
-            onClick={() => setContentType('posts')}
-            className={`py-3 sm:py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 whitespace-nowrap shrink-0 ${contentType === 'posts' ? 'border-luxury-ink text-luxury-ink' : 'border-transparent text-luxury-ink/30 hover:text-luxury-ink/60'}`}
-          >
-            Community
-          </button>
+
           <button
             onClick={() => setContentType('marketplace')}
             className={`py-3 sm:py-4 text-xs font-bold uppercase tracking-widest transition-all border-b-2 whitespace-nowrap shrink-0 ${contentType === 'marketplace' ? 'border-luxury-ink text-luxury-ink' : 'border-transparent text-luxury-ink/30 hover:text-luxury-ink/60'}`}
@@ -906,30 +902,37 @@ export default function Feed() {
           {/* Vertical Feed */}
           <div className="flex flex-col gap-8 w-full pb-20">
             <AnimatePresence>
-              {combinedFeed.map(item => {
-                if (item._kind === 'product') {
+              {combinedFeed.map((item, index) => {
+                const isProduct = item._kind === 'product';
+                
+                const card = isProduct ? (
+                  <ProductCard 
+                    key={`prod-${item.id}`} 
+                    product={item as Product} 
+                    isWishlisted={wishlisted.has(item.id)} 
+                    wishlistDocId={wishlistMap[item.id]} 
+                  />
+                ) : (
+                  <PostCard 
+                    key={`post-${item.id}`} 
+                    post={item as Post} 
+                    hasUpvoted={upvotedPostIds.has(item.id)} 
+                    onClick={() => setSelectedPost(item as Post)} 
+                  />
+                );
+
+                const showClubs = index === 2 || (combinedFeed.length <= 2 && index === combinedFeed.length - 1);
+
+                if (showClubs) {
                   return (
-                    <ProductCard 
-                      key={`prod-${item.id}`} 
-                      product={item} 
-                      isWishlisted={wishlisted.has(item.id)} 
-                      wishlistDocId={wishlistMap[item.id]} 
-                    />
+                    <React.Fragment key={`feed-item-${item.id}`}>
+                      {card}
+                      <HorizontalDiscoverClubs />
+                    </React.Fragment>
                   );
                 }
 
-                // Otherwise, it's a Post
-                const post = item as Post;
-                const hasUpvoted = upvotedPostIds.has(post.id);
-
-                return (
-                  <PostCard 
-                    key={`post-${post.id}`} 
-                    post={post} 
-                    hasUpvoted={hasUpvoted} 
-                    onClick={() => setSelectedPost(post)} 
-                  />
-                );
+                return card;
               })}
             </AnimatePresence>
           </div>
@@ -1175,6 +1178,66 @@ export default function Feed() {
         />
       )}
 
+    </div>
+  );
+}
+
+function HorizontalDiscoverClubs() {
+  const { user, userData } = useAuth();
+  const { showToast } = useToast();
+  const { clubs, loading } = usePublicClubs(userData?.school, userData?.city, user?.uid);
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+
+  const handleJoin = async (e: React.MouseEvent, clubId: string) => {
+    e.preventDefault();
+    if (!user || joiningId) return;
+    setJoiningId(clubId);
+    try {
+      await joinClub(user.uid, clubId);
+      showToast('Joined club!', 'success');
+    } catch {
+      showToast('Failed to join', 'error');
+    } finally {
+      setJoiningId(null);
+    }
+  };
+
+  if (loading || clubs.length === 0) return null;
+
+  return (
+    <div className="py-6 my-2 border-y border-luxury-ink/5 bg-surface-soft/20 -mx-4 px-4 sm:mx-0 sm:rounded-3xl sm:border sm:px-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Users size={18} className="text-brand-teal" />
+          <h3 className="text-sm font-bold text-luxury-ink">Discover Clubs</h3>
+        </div>
+      </div>
+      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+        {clubs.map((club) => (
+          <Link 
+            key={club.id} 
+            to={`/club/${club.id}`} 
+            className="flex-shrink-0 w-48 theme-card p-4 rounded-2xl border border-luxury-ink/5 hover:border-brand-teal/30 transition-colors group flex flex-col"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-teal/15 to-brand-pink/15 flex items-center justify-center overflow-hidden mb-3 border border-luxury-ink/5">
+              {club.avatar ? (
+                <img src={getOptimizedImageUrl(club.avatar)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <Users size={20} className="text-brand-teal" />
+              )}
+            </div>
+            <p className="text-sm font-bold text-luxury-ink truncate group-hover:text-brand-teal transition-colors mb-1">{club.name}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30 mb-4">{club.memberCount} members</p>
+            <button
+              onClick={(e) => handleJoin(e, club.id)}
+              disabled={joiningId === club.id}
+              className="mt-auto w-full py-2 bg-brand-teal text-white rounded-xl text-xs font-bold hover:bg-brand-pink transition-colors shadow-sm disabled:opacity-50"
+            >
+              {joiningId === club.id ? 'Joining...' : 'Join Club'}
+            </button>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
