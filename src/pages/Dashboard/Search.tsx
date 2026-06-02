@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { collection, query, getDocs, limit, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Search as SearchIcon, Users, Grid3X3, Package, ArrowRight } from 'lucide-react';
+import { Search as SearchIcon, Users, Grid3X3, Package, ArrowRight, Globe } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import PostCard from '../../components/ui/PostCard';
 import ProductCard from '../../components/ui/ProductCard';
 import { useFollowingIds, followUser, unfollowUser } from '../../lib/follows';
+import { joinClub } from '../../lib/clubs';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import { AnimatePresence, motion } from 'motion/react';
@@ -17,11 +18,12 @@ export default function Search() {
   const { showToast } = useToast();
   const { followingIds } = useFollowingIds();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'users' | 'posts' | 'products'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'users' | 'posts' | 'products' | 'clubs'>('all');
   
   const [users, setUsers] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [clubs, setClubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Cache for suggestions to avoid re-fetching on empty search
@@ -29,6 +31,7 @@ export default function Search() {
   const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
   const [suggestedPosts, setSuggestedPosts] = useState<any[]>([]);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
+  const [suggestedClubs, setSuggestedClubs] = useState<any[]>([]);
 
   // Fetch initial data or perform search
   useEffect(() => {
@@ -39,22 +42,26 @@ export default function Search() {
         const fetchSuggestions = async () => {
           setLoading(true);
           try {
-            const [usersSnap, postsSnap, productsSnap] = await Promise.all([
+            const [usersSnap, postsSnap, productsSnap, clubsSnap] = await Promise.all([
               getDocs(query(collection(db, 'users'), limit(5))),
               getDocs(query(collection(db, 'posts'), limit(5))),
-              getDocs(query(collection(db, 'products'), limit(5)))
+              getDocs(query(collection(db, 'products'), limit(5))),
+              getDocs(query(collection(db, 'clubs'), where('type', '==', 'public'), limit(5)))
             ]);
             
             const fetchedUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
             const fetchedPosts = postsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
             const fetchedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((p: any) => p.status !== 'sold');
+            const fetchedClubs = clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
             
             setSuggestedUsers(fetchedUsers);
             setSuggestedPosts(fetchedPosts);
             setSuggestedProducts(fetchedProducts);
+            setSuggestedClubs(fetchedClubs);
             setUsers(fetchedUsers);
             setPosts(fetchedPosts);
             setProducts(fetchedProducts);
+            setClubs(fetchedClubs);
             setSuggestionsFetched(true);
           } catch (err) {
             console.error('Failed to load suggestions:', err);
@@ -68,6 +75,7 @@ export default function Search() {
         setUsers(suggestedUsers);
         setPosts(suggestedPosts);
         setProducts(suggestedProducts);
+        setClubs(suggestedClubs);
         setLoading(false);
       }
       if (activeTab === 'users') setActiveTab('all');
@@ -91,14 +99,16 @@ export default function Search() {
           setUsers(fetchedUsers);
           setPosts([]);
           setProducts([]);
+          setClubs([]);
           setActiveTab('users');
           return;
         }
 
-        const [usersSnap, postsSnap, productsSnap] = await Promise.all([
+        const [usersSnap, postsSnap, productsSnap, clubsSnap] = await Promise.all([
           getDocs(query(collection(db, 'users'), limit(20))),
           getDocs(query(collection(db, 'posts'), limit(20))),
-          getDocs(query(collection(db, 'products'), limit(20)))
+          getDocs(query(collection(db, 'products'), limit(20))),
+          getDocs(query(collection(db, 'clubs'), where('type', '==', 'public'), limit(20)))
         ]);
 
         const lowerQ = searchQuery.toLowerCase();
@@ -122,6 +132,12 @@ export default function Search() {
             (p.tags && p.tags.some((tag: string) => tag.toLowerCase().includes(lowerQ)))
           )
         );
+        setClubs(clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(c => 
+          (c.name && c.name.toLowerCase().includes(lowerQ)) || 
+          (c.description && c.description.toLowerCase().includes(lowerQ)) ||
+          (c.school && c.school.toLowerCase().includes(lowerQ)) ||
+          (c.city && c.city.toLowerCase().includes(lowerQ))
+        ));
       } catch (err) {
         console.error('Search error:', err);
       } finally {
@@ -134,7 +150,7 @@ export default function Search() {
     }, 400); // 400ms debounce (slightly longer to reduce rapid-fire queries)
 
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery, suggestionsFetched, suggestedUsers, suggestedPosts, suggestedProducts]);
+  }, [searchQuery, suggestionsFetched, suggestedUsers, suggestedPosts, suggestedProducts, suggestedClubs]);
 
   const toggleFollow = async (e: React.MouseEvent, targetId: string) => {
     e.preventDefault();
@@ -150,6 +166,32 @@ export default function Search() {
       await unfollowUser(user.uid, targetId);
     } else {
       await followUser(user.uid, targetId);
+    }
+  };
+
+  const handleJoinClub = async (e: React.MouseEvent, clubId: string) => {
+    e.preventDefault();
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
+    if (!userData?.verified) {
+      showToast('You must be verified to join clubs.', 'error');
+      return;
+    }
+    try {
+      await joinClub(user.uid, clubId);
+      showToast('Welcome to the club!', 'success');
+      const updateList = (list: any[]) =>
+        list.map((c) =>
+          c.id === clubId
+            ? { ...c, memberIds: [...(c.memberIds || []), user.uid], memberCount: (c.memberCount || 0) + 1 }
+            : c
+        );
+      setClubs(updateList);
+      setSuggestedClubs(updateList);
+    } catch (err) {
+      showToast('Failed to join club', 'error');
     }
   };
 
@@ -186,6 +228,12 @@ export default function Search() {
             className={`flex items-center gap-2 py-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2 whitespace-nowrap ${activeTab === 'users' ? 'border-brand-teal text-brand-teal' : 'border-transparent text-luxury-ink/30 hover:text-luxury-ink/60'}`}
           >
             <Users size={14} /> Users
+          </button>
+          <button
+            onClick={() => setActiveTab('clubs')}
+            className={`flex items-center gap-2 py-2 text-xs font-bold uppercase tracking-widest transition-all border-b-2 whitespace-nowrap ${activeTab === 'clubs' ? 'border-brand-mint text-brand-mint' : 'border-transparent text-luxury-ink/30 hover:text-luxury-ink/60'}`}
+          >
+            <Globe size={14} /> Clubs
           </button>
           <button
             onClick={() => setActiveTab('posts')}
@@ -260,6 +308,61 @@ export default function Search() {
               </motion.div>
             )}
 
+            {/* CLUBS */}
+            {(activeTab === 'all' || activeTab === 'clubs') && clubs.length > 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="theme-card rounded-2xl p-5 luxury-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-serif font-bold italic text-luxury-ink">Clubs</h3>
+                  {activeTab === 'all' && clubs.length > 3 && (
+                    <button onClick={() => setActiveTab('clubs')} className="text-xs font-bold text-brand-mint uppercase tracking-widest flex items-center gap-1 hover:opacity-80">
+                      See all <ArrowRight size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-col gap-4">
+                  {(activeTab === 'all' ? clubs.slice(0, 3) : clubs).map((c) => {
+                    const isMember = user && c.memberIds?.includes(user.uid);
+                    return (
+                      <Link
+                        key={c.id}
+                        to={isMember ? `/club/${c.id}` : `/club/join/${c.inviteCode}`}
+                        className="flex items-center justify-between group p-2 hover:bg-surface-soft rounded-xl transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-12 h-12 rounded-xl bg-brand-mint/10 flex items-center justify-center text-brand-mint font-bold text-lg shrink-0 overflow-hidden border border-brand-mint/5">
+                            {c.avatar ? (
+                              <img src={getOptimizedImageUrl(c.avatar)} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Users size={20} className="text-brand-mint" />
+                            )}
+                          </div>
+                          <div className="min-w-0 pr-2">
+                            <p className="text-sm font-bold text-luxury-ink truncate group-hover:text-brand-mint transition-colors">{c.name}</p>
+                            <p className="text-[11px] text-luxury-ink/50 truncate">{c.description || 'No description'}</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/40 truncate">
+                              {c.memberCount || 0} member{(c.memberCount || 0) !== 1 ? 's' : ''} {c.school ? `• ${c.school}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        {isMember ? (
+                          <span className="px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-brand-mint/10 text-brand-mint group-hover:bg-brand-mint group-hover:text-white transition-all">
+                            Chat
+                          </span>
+                        ) : (
+                          <button
+                            onClick={(e) => handleJoinClub(e, c.id)}
+                            className="px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 bg-luxury-ink text-surface-base hover:bg-brand-mint hover:text-white shadow-md font-bold"
+                          >
+                            Join
+                          </button>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+
             {/* POSTS */}
             {(activeTab === 'all' || activeTab === 'posts') && posts.length > 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -293,7 +396,7 @@ export default function Search() {
             )}
 
             {/* Empty States */}
-            {!loading && users.length === 0 && posts.length === 0 && products.length === 0 && (
+            {!loading && users.length === 0 && posts.length === 0 && products.length === 0 && clubs.length === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 text-center">
                 <SearchIcon size={48} className="mx-auto text-luxury-ink/10 mb-4" />
                 <p className="text-luxury-ink/40 font-serif italic text-xl">No results found for "{searchQuery}"</p>
