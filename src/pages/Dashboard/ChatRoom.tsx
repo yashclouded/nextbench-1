@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Phone, Flag, Camera, X, Image as ImageIcon, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2 } from 'lucide-react';
+import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Phone, Flag, Camera, X, Image as ImageIcon, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2, Download } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, where, getDocs, writeBatch, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
@@ -67,7 +67,8 @@ export default function ChatRoom() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-
+  const [menuPosition, setMenuPosition] = useState<{ top?: number; bottom?: number; left?: number; right?: number } | null>(null);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   const blockedIds = useBlockedIds();
   const blockedByIds = useBlockedByIds();
 
@@ -185,6 +186,12 @@ export default function ChatRoom() {
     return () => clearInterval(interval);
   }, [messages]);
 
+  useEffect(() => {
+    const handleClickOutside = () => { setSelectedMessageId(null); setMenuPosition(null); };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   const sendMessage = async (text?: string, image?: string) => {
     if ((!text?.trim() && !image) || !user || !roomId) return;
     
@@ -226,13 +233,17 @@ export default function ChatRoom() {
       if (roomData?.participants) {
         const recipientId = roomData.participants.find((id: string) => id !== user.uid);
         if (recipientId) {
-          createNotification({
-            userId: recipientId,
-            type: 'new_message',
-            title: 'New Message',
-            message: `${userData?.name || 'Someone'} sent you a message: ${messageText || '📷 Image'}`,
-            link: `/chat/${roomId}`
-          });
+          // Only notify if recipient is NOT already reading this chat
+          const recipientIsInChat = !roomData.unreadBy?.includes(recipientId);
+          if (!recipientIsInChat) {
+            createNotification({
+              userId: recipientId,
+              type: 'new_message',
+              title: 'New Message',
+              message: `${userData?.name || 'Someone'} sent you a message: ${messageText || '📷 Image'}`,
+              link: `/chat/${roomId}`
+            });
+          }
         }
       }
     } catch (err) {
@@ -475,7 +486,7 @@ export default function ChatRoom() {
       )}
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 chat-scroll">
         {messages.length === 0 && (
           <div className="text-center py-12">
             <p className="text-luxury-ink/20 font-serif italic text-lg mb-2">Start the conversation</p>
@@ -500,10 +511,29 @@ export default function ChatRoom() {
                 </button>
               )}
 
-              <div 
-                onClick={() => {
-                  if (isSelectMode) toggleMessageSelection(msg.id);
-                  else setSelectedMessageId(selectedMessageId === msg.id ? null : msg.id);
+              <div
+                data-msg-id={msg.id}
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  if (isSelectMode) { toggleMessageSelection(msg.id); return; }
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const spaceBelow = window.innerHeight - rect.bottom;
+                  const pos = spaceBelow < 220
+                    ? { bottom: window.innerHeight - rect.top + 4, ...(isMe ? { right: window.innerWidth - rect.right } : { left: rect.left }) }
+                    : { top: rect.bottom + 4, ...(isMe ? { right: window.innerWidth - rect.right } : { left: rect.left }) };
+                  setMenuPosition(selectedMessageId === msg.id ? null : pos);
+                  setSelectedMessageId(selectedMessageId === msg.id ? null : msg.id);
+                }}
+                onContextMenu={(e: React.MouseEvent) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const spaceBelow = window.innerHeight - rect.bottom;
+                  const pos = spaceBelow < 220
+                    ? { bottom: window.innerHeight - rect.top + 4, ...(isMe ? { right: window.innerWidth - rect.right } : { left: rect.left }) }
+                    : { top: rect.bottom + 4, ...(isMe ? { right: window.innerWidth - rect.right } : { left: rect.left }) };
+                  setMenuPosition(selectedMessageId === msg.id ? null : pos);
+                  setSelectedMessageId(selectedMessageId === msg.id ? null : msg.id);
                 }}
                 className={`max-w-[75%] px-5 py-3.5 rounded-2xl text-sm font-medium cursor-pointer relative ${
                 isMe 
@@ -529,7 +559,7 @@ export default function ChatRoom() {
                           src={getOptimizedImageUrl(msg.image)} 
                           alt="Shared" 
                           className="max-w-full max-h-[300px] object-contain hover:opacity-90 transition-opacity"
-                          onClick={(e) => { e.stopPropagation(); window.open(getOptimizedImageUrl(msg.image), '_blank'); }}
+                          onClick={(e) => { e.stopPropagation(); setViewingImage(getOptimizedImageUrl(msg.image)); }}
                           referrerPolicy="no-referrer"
                           onLoad={scrollToBottom}
                         />
@@ -543,48 +573,7 @@ export default function ChatRoom() {
                   {msg.createdAt?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '...'}
                 </div>
 
-                {/* Message Options Menu */}
-                {selectedMessageId === msg.id && (
-                  <div className={`absolute top-full mt-1 ${isMe ? 'right-0' : 'left-0'} z-20 w-48 bg-surface-card rounded-xl shadow-2xl border flex flex-col overflow-hidden`} style={{ borderColor: 'var(--color-border)' }}>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); setSelectedMessageId(null); }}
-                      className="px-4 py-3 text-left text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors flex items-center gap-2"
-                    >
-                      <CornerDownRight size={16} className="opacity-60" /> Reply
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handlePinMessage(msg.id, msg.text); }}
-                      className="px-4 py-3 text-left text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors flex items-center gap-2 border-t border-luxury-ink/5"
-                    >
-                      <Pin size={16} className="opacity-60" /> Pin
-                    </button>
-                    <button 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setIsSelectMode(true); 
-                        setSelectedMessages(new Set([msg.id]));
-                        setSelectedMessageId(null); 
-                      }}
-                      className="px-4 py-3 text-left text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors flex items-center gap-2 border-t border-luxury-ink/5"
-                    >
-                      <CheckCircle2 size={16} className="opacity-60" /> Select
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setDeleteConfirmMsgId(msg.id); }}
-                      className="px-4 py-3 text-left text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors flex items-center gap-2 border-t border-luxury-ink/5"
-                    >
-                      <X size={16} className="opacity-60" /> Delete for me
-                    </button>
-                    {isMe && !isDeleted && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setDeleteEveryoneConfirmMsgId(msg.id); }}
-                        className="px-4 py-3 text-left text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border-t border-luxury-ink/5 flex items-center gap-2"
-                      >
-                        <Flag size={16} /> Delete for everyone
-                      </button>
-                    )}
-                  </div>
-                )}
+                
               </div>
 
               {isSelectMode && isMe && (
@@ -597,7 +586,43 @@ export default function ChatRoom() {
         })}
         <div ref={messagesEndRef} />
       </div>
-
+        {/* Message Options Menu - Fixed */}
+      {selectedMessageId && menuPosition && (() => {
+        const msg = messages.find(m => m.id === selectedMessageId);
+        if (!msg) return null;
+        const isMe = msg.senderId === user.uid;
+        const isDeleted = msg.isDeletedForEveryone;
+        return (
+          <div
+            className="fixed z-50 w-48 bg-surface-card rounded-xl shadow-2xl border flex flex-col overflow-hidden"
+            style={{ borderColor: 'var(--color-border)', ...menuPosition }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); setSelectedMessageId(null); setMenuPosition(null); }}
+              className="px-4 py-3 text-left text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors flex items-center gap-2">
+              <CornerDownRight size={16} className="opacity-60" /> Reply
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); handlePinMessage(msg.id, msg.text); setMenuPosition(null); }}
+              className="px-4 py-3 text-left text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors flex items-center gap-2 border-t border-luxury-ink/5">
+              <Pin size={16} className="opacity-60" /> Pin
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); setIsSelectMode(true); setSelectedMessages(new Set([msg.id])); setSelectedMessageId(null); setMenuPosition(null); }}
+              className="px-4 py-3 text-left text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors flex items-center gap-2 border-t border-luxury-ink/5">
+              <CheckCircle2 size={16} className="opacity-60" /> Select
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmMsgId(msg.id); setMenuPosition(null); }}
+              className="px-4 py-3 text-left text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors flex items-center gap-2 border-t border-luxury-ink/5">
+              <X size={16} className="opacity-60" /> Delete for me
+            </button>
+            {isMe && !isDeleted && (
+              <button onClick={(e) => { e.stopPropagation(); setDeleteEveryoneConfirmMsgId(msg.id); setMenuPosition(null); }}
+                className="px-4 py-3 text-left text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border-t border-luxury-ink/5 flex items-center gap-2">
+                <Flag size={16} /> Delete for everyone
+              </button>
+            )}
+          </div>
+        );
+      })()}
       {/* Quick Replies */}
       {showQuickReplies && !isBlocked && (
         <div className="px-4 md:px-6 pb-2">
@@ -686,6 +711,31 @@ export default function ChatRoom() {
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onPaste={async (e: React.ClipboardEvent<HTMLInputElement>) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              for (const item of Array.from(items)) {
+                if (item.type.startsWith('image/')) {
+                  e.preventDefault();
+                  const file = item.getAsFile();
+                  if (!file || !roomId) return;
+                  if (file.size > 5 * 1024 * 1024) {
+                    showToast('Image must be less than 5MB', 'error');
+                    return;
+                  }
+                  setIsUploading(true);
+                  try {
+                    const imageUrl = await uploadChatImage(file, roomId);
+                    await sendMessage(undefined, imageUrl);
+                  } catch {
+                    showToast('Failed to upload image', 'error');
+                  } finally {
+                    setIsUploading(false);
+                  }
+                  return;
+                }
+              }
+            }}
             placeholder={isUploading ? "Uploading image..." : "Type your message..."}
             disabled={isUploading}
             className="flex-1 bg-surface-base border border-luxury-ink/5 rounded-2xl py-4 px-6 focus:outline-none focus:border-brand-teal transition-all text-sm font-medium"
@@ -698,7 +748,57 @@ export default function ChatRoom() {
         </div>
         )}
       </div>
-
+      {/* Image Viewer */}
+      <AnimatePresence>
+        {viewingImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+            onClick={() => setViewingImage(null)}
+          >
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <X size={24} className="text-white" />
+            </button>
+             <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const response = await fetch(viewingImage ?? '');
+                  const blob = await response.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'image.' + (blob.type.split('/')[1] || 'jpg');
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                } catch {
+                  showToast('Failed to download image', 'error');
+                }
+              }}
+              className="absolute top-4 left-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              title="Download image"
+            >
+              <Download size={20} className="text-white" />
+            </button>
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              src={viewingImage}
+              alt="Full size"
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Delete For Me Modal */}
       <AnimatePresence>
         {deleteConfirmMsgId && (
