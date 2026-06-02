@@ -8,6 +8,8 @@ import { db } from '../../lib/firebase';
 import { useEffect, useState, useRef } from 'react';
 import { useToast } from '../../lib/ToastContext';
 import { getOptimizedImageUrl } from '../../lib/utils';
+import { isChatMessageNotification } from '../../lib/notifications';
+import { useUnreadChatCount } from '../../hooks/useUnreadChatCount';
 
 export default function SidebarNav() {
   const { user, userData } = useAuth();
@@ -20,30 +22,37 @@ export default function SidebarNav() {
   };
 
   const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+  const unreadMsgCount = useUnreadChatCount(user?.uid);
   const { showToast } = useToast();
   const initialLoad = useRef(true);
+  const locationPathRef = useRef(location.pathname);
 
   useEffect(() => {
-    if (!user) return;
+    locationPathRef.current = location.pathname;
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      initialLoad.current = true;
+      return;
+    }
+
     const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), where('read', '==', false));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      let msgs = 0;
       let others = 0;
       
       snapshot.docs.forEach(d => {
-        if (d.data().type === 'new_message') msgs++;
-        else others++;
+        if (!isChatMessageNotification(d.data())) others++;
       });
 
       setUnreadCount(others);
-      setUnreadMsgCount(msgs);
 
       if (!initialLoad.current) {
         snapshot.docChanges().forEach(change => {
           if (change.type === 'added') {
             const data = change.doc.data();
-            if (data.type === 'new_message') {
+            if (isChatMessageNotification(data) && data.link !== locationPathRef.current) {
               showToast(data.title + ': ' + data.message, 'info');
             }
           }
@@ -52,7 +61,7 @@ export default function SidebarNav() {
       initialLoad.current = false;
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [user, showToast]);
 
   const navLinks = [
     { name: 'Home', path: '/', icon: Home },

@@ -235,7 +235,7 @@ export default function AdminPanel() {
         const followsSnap = await getDocs(query(collection(db, 'follows'), where('followingId', '==', data.authorId)));
         followsSnap.forEach(f => {
           const followerId = f.data().followerId;
-          createNotification({ userId: followerId, type: 'new_message', title: 'New Post', message: `${data.authorName} just posted: "${title}"`, link: `/dashboard` });
+          createNotification({ userId: followerId, type: 'new_post', title: 'New Post', message: `${data.authorName} just posted: "${title}"`, link: `/dashboard` });
         });
       }
     } catch (err) { handleFirestoreError(err, OperationType.UPDATE, `posts/${postId}`); }

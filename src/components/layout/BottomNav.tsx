@@ -1,9 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Search, PlusCircle, MessageSquare, User, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import { useEffect, useState } from 'react';
+import { useUnreadChatCount } from '../../hooks/useUnreadChatCount';
 
 export default function BottomNav() {
   const { user, userData } = useAuth();
@@ -18,22 +16,7 @@ export default function BottomNav() {
     ...(userData?.isAdmin ? [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : []),
   ];
 
-  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
-
-  useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), where('read', '==', false));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let msgs = 0;
-      
-      snapshot.docs.forEach(d => {
-        if (d.data().type === 'new_message') msgs++;
-      });
-
-      setUnreadMsgCount(msgs);
-    });
-    return () => unsubscribe();
-  }, [user]);
+  const unreadMsgCount = useUnreadChatCount(user?.uid);
 
   if (location.pathname.startsWith('/chat/')) {
     return null;

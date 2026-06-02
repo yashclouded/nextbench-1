@@ -6,6 +6,7 @@ import { db } from '../../lib/firebase';
 import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../lib/ToastContext';
+import { isChatMessageNotification } from '../../lib/notifications';
 
 interface Notification {
   id: string;
@@ -22,6 +23,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   listing_approved: <Package size={20} className="text-brand-mint" />,
   listing_rejected: <Package size={20} className="text-red-400" />,
   new_message: <MessageSquare size={20} className="text-brand-pink" />,
+  new_post: <Bell size={20} className="text-brand-teal" />,
   item_reserved: <Package size={20} className="text-amber-500" />,
   item_sold: <Package size={20} className="text-brand-teal" />,
   new_review: <Star size={20} className="text-yellow-500" />,
@@ -94,6 +96,13 @@ export default function Notifications() {
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  const getNotificationIcon = (notif: Notification) => {
+    if (notif.type === 'new_message' && !isChatMessageNotification(notif)) {
+      return ICON_MAP.new_post;
+    }
+
+    return ICON_MAP[notif.type] || <Bell size={20} className="text-luxury-ink/40" />;
+  };
 
   return (
     <div className="pt-32 pb-20 px-6 max-w-3xl mx-auto">
@@ -150,7 +159,7 @@ export default function Notifications() {
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${notif.read ? 'bg-luxury-ink/5' : 'bg-brand-teal/10'
                   }`}>
-                  {ICON_MAP[notif.type] || <Bell size={20} className="text-luxury-ink/40" />}
+                  {getNotificationIcon(notif)}
                 </div>
 
                 <div className="flex-1 min-w-0">

@@ -5,13 +5,17 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { isChatMessageNotification } from '../../lib/notifications';
 
 export default function NotificationBell() {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
 
     const q = query(
       collection(db, 'notifications'),
@@ -20,7 +24,13 @@ export default function NotificationBell() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUnreadCount(snapshot.size);
+      let unreadNotifications = 0;
+      snapshot.docs.forEach((d) => {
+        if (!isChatMessageNotification(d.data())) {
+          unreadNotifications++;
+        }
+      });
+      setUnreadCount(unreadNotifications);
     });
 
     return () => unsubscribe();

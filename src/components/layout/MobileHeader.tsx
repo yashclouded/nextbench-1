@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useEffect, useState } from 'react';
 import { useTheme } from '../../lib/ThemeContext';
+import { isChatMessageNotification } from '../../lib/notifications';
 
 export default function MobileHeader() {
   const { user } = useAuth();
@@ -13,12 +14,16 @@ export default function MobileHeader() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+
     const q = query(collection(db, 'notifications'), where('userId', '==', user.uid), where('read', '==', false));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let others = 0;
       snapshot.docs.forEach(d => {
-        if (d.data().type !== 'new_message') others++;
+        if (!isChatMessageNotification(d.data())) others++;
       });
       setUnreadCount(others);
     });

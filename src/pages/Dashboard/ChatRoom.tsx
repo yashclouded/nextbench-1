@@ -4,12 +4,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Phone, Flag, Camera, X, Image as ImageIcon, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2, Download } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, where, getDocs, writeBatch, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, where, writeBatch, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useToast } from '../../lib/ToastContext';
 import { uploadChatImage } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
-import { createNotification } from '../../lib/notifications';
+import { createNotification, isChatMessageNotification } from '../../lib/notifications';
 import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import ReportModal from '../../components/ui/ReportModal';
 import MessageText from '../../components/ui/MessageText';
@@ -133,38 +133,36 @@ export default function ChatRoom() {
       handleFirestoreError(err, OperationType.LIST, `chatRooms/${roomId}/messages`);
     });
 
-    // Mark notifications as read
-    const markMessagesAsRead = async () => {
+    const notifQ = query(
+      collection(db, 'notifications'),
+      where('userId', '==', user.uid),
+      where('read', '==', false)
+    );
+    const unsubscribeNotifications = onSnapshot(notifQ, async (notifSnap) => {
       try {
-        const notifQ = query(
-          collection(db, 'notifications'),
-          where('userId', '==', user.uid),
-          where('read', '==', false)
-        );
-        const notifSnap = await getDocs(notifQ);
-        if (!notifSnap.empty) {
-          const batch = writeBatch(db);
-          let hasUpdates = false;
-          notifSnap.docs.forEach(d => {
-            const data = d.data();
-            if (data.type === 'new_message' && data.link === `/chat/${roomId}`) {
-              batch.update(d.ref, { read: true });
-              hasUpdates = true;
-            }
-          });
-          if (hasUpdates) {
-            await batch.commit();
+        const batch = writeBatch(db);
+        let hasUpdates = false;
+
+        notifSnap.docs.forEach(d => {
+          const data = d.data();
+          if (isChatMessageNotification(data) && data.link === `/chat/${roomId}`) {
+            batch.update(d.ref, { read: true });
+            hasUpdates = true;
           }
+        });
+
+        if (hasUpdates) {
+          await batch.commit();
         }
       } catch (err) {
         console.error("Failed to mark notifications as read", err);
       }
-    };
-    markMessagesAsRead();
+    });
 
     return () => {
       unsubscribe();
       unsubRoom();
+      unsubscribeNotifications();
     };
   }, [roomId, user]);
 
@@ -233,9 +231,8 @@ export default function ChatRoom() {
       if (roomData?.participants) {
         const recipientId = roomData.participants.find((id: string) => id !== user.uid);
         if (recipientId) {
-          // Only notify if recipient is NOT already reading this chat
-          const recipientIsInChat = !roomData.unreadBy?.includes(recipientId);
-          if (!recipientIsInChat) {
+          const recipientWasUnread = roomData.unreadBy?.includes(recipientId) ?? false;
+          if (!recipientWasUnread) {
             createNotification({
               userId: recipientId,
               type: 'new_message',

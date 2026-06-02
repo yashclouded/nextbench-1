@@ -141,11 +141,18 @@ export default function ProductDetail() {
       let roomId = '';
       if (!snapshot.empty) { roomId = snapshot.docs[0].id; }
       else {
+        const inquiryMessage = `${userData.name} wants to chat about "${product.title}"`;
         const newRoom = await addDoc(collection(db, 'chatRooms'), {
-          participants: [user.uid, product.sellerId], productId: id, productTitle: product.title, updatedAt: serverTimestamp()
+          participants: [user.uid, product.sellerId],
+          productId: id,
+          productTitle: product.title,
+          lastMessage: inquiryMessage,
+          lastSenderId: user.uid,
+          unreadBy: [product.sellerId],
+          updatedAt: serverTimestamp()
         });
         roomId = newRoom.id;
-        createNotification({ userId: product.sellerId, type: 'new_message', title: 'New inquiry', message: `${userData.name} wants to chat about "${product.title}"`, link: `/chat/${roomId}` });
+        createNotification({ userId: product.sellerId, type: 'new_message', title: 'New inquiry', message: inquiryMessage, link: `/chat/${roomId}` });
       }
       navigate(`/chat/${roomId}`, { state: { otherUser: { id: product.sellerId, name: product.sellerName, school: product.sellerSchool } } });
     } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'chatRooms'); }
