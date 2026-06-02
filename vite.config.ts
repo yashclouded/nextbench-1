@@ -12,9 +12,9 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         workbox: {
-          // Only precache the shell — hashed JS/CSS chunks are handled
-          // via runtime caching so deploys don't leave stale entries.
-          globPatterns: ['**/*.{html,ico,png,svg,woff2}'],
+          // Precache all assets so the cached index.html always has its required JS/CSS chunks.
+          // This prevents white-screen 404s when a new deployment deletes old chunks on the server.
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           // SPA: serve index.html for all navigation requests
           navigateFallback: '/index.html',
@@ -22,17 +22,6 @@ export default defineConfig(() => {
           // Clean up old precache entries from previous deploys
           cleanupOutdatedCaches: true,
           runtimeCaching: [
-            // Same-origin JS & CSS — always check network first so
-            // new deploys are picked up immediately.
-            {
-              urlPattern: /\/assets\/.*\.(js|css)$/,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'app-chunks',
-                expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 7 },
-                networkTimeoutSeconds: 5,
-              }
-            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',
