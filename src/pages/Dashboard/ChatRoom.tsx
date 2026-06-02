@@ -690,6 +690,31 @@ export default function ChatRoom() {
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            onPaste={async (e: React.ClipboardEvent<HTMLInputElement>) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              for (const item of Array.from(items)) {
+                if (item.type.startsWith('image/')) {
+                  e.preventDefault();
+                  const file = item.getAsFile();
+                  if (!file || !roomId) return;
+                  if (file.size > 5 * 1024 * 1024) {
+                    showToast('Image must be less than 5MB', 'error');
+                    return;
+                  }
+                  setIsUploading(true);
+                  try {
+                    const imageUrl = await uploadChatImage(file, roomId);
+                    await sendMessage(undefined, imageUrl);
+                  } catch {
+                    showToast('Failed to upload image', 'error');
+                  } finally {
+                    setIsUploading(false);
+                  }
+                  return;
+                }
+              }
+            }}
             placeholder={isUploading ? "Uploading image..." : "Type your message..."}
             disabled={isUploading}
             className="flex-1 bg-surface-base border border-luxury-ink/5 rounded-2xl py-4 px-6 focus:outline-none focus:border-brand-teal transition-all text-sm font-medium"
