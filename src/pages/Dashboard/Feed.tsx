@@ -10,6 +10,8 @@ import { handleFirestoreError, OperationType } from '../../lib/firestore-errors'
 import { uploadPostImage } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useFollowingIds } from '../../lib/follows';
+import { isTextSafe } from '../../lib/moderation';
+import { createNotification } from '../../lib/notifications';
 import { Link } from 'react-router-dom';
 import ImageCropper from '../../components/ui/ImageCropper';
 import ProductCard from '../../components/ui/ProductCard';
@@ -784,6 +786,11 @@ export default function Feed() {
         imageUrls = await Promise.all(imageFiles.map(file => uploadPostImage(file)));
       }
 
+      const isTextOnly = imageUrls.length === 0;
+      const isClean = isTextSafe(title) && isTextSafe(content);
+      const shouldAutoApprove = isTextOnly && isClean;
+      const initialStatus = shouldAutoApprove ? 'approved' : 'pending';
+
       await addDoc(collection(db, 'posts'), {
         title,
         content,
@@ -796,7 +803,7 @@ export default function Feed() {
         authorId: user.uid,
         authorName: userData.name || user.email,
         authorProfilePicture: userData.profilePicture || null,
-        status: 'pending',
+        status: initialStatus,
         privacy,
         imageUrls,
         upvotesCount: 0,
@@ -805,7 +812,30 @@ export default function Feed() {
         updatedAt: serverTimestamp(),
       });
 
-      showToast('Post submitted for approval!', 'success');
+      if (shouldAutoApprove) {
+        showToast('Post published successfully!', 'success');
+        
+        // Notify followers of the author in real-time
+        const authorName = userData.name || user.email;
+        const followsSnap = await getDocs(query(collection(db, 'follows'), where('followingId', '==', user.uid)));
+        followsSnap.forEach(f => {
+          const followerId = f.data().followerId;
+          createNotification({ 
+            userId: followerId, 
+            type: 'new_message', 
+            title: 'New Post', 
+            message: `${authorName} just posted: "${title}"`, 
+            link: `/dashboard` 
+          });
+        });
+      } else {
+        if (!isClean && isTextOnly) {
+          showToast('Post flagged for containing sensitive words. Submitted for review.', 'warning');
+        } else {
+          showToast('Post submitted for approval!', 'success');
+        }
+      }
+
       setIsModalOpen(false);
       setImageFiles([]);
       setPendingFiles([]);
