@@ -26,8 +26,15 @@ interface Message {
   replyToText?: string;
 }
 
-export default function ClubChat() {
-  const { clubId } = useParams<{ clubId: string }>();
+interface ClubChatProps {
+  panelMode?: boolean;
+  roomIdOverride?: string;
+  onBack?: () => void;
+}
+
+export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChatProps = {}) {
+  const { clubId: routeClubId } = useParams<{ clubId: string }>();
+  const clubId = roomIdOverride || routeClubId;
   const { user, userData } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -330,11 +337,11 @@ export default function ClubChat() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-surface-base">
+    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-[100] flex flex-col bg-surface-base"}>
       {/* Header */}
-      <div className="theme-card border-b px-4 md:px-6 py-3 flex items-center justify-between z-10" style={{ borderColor: 'var(--color-border)' }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/messages')} className="p-2 hover:bg-surface-soft rounded-full transition-all">
+      <div className="theme-card border-b px-4 md:px-6 py-3 flex items-center justify-between z-10 shrink-0" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={onBack || (() => navigate('/messages'))} className="p-2 hover:bg-surface-soft rounded-full transition-all shrink-0">
             <ArrowLeft size={20} className="text-luxury-ink" />
           </button>
           <Link to={`/club/${clubId}/settings`} className="flex items-center gap-3 p-2 -ml-2 rounded-xl hover:bg-surface-soft transition-colors">

@@ -82,7 +82,7 @@ export default function SidebarNav() {
       </Link>
 
       {/* Navigation Links */}
-      <div className="flex-1 flex flex-col gap-0.5 w-full">
+      <div className="flex-1 flex flex-col gap-1.5 w-full">
         {navLinks.map((link) => {
           const isActive = location.pathname === link.path;
           const Icon = link.icon;
@@ -90,14 +90,14 @@ export default function SidebarNav() {
             <Link
               key={link.name}
               to={link.path}
-              className={`group flex items-center gap-4 px-4 py-3 xl:py-3.5 rounded-xl transition-all duration-200 relative w-full ${
+              className={`group flex items-center gap-4 px-3.5 py-2.5 xl:py-3 rounded-xl transition-all duration-200 ease-out relative w-full ${
                 isActive 
-                  ? 'bg-surface-soft text-luxury-ink' 
-                  : 'text-luxury-ink/50 hover:bg-surface-soft/50 hover:text-luxury-ink/80'
+                  ? 'bg-surface-soft/60 text-luxury-ink' 
+                  : 'text-luxury-ink/50 hover:bg-surface-soft/40 hover:text-luxury-ink/80'
               }`}
             >
               <div className="relative flex items-center justify-center">
-                <Icon size={22} className={`transition-all duration-200 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px] group-hover:stroke-[2px]'}`} />
+                <Icon size={20} className={`transition-all duration-200 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px] group-hover:stroke-[2px]'}`} />
                 {link.name === 'Messages' && unreadMsgCount > 0 && (
                   <div className="absolute -top-1 -right-1.5 w-4 h-4 bg-brand-pink text-white rounded-full text-[9px] font-bold flex items-center justify-center border-2" style={{ borderColor: 'var(--color-surface-card)' }}>
                     {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
@@ -109,7 +109,7 @@ export default function SidebarNav() {
                   </div>
                 )}
               </div>
-              <span className={`hidden xl:block text-[15px] tracking-tight ${isActive ? 'font-bold' : 'font-medium'}`}>{link.name}</span>
+              <span className={`hidden xl:block text-[15px] tracking-normal ${isActive ? 'font-semibold' : 'font-medium'}`}>{link.name}</span>
             </Link>
           );
         })}

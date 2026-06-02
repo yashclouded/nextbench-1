@@ -358,7 +358,7 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
                     
                     <div className="p-4 rounded-xl bg-purple-500/5 border mb-4" style={{ borderColor: 'var(--color-border)' }}>
                       <p className="text-xs text-purple-700/70 mb-4">
-                        Set up your secret identity. You can use this persona to post confessions anonymously.
+                        Set up your secret identity. You can use this persona to post anonymously.
                       </p>
                       
                       <form onSubmit={handleSavePersona} className="flex flex-col sm:flex-row gap-2">

@@ -19,6 +19,7 @@ import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import { useUserClubs, createClub } from '../../lib/clubs';
 import { useToast } from '../../lib/ToastContext';
 import ChatRoom from './ChatRoom';
+import ClubChat from './ClubChat';
 
 interface ChatRoomItem {
   id: string;
@@ -56,7 +57,7 @@ export default function MessagesLayout() {
   const [creatingDM, setCreatingDM] = useState(false);
 
   // Clubs
-  const [activeTab, setActiveTab] = useState<'chats' | 'clubs'>('chats');
+  const [activeRoomType, setActiveRoomType] = useState<'chat' | 'club'>('chat');
   const [showCreateClub, setShowCreateClub] = useState(false);
   const [clubName, setClubName] = useState('');
   const [clubDescription, setClubDescription] = useState('');
@@ -72,6 +73,7 @@ export default function MessagesLayout() {
   // Keep activeRoomId in sync when the URL param changes
   useEffect(() => {
     setActiveRoomId(routeRoomId || null);
+    setActiveRoomType('chat'); // if loading from /messages/:roomId, it's a chat
     setActiveRoomState(location.state || null);
   }, [routeRoomId]);
 
@@ -191,15 +193,16 @@ export default function MessagesLayout() {
   };
 
   // Open a chat — on desktop: set active panel. On mobile: navigate.
-  const openChat = (roomId: string, state?: any) => {
+  const openChat = (roomId: string, state?: any, type: 'chat' | 'club' = 'chat') => {
     const isDesktop = window.innerWidth >= 768;
     if (isDesktop) {
       setActiveRoomId(roomId);
+      setActiveRoomType(type);
       setActiveRoomState(state || null);
       // Update URL without full navigation so back button still works
-      window.history.pushState({}, '', `/messages/${roomId}`);
+      window.history.pushState({}, '', type === 'club' ? `/club/${roomId}` : `/messages/${roomId}`);
     } else {
-      navigate(`/chat/${roomId}`, { state });
+      navigate(type === 'club' ? `/club/${roomId}` : `/chat/${roomId}`, { state });
     }
   };
 
@@ -241,6 +244,15 @@ export default function MessagesLayout() {
     ? clubs.filter((c) => c.name.toLowerCase().includes(chatSearchTerm.toLowerCase()))
     : clubs;
 
+  const combinedList = [
+    ...filteredChatRooms.map(room => ({ ...room, isClub: false })),
+    ...filteredClubs.map(club => ({ ...club, isClub: true }))
+  ].sort((a, b) => {
+    const timeA = a.updatedAt?.toMillis?.() || 0;
+    const timeB = b.updatedAt?.toMillis?.() || 0;
+    return timeB - timeA;
+  });
+
   // ─────────────────────────────────────────────
   // SIDEBAR
   // ─────────────────────────────────────────────
@@ -249,44 +261,23 @@ export default function MessagesLayout() {
       {/* Header */}
       <div className="px-4 pt-5 pb-0 border-b border-luxury-ink/5 bg-surface-base shrink-0">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-luxury-ink">
-            {activeTab === 'chats' ? 'Chats' : 'Clubs'}
-          </h1>
-          <button
-            onClick={() => activeTab === 'chats' ? setShowNewDM(true) : setShowCreateClub(true)}
-            className="p-2 text-brand-teal bg-brand-teal/10 rounded-full hover:bg-brand-teal/20 transition-colors"
-          >
-            <Plus size={20} />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-0">
-          {(['chats', 'clubs'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 pb-3 text-xs font-bold uppercase tracking-widest transition-colors relative ${
-                activeTab === tab ? 'text-luxury-ink' : 'text-luxury-ink/30 hover:text-luxury-ink/50'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-1.5">
-                {tab === 'chats' ? <MessageSquare size={13} /> : <Users size={13} />}
-                {tab}
-              </div>
-              {activeTab === tab && (
-                <motion.div layoutId="sidebarTabIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-luxury-ink rounded-full" />
-              )}
+          <h1 className="text-2xl font-bold text-luxury-ink">Messages</h1>
+          <div className="flex gap-2">
+            <button onClick={() => setShowNewDM(true)} className="p-2 text-brand-teal bg-brand-teal/10 rounded-full hover:bg-brand-teal/20 transition-colors" title="New Message">
+              <MessageSquare size={16} />
             </button>
-          ))}
+            <button onClick={() => setShowCreateClub(true)} className="p-2 text-brand-teal bg-brand-teal/10 rounded-full hover:bg-brand-teal/20 transition-colors" title="New Club">
+              <Users size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Search */}
-        <div className="relative pt-3 pb-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-luxury-ink/30" size={15} style={{ top: 'calc(50%)' }} />
+        <div className="relative pt-1 pb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-luxury-ink/30 -mt-1.5" size={15} />
           <input
             type="text"
-            placeholder={activeTab === 'chats' ? 'Search chats' : 'Search clubs'}
+            placeholder="Search chats & clubs"
             value={chatSearchTerm}
             onChange={(e) => setChatSearchTerm(e.target.value)}
             className="w-full bg-surface-soft border-none rounded-xl py-2 pl-9 pr-3 focus:outline-none focus:ring-2 focus:ring-brand-teal/20 transition-all text-sm font-medium"
@@ -296,26 +287,73 @@ export default function MessagesLayout() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'chats' ? (
-          loading ? (
-            <div className="py-12 text-center font-serif italic text-luxury-ink/30 text-sm">Loading...</div>
-          ) : filteredChatRooms.length === 0 ? (
-            <div className="py-12 text-center px-4">
-              <MessageSquare className="mx-auto text-brand-teal/20 mb-3" size={28} />
-              <p className="text-sm font-bold text-luxury-ink/30 mb-3">No messages</p>
-              <button onClick={() => setShowNewDM(true)} className="text-xs font-bold text-brand-teal hover:underline">
-                Start a conversation
-              </button>
-            </div>
-          ) : (
-            filteredChatRooms.map((room) => {
+        {loading || clubsLoading ? (
+          <div className="py-12 text-center font-serif italic text-luxury-ink/30 text-sm">Loading...</div>
+        ) : combinedList.length === 0 ? (
+          <div className="py-12 text-center px-4">
+            <MessageSquare className="mx-auto text-brand-teal/20 mb-3" size={28} />
+            <p className="text-sm font-bold text-luxury-ink/30 mb-3">No messages</p>
+            <button onClick={() => setShowNewDM(true)} className="text-xs font-bold text-brand-teal hover:underline block mx-auto mb-2">
+              Start a conversation
+            </button>
+            <button onClick={() => setShowCreateClub(true)} className="text-xs font-bold text-brand-teal hover:underline block mx-auto">
+              Create a club
+            </button>
+          </div>
+        ) : (
+          combinedList.map((item) => {
+            const isActive = item.id === activeRoomId;
+            if (item.isClub) {
+              const club = item as any;
+              return (
+                <button
+                  key={`club-${club.id}`}
+                  onClick={() => openChat(club.id, null, 'club')}
+                  className={`w-full flex items-center gap-3 py-3 px-4 transition-colors cursor-pointer text-left ${
+                    isActive ? 'bg-brand-teal/8 border-r-2 border-brand-teal' : 'hover:bg-surface-soft'
+                  }`}
+                >
+                  <div className="relative shrink-0">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-teal/15 to-brand-pink/15 flex items-center justify-center overflow-hidden border border-luxury-ink/5">
+                      {club.avatar ? (
+                        <img src={getOptimizedImageUrl(club.avatar)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <Users size={18} className="text-brand-teal" />
+                      )}
+                    </div>
+                    {club.type === 'private' && (
+                      <div className="absolute -bottom-0.5 -right-0.5 bg-luxury-ink/60 text-white p-0.5 rounded-full border border-surface-base">
+                        <Lock size={7} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="truncate text-sm font-semibold text-luxury-ink flex items-center gap-1">
+                        {club.name}
+                        {club.leadId === user?.uid && <Crown size={10} className="text-amber-500 shrink-0" />}
+                      </span>
+                      <span className="text-[10px] text-luxury-ink/30 ml-1 shrink-0">
+                        {club.updatedAt?.toDate?.()?.toLocaleDateString([], { month: 'short', day: 'numeric' }) || ''}
+                      </span>
+                    </div>
+                    <p className="text-xs truncate text-luxury-ink/50">
+                      {club.lastSenderName
+                        ? <>{club.lastSenderId === user?.uid ? 'You' : club.lastSenderName}: {club.lastMessage || ''}</>
+                        : <span className="italic text-luxury-ink/25">No messages yet</span>
+                      }
+                    </p>
+                  </div>
+                </button>
+              );
+            } else {
+              const room = item as any;
               const isUnread = room.unreadBy?.includes(user?.uid || '');
-              const isActive = room.id === activeRoomId;
               const isDM = room.type === 'dm' || !room.productTitle;
               return (
                 <button
-                  key={room.id}
-                  onClick={() => openChat(room.id, { otherUser: room.otherUser, roomData: room })}
+                  key={`chat-${room.id}`}
+                  onClick={() => openChat(room.id, { otherUser: room.otherUser, roomData: room }, 'chat')}
                   className={`w-full flex items-center gap-3 py-3 px-4 transition-colors cursor-pointer text-left ${
                     isActive ? 'bg-brand-teal/8 border-r-2 border-brand-teal' : 'hover:bg-surface-soft'
                   }`}
@@ -334,14 +372,13 @@ export default function MessagesLayout() {
                       </div>
                     )}
                   </div>
-
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <span className={`truncate text-sm ${isUnread ? 'font-bold text-brand-teal' : 'font-semibold text-luxury-ink'}`}>
                         {room.otherUser?.name || 'Unknown User'}
                       </span>
                       <span className={`text-[10px] whitespace-nowrap ml-1 shrink-0 ${isUnread ? 'text-brand-teal font-bold' : 'text-luxury-ink/30'}`}>
-                        {room.updatedAt?.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        {room.updatedAt?.toDate?.()?.toLocaleDateString([], { month: 'short', day: 'numeric' }) || ''}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -354,57 +391,8 @@ export default function MessagesLayout() {
                   </div>
                 </button>
               );
-            })
-          )
-        ) : (
-          /* Clubs tab */
-          clubsLoading ? (
-            <div className="py-12 text-center font-serif italic text-luxury-ink/30 text-sm">Loading...</div>
-          ) : filteredClubs.length === 0 ? (
-            <div className="py-12 text-center px-4">
-              <Users className="mx-auto text-brand-teal/20 mb-3" size={28} />
-              <p className="text-sm font-bold text-luxury-ink/30 mb-3">No clubs yet</p>
-              <button onClick={() => setShowCreateClub(true)} className="text-xs font-bold text-brand-teal hover:underline">
-                Create a club
-              </button>
-            </div>
-          ) : (
-            filteredClubs.map((club) => (
-              <a key={club.id} href={`/club/${club.id}`} className="flex items-center gap-3 py-3 px-4 hover:bg-surface-soft transition-colors">
-                <div className="relative shrink-0">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-teal/15 to-brand-pink/15 flex items-center justify-center overflow-hidden border border-luxury-ink/5">
-                    {club.avatar ? (
-                      <img src={getOptimizedImageUrl(club.avatar)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <Users size={18} className="text-brand-teal" />
-                    )}
-                  </div>
-                  {club.type === 'private' && (
-                    <div className="absolute -bottom-0.5 -right-0.5 bg-luxury-ink/60 text-white p-0.5 rounded-full border border-surface-base">
-                      <Lock size={7} />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="truncate text-sm font-semibold text-luxury-ink flex items-center gap-1">
-                      {club.name}
-                      {club.leadId === user?.uid && <Crown size={10} className="text-amber-500 shrink-0" />}
-                    </span>
-                    <span className="text-[10px] text-luxury-ink/30 ml-1 shrink-0">
-                      {club.updatedAt?.toDate?.()?.toLocaleDateString([], { month: 'short', day: 'numeric' }) || ''}
-                    </span>
-                  </div>
-                  <p className="text-xs truncate text-luxury-ink/50">
-                    {club.lastSenderName
-                      ? <>{club.lastSenderId === user?.uid ? 'You' : club.lastSenderName}: {club.lastMessage || ''}</>
-                      : <span className="italic text-luxury-ink/25">No messages yet</span>
-                    }
-                  </p>
-                </div>
-              </a>
-            ))
-          )
+            }
+          })
         )}
       </div>
     </div>
@@ -447,17 +435,20 @@ export default function MessagesLayout() {
         {/* Chat panel — right side on desktop, full screen on mobile */}
         {activeRoomId ? (
           <div className="flex-1 flex flex-col overflow-hidden relative">
-            {/*
-              We render ChatRoom but override its navigate('/messages') back button
-              to clear the panel instead (desktop) or navigate (mobile).
-              We pass the state so ChatRoom doesn't have to re-fetch otherUser.
-            */}
-            <ChatRoomPanel
-              key={activeRoomId}
-              roomId={activeRoomId}
-              initialState={activeRoomState}
-              onBack={handleChatBack}
-            />
+            {activeRoomType === 'club' ? (
+              <ClubChatPanel
+                key={activeRoomId}
+                clubId={activeRoomId}
+                onBack={handleChatBack}
+              />
+            ) : (
+              <ChatRoomPanel
+                key={activeRoomId}
+                roomId={activeRoomId}
+                initialState={activeRoomState}
+                onBack={handleChatBack}
+              />
+            )}
           </div>
         ) : (
           EmptyState
@@ -611,5 +602,24 @@ function ChatRoomPanel({
 
   return (
     <ChatRoom panelMode roomIdOverride={roomId} onBack={onBack} />
+  );
+}
+
+/**
+ * ClubChatPanel — wraps ClubChat in panel mode for the desktop two-pane layout.
+ */
+function ClubChatPanel({
+  clubId,
+  onBack,
+}: {
+  clubId: string;
+  onBack: () => void;
+}) {
+  useEffect(() => {
+    window.history.replaceState({}, '', `/club/${clubId}`);
+  }, [clubId]);
+
+  return (
+    <ClubChat panelMode roomIdOverride={clubId} onBack={onBack} />
   );
 }

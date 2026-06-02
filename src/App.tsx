@@ -20,6 +20,7 @@ const ProductDetail = lazyWithRetry(() => import('./pages/Dashboard/ProductDetai
 const Profile       = lazyWithRetry(() => import('./pages/Dashboard/Profile'));
 const SellItem      = lazyWithRetry(() => import('./pages/Dashboard/SellItem'));
 const AdminPanel    = lazyWithRetry(() => import('./pages/Dashboard/AdminPanel'));
+const PostView      = lazyWithRetry(() => import('./pages/PostView'));
 const MessagesShell = lazyWithRetry(() => import('./components/layout/MessagesShell'));
 // Legacy /chat/:roomId deep-link — imported separately so old notification links still work.
 // ChatRoom is also used internally by MessagesLayout (non-lazy), which is fine; React
@@ -108,6 +109,7 @@ export default function App() {
               <Route path="/signup"       element={<Signup />} />
               <Route path="/org-signup"   element={<OrgSignup />} />
               <Route path="/verification" element={<VerificationGuard><Verification /></VerificationGuard>} />
+              <Route path="/post/:postId" element={<PostView />} />
             </Route>
 
             {/* Messages — full-screen shell, no DashLayout, no right sidebar */}

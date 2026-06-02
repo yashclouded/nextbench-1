@@ -29,32 +29,36 @@
   --color-overlay: rgba(29, 29, 31, 0.18);
   --color-overlay-heavy: rgba(29, 29, 31, 0.58);
   --nav-bg: rgba(245, 245, 247, 0.88);
+  --color-confession-bg: rgba(147, 51, 234, 0.04);
+  --color-confession-bg-hover: rgba(147, 51, 234, 0.07);
 }
 
 [data-theme="dark"] {
-  --color-surface-base: #000000;
-  --color-surface-soft: #1C1C1E;
-  --color-surface-card: #1C1C1E;
-  --color-surface-elevated: #2C2C2E;
-  --color-luxury-ink: #F5F5F7;
-  --color-luxury-ink-muted: rgba(245, 245, 247, 0.50);
-  --color-luxury-ink-faint: rgba(245, 245, 247, 0.06);
+  --color-surface-base: #0D0F14;
+  --color-surface-soft: #131722;
+  --color-surface-card: #131722;
+  --color-surface-elevated: #171C28;
+  --color-luxury-ink: #FFFFFF;
+  --color-luxury-ink-muted: rgba(255, 255, 255, 0.55);
+  --color-luxury-ink-faint: rgba(255, 255, 255, 0.06);
   --color-brand-teal: #0A84FF;
   --color-brand-pink: #FF375F;
   --color-brand-pink-soft: #FF6482;
   --color-brand-mint: #30D158;
-  --color-border: rgba(245, 245, 247, 0.10);
-  --color-border-strong: rgba(245, 245, 247, 0.18);
-  --color-glass-bg: rgba(28, 28, 30, 0.85);
-  --color-glass-border: rgba(245, 245, 247, 0.08);
-  --color-skeleton-from: #2C2C2E;
-  --color-skeleton-via: #3A3A3C;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-strong: rgba(255, 255, 255, 0.12);
+  --color-glass-bg: rgba(19, 23, 34, 0.85);
+  --color-glass-border: rgba(255, 255, 255, 0.06);
+  --color-skeleton-from: #171C28;
+  --color-skeleton-via: #1C2333;
   --color-shadow-brand: transparent;
   --color-glow-pink: transparent;
   --color-glow-teal: transparent;
   --color-overlay: rgba(0, 0, 0, 0.45);
   --color-overlay-heavy: rgba(0, 0, 0, 0.80);
-  --nav-bg: rgba(28, 28, 30, 0.92);
+  --nav-bg: rgba(13, 15, 20, 0.90);
+  --color-confession-bg: rgba(147, 51, 234, 0.03);
+  --color-confession-bg-hover: rgba(147, 51, 234, 0.05);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -267,7 +271,7 @@
 .post-card:hover .post-card-overlay { @apply opacity-100; }
 
 .post-detail-image {
-  @apply w-full object-cover;
+  @apply w-full object-contain bg-luxury-ink/5;
   max-height: 70vh;
 }
 
@@ -292,6 +296,12 @@
 }
 .post-card-clean:hover {
   background: var(--color-surface-soft);
+}
+.post-card-clean.is-confession {
+  background: var(--color-confession-bg);
+}
+.post-card-clean.is-confession:hover {
+  background: var(--color-confession-bg-hover);
 }
 
 .theme-input {
