@@ -32,29 +32,29 @@
 }
 
 [data-theme="dark"] {
-  --color-surface-base: #0D0D0F;
-  --color-surface-soft: #161618;
-  --color-surface-card: #1A1A1E;
-  --color-surface-elevated: #222226;
-  --color-luxury-ink: #E8E4DC;
-  --color-luxury-ink-muted: rgba(232, 228, 220, 0.5);
-  --color-luxury-ink-faint: rgba(232, 228, 220, 0.08);
-  --color-brand-teal: #4ECDD8;
-  --color-brand-pink: #FF5FAF;
-  --color-brand-pink-soft: #FF9ED0;
-  --color-brand-mint: #7EECD4;
-  --color-border: rgba(232, 228, 220, 0.06);
-  --color-border-strong: rgba(232, 228, 220, 0.12);
-  --color-glass-bg: rgba(22, 22, 24, 0.80);
-  --color-glass-border: rgba(255, 255, 255, 0.06);
-  --color-skeleton-from: #1A1A1E;
-  --color-skeleton-via: #222226;
-  --color-shadow-brand: rgba(78, 205, 216, 0.12);
-  --color-glow-pink: rgba(255, 95, 175, 0.15);
-  --color-glow-teal: rgba(78, 205, 216, 0.12);
-  --color-overlay: rgba(0, 0, 0, 0.50);
-  --color-overlay-heavy: rgba(0, 0, 0, 0.75);
-  --nav-bg: rgba(13, 13, 15, 0.90);
+  --color-surface-base: #1C1B1A;
+  --color-surface-soft: #242321;
+  --color-surface-card: #1C1B1A;
+  --color-surface-elevated: #242321;
+  --color-luxury-ink: #D4D0C8;
+  --color-luxury-ink-muted: #8C8881;
+  --color-luxury-ink-faint: rgba(212, 208, 200, 0.05);
+  --color-brand-teal: #759489;
+  --color-brand-pink: #B57F89;
+  --color-brand-pink-soft: #D1A3AB;
+  --color-brand-mint: #8EA89C;
+  --color-border: #2C2B29;
+  --color-border-strong: #3A3835;
+  --color-glass-bg: rgba(28, 27, 26, 0.85);
+  --color-glass-border: rgba(212, 208, 200, 0.05);
+  --color-skeleton-from: #242321;
+  --color-skeleton-via: #2C2B29;
+  --color-shadow-brand: transparent;
+  --color-glow-pink: transparent;
+  --color-glow-teal: transparent;
+  --color-overlay: rgba(28, 27, 26, 0.8);
+  --color-overlay-heavy: rgba(28, 27, 26, 0.95);
+  --nav-bg: rgba(28, 27, 26, 0.95);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -117,7 +117,7 @@
 }
 
 .luxury-button {
-  @apply px-8 py-4 text-[13px] font-bold uppercase tracking-widest transition-all duration-300;
+  @apply px-8 py-4 text-[13px] font-bold uppercase tracking-widest transition-all duration-300 rounded-full;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -182,17 +182,16 @@
 /* ── Card hover glow ────────────────────────────── */
 @keyframes card-glow {
   0%, 100% { box-shadow: 0 0 0 0 transparent; }
-  50% { box-shadow: 0 8px 40px -12px var(--color-shadow-brand); }
+  50% { box-shadow: 0 0 0 0 transparent; }
 }
 
 /* ── Friend badge glow ──────────────────────────── */
 @keyframes friend-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(102, 208, 188, 0.3); }
-  50% { box-shadow: 0 0 20px rgba(102, 208, 188, 0.6); }
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: none; }
 }
 .friend-badge {
   @apply bg-brand-mint/10 text-brand-mint border border-brand-mint/30 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest;
-  animation: friend-glow 3s ease-in-out infinite;
 }
 
 /* ── Neon pulse for dark mode ───────────────────── */
@@ -263,18 +262,17 @@
 .theme-card {
   background: var(--color-surface-card);
   border: 1px solid var(--color-border);
-  transition: border-color 0.2s, box-shadow 0.3s, transform 0.2s;
+  transition: all 0.2s ease;
 }
 .theme-card:hover {
-  border-color: var(--color-border-strong);
-  box-shadow: 0 4px 16px -6px var(--color-shadow-brand);
+  background: var(--color-surface-soft);
 }
 
-/* Clean post card — Substack/Reddit inspired */
+/* Clean post card — E-ink / Medium style */
 .post-card-clean {
   background: var(--color-surface-card);
   border-bottom: 1px solid var(--color-border);
-  transition: background-color 0.15s ease;
+  transition: background-color 0.2s ease;
 }
 .post-card-clean:hover {
   background: var(--color-surface-soft);
@@ -309,48 +307,29 @@
    ═══════════════════════════════════════════════════ */
 
 .ambient-orb {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(80px);
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.3;
-  animation: float-orb 20s ease-in-out infinite;
+  display: none;
 }
 
 .ambient-orb-teal {
-  background: var(--color-brand-teal);
-  width: 300px;
-  height: 300px;
-  top: 10%;
-  right: 10%;
-  opacity: 0.08;
+  display: none;
 }
 
 .ambient-orb-pink {
-  background: var(--color-brand-pink);
-  width: 250px;
-  height: 250px;
-  bottom: 20%;
-  left: 5%;
-  opacity: 0.06;
-  animation-delay: -7s;
+  display: none;
 }
 
-[data-theme="dark"] .ambient-orb-teal { opacity: 0.05; }
-[data-theme="dark"] .ambient-orb-pink { opacity: 0.04; }
+[data-theme="dark"] .ambient-orb-teal { display: none; }
+[data-theme="dark"] .ambient-orb-pink { display: none; }
 
 /* ═══════════════════════════════════════════════════
    GRADIENT ACCENTS
    ═══════════════════════════════════════════════════ */
 
 .gradient-text {
-  background: linear-gradient(135deg, var(--color-brand-teal), var(--color-brand-pink), var(--color-brand-mint));
-  background-size: 200% 200%;
+  background: linear-gradient(135deg, var(--color-brand-teal), var(--color-brand-pink));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: gradient-shift 6s ease infinite;
 }
 
 .gradient-border {
@@ -363,26 +342,26 @@
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, var(--color-brand-teal), var(--color-brand-pink), var(--color-brand-mint));
+  background: linear-gradient(135deg, var(--color-brand-teal), var(--color-brand-pink));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
-  opacity: 0.4;
+  opacity: 0.15;
   transition: opacity 0.3s;
 }
-.gradient-border:hover::before { opacity: 0.8; }
+.gradient-border:hover::before { opacity: 0.3; }
 
 /* ═══════════════════════════════════════════════════
    DARK MODE NEON ACCENTS
    ═══════════════════════════════════════════════════ */
 
 [data-theme="dark"] .neon-teal {
-  text-shadow: 0 0 10px rgba(78, 205, 216, 0.5), 0 0 30px rgba(78, 205, 216, 0.2);
+  text-shadow: none;
 }
 
 [data-theme="dark"] .neon-pink {
-  text-shadow: 0 0 10px rgba(255, 95, 175, 0.5), 0 0 30px rgba(255, 95, 175, 0.2);
+  text-shadow: none;
 }
 
 /* ═══════════════════════════════════════════════════

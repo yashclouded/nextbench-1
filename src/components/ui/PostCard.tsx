@@ -93,9 +93,9 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         onClick={onClick}
       >
         {/* Author Row */}
-        <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+        <div className="flex items-center gap-3 px-5 pt-5 pb-3">
           <div onClick={handleProfileClick} className="shrink-0 cursor-pointer">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold overflow-hidden ${displayInfo.isAnonymous ? 'bg-purple-500/10 text-purple-500' : 'bg-surface-soft'}`}>
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold overflow-hidden ${displayInfo.isAnonymous ? 'bg-purple-500/10 text-purple-500' : 'bg-surface-soft'}`}>
               {!displayInfo.isAnonymous && post.authorProfilePicture ? (
                 <img src={getOptimizedImageUrl(post.authorProfilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : displayInfo.name[0]?.toUpperCase()}
@@ -122,9 +122,9 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         </div>
 
         {/* Content */}
-        <div className="px-4 pb-2">
-          <h3 className="text-[15px] font-semibold text-luxury-ink leading-snug">{post.title}</h3>
-          <p className="text-[13px] text-luxury-ink/60 leading-relaxed mt-1 line-clamp-3">{post.content}</p>
+        <div className="px-5 pb-3">
+          <h3 className="text-[16px] font-semibold text-luxury-ink leading-snug">{post.title}</h3>
+          <p className="text-[14px] text-luxury-ink/60 leading-relaxed mt-1.5 line-clamp-3">{post.content}</p>
         </div>
 
         {/* Image */}
@@ -145,7 +145,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         )}
 
         {/* Action Bar */}
-        <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-5">
             <div className="flex items-center gap-1.5 bg-surface-soft/50 rounded-full px-2 py-0.5">
               <button 

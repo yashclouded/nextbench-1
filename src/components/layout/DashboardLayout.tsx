@@ -24,22 +24,27 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       )}
       
       <MobileHeader />
-      {/* 3-column Layout for Desktop */}
-      <div className="max-w-[1400px] mx-auto flex relative z-10">
+      {/* Full-width Layout to snap options to left corner */}
+      <div className="w-full flex relative z-10">
         
-        {/* Left Sidebar (hidden on mobile) */}
-        <div className="hidden md:block w-[80px] xl:w-[280px] shrink-0">
+        {/* Left Sidebar (snapped to left edge) */}
+        <div className="hidden md:block w-[80px] xl:w-[280px] shrink-0 border-r" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-card)' }}>
           <SidebarNav />
         </div>
 
-        {/* Center Main Content */}
-        <main className="flex-1 min-w-0 md:border-x pb-20 md:pb-0" style={{ borderColor: 'var(--color-border)' }}>
-          {children}
-        </main>
+        {/* Center the rest of the content (Main + Right Sidebar) in the remaining space */}
+        <div className="flex-1 flex justify-center">
+          <div className="flex w-full max-w-[1100px]">
+            {/* Center Main Content */}
+            <main className="flex-1 min-w-0 md:border-r pb-20 md:pb-0" style={{ borderColor: 'var(--color-border)' }}>
+              {children}
+            </main>
 
-        {/* Right Sidebar (hidden on mobile and tablet) */}
-        <div className="hidden lg:block w-[320px] xl:w-[350px] shrink-0">
-          <SuggestedUsers />
+            {/* Right Sidebar (hidden on mobile and tablet) */}
+            <div className="hidden lg:block w-[320px] xl:w-[350px] shrink-0">
+              <SuggestedUsers />
+            </div>
+          </div>
         </div>
       </div>
 
