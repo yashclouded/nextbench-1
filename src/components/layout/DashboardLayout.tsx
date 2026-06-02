@@ -33,8 +33,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Center the rest of the content (Main + Right Sidebar) in the remaining space */}
-        <div className="flex-1 flex justify-center">
-          <div className="flex w-full max-w-[1050px]">
+        <div className="flex-1 flex justify-center min-w-0">
+          <div className="flex w-full max-w-[1050px] min-w-0">
             {/* Center Main Content */}
             <main className="flex-1 min-w-0 md:border-r pb-20 md:pb-0" style={{ borderColor: 'var(--color-border)' }}>
               {children}

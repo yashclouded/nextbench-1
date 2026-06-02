@@ -85,46 +85,50 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0 }}
-        className={`post-card-clean cursor-pointer p-6 md:p-8 flex flex-col ${post.type === 'confession' ? 'is-confession' : ''}`}
+        className={`post-card-clean cursor-pointer p-4 sm:p-6 md:p-8 flex flex-col w-full min-w-0 overflow-x-hidden ${post.type === 'confession' ? 'is-confession' : ''}`}
         onClick={onClick}
       >
         {/* Title */}
         {post.title && (
-          <h3 className="text-[17px] md:text-[19px] font-semibold text-luxury-ink/90 leading-snug tracking-normal mb-2">
+          <h3 className="text-[17px] md:text-[19px] font-semibold text-luxury-ink/90 leading-snug tracking-normal mb-2 break-words">
             {post.title}
           </h3>
         )}
 
         {/* Metadata Row */}
-        <div className="flex items-center flex-wrap gap-2.5 mb-4" onClick={handleProfileClick}>
-          {/* Avatar */}
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold overflow-hidden shrink-0 ${displayInfo.isAnonymous ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
-            {!displayInfo.isAnonymous && post.authorProfilePicture ? (
-              <img src={getOptimizedImageUrl(post.authorProfilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-            ) : displayInfo.name[0]?.toUpperCase()}
-          </div>
-          
-          <span className="text-[14px] font-semibold text-luxury-ink hover:underline cursor-pointer">{displayInfo.name}</span>
-          <span className="text-[14px] text-luxury-ink/40">·</span>
-          <span className="text-[14px] text-luxury-ink/50 font-medium">{timeAgo(post.createdAt)}</span>
-          <span className="text-[14px] text-luxury-ink/40">·</span>
-          <span className="text-[14px] text-luxury-ink/50 font-medium truncate max-w-[150px] sm:max-w-[200px]">{displayInfo.school}</span>
-          
-          <div className="flex items-center gap-1.5 ml-auto">
-            {post.feedScore && post.feedScore > 10 && (
-              <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[10px] font-bold uppercase tracking-wide">
-                <Flame size={10} /> Hot
+        <div className="mb-4" onClick={handleProfileClick}>
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Avatar */}
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold overflow-hidden shrink-0 ${displayInfo.isAnonymous ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
+              {!displayInfo.isAnonymous && post.authorProfilePicture ? (
+                <img src={getOptimizedImageUrl(post.authorProfilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : displayInfo.name[0]?.toUpperCase()}
+            </div>
+            
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
+              <span className="text-[13px] sm:text-[14px] font-semibold text-luxury-ink hover:underline cursor-pointer truncate max-w-[120px] sm:max-w-[180px]">{displayInfo.name}</span>
+              <span className="text-[13px] text-luxury-ink/40">·</span>
+              <span className="text-[13px] sm:text-[14px] text-luxury-ink/50 font-medium shrink-0">{timeAgo(post.createdAt)}</span>
+              <span className="text-[13px] text-luxury-ink/40 hidden sm:inline">·</span>
+              <span className="text-[13px] sm:text-[14px] text-luxury-ink/50 font-medium truncate max-w-[100px] sm:max-w-[180px] hidden sm:inline">{displayInfo.school}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {post.feedScore && post.feedScore > 10 && (
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[10px] font-bold uppercase tracking-wide">
+                  <Flame size={10} /> Hot
+                </span>
+              )}
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${post.type === 'confession' ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
+                {typeLabel}
               </span>
-            )}
-            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${post.type === 'confession' ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
-              {typeLabel}
-            </span>
+            </div>
           </div>
         </div>
 
         {/* Content Preview */}
-        <div className="mb-5 max-w-full sm:max-w-[92%]">
-          <p className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-4">
+        <div className="mb-5">
+          <p className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-4 break-words overflow-wrap-anywhere">
             {post.content}
           </p>
         </div>
@@ -147,8 +151,8 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         )}
 
         {/* Action Bar */}
-        <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center justify-between pt-4 border-t gap-y-4" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex flex-wrap items-center gap-3 sm:gap-6">
             <button 
               onClick={(e) => { e.stopPropagation(); onUpvote?.(post); }}
               className={`flex items-center gap-1.5 text-[13px] transition-colors group ${hasUpvoted ? 'text-brand-pink font-bold' : 'text-luxury-ink/40 hover:text-brand-pink font-semibold'}`}

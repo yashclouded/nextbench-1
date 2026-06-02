@@ -221,7 +221,7 @@ function PostDetailModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 backdrop-blur-md"
       style={{ background: 'var(--color-overlay-heavy)' }}
       onClick={onClose}
     >
@@ -230,13 +230,13 @@ function PostDetailModal({
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 20 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
+        className="w-full h-full sm:h-auto sm:max-h-[92vh] max-w-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col"
         style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Scrollable Container */}
-        <div className="flex-1 overflow-y-auto flex flex-col relative p-6 md:p-8">
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-surface-base text-luxury-ink/40 rounded-full hover:bg-surface-soft hover:text-luxury-ink transition-all z-10">
+        <div className="flex-1 overflow-y-auto flex flex-col relative p-4 pt-14 sm:p-6 sm:pt-6 md:p-8">
+          <button onClick={onClose} className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-surface-base text-luxury-ink/40 rounded-full hover:bg-surface-soft hover:text-luxury-ink transition-all z-10">
             <X size={18} />
           </button>
 
@@ -278,8 +278,8 @@ function PostDetailModal({
           </div>
 
           {/* Title & Content */}
-          <h2 className="text-2xl font-bold text-luxury-ink mb-3 leading-tight pr-8">{post.title}</h2>
-          <p className="text-luxury-ink/70 leading-relaxed whitespace-pre-wrap text-[15px] mb-6">{post.content}</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-luxury-ink mb-3 leading-tight">{post.title}</h2>
+          <p className="text-luxury-ink/70 leading-relaxed whitespace-pre-wrap break-words text-[15px] mb-6">{post.content}</p>
 
           {/* Image Section Moved Here */}
           {postImageUrls.length > 0 && (
@@ -364,14 +364,14 @@ function PostDetailModal({
         </div>
 
         {/* Action Bar */}
-        <div className="px-6 md:px-8 py-4 border-t border-luxury-ink/5 flex flex-col gap-4 bg-surface-base/50">
+        <div className="px-4 sm:px-6 md:px-8 py-4 border-t border-luxury-ink/5 flex flex-col gap-4 bg-surface-base/50">
           
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between w-full flex-wrap gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
               <div className="flex items-center gap-1 bg-surface-soft/50 rounded-2xl p-1">
                   <button
                     onClick={() => onUpvote(post)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasUpvoted ? 'bg-brand-pink/10 text-brand-pink' : 'hover:bg-white text-luxury-ink/40 hover:text-brand-pink'}`}
+                    className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasUpvoted ? 'bg-brand-pink/10 text-brand-pink' : 'hover:bg-white text-luxury-ink/40 hover:text-brand-pink'}`}
                   >
                     <Heart size={20} className={hasUpvoted ? 'fill-brand-pink' : ''} />
                     {post.upvotesCount || 0}
@@ -379,7 +379,7 @@ function PostDetailModal({
                   <div className="w-[1px] h-6 bg-luxury-ink/10"></div>
                   <button
                     onClick={() => onDownvote(post)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasDownvoted ? 'bg-indigo-500/10 text-indigo-500' : 'hover:bg-white text-luxury-ink/40 hover:text-indigo-500'}`}
+                    className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasDownvoted ? 'bg-indigo-500/10 text-indigo-500' : 'hover:bg-white text-luxury-ink/40 hover:text-indigo-500'}`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={hasDownvoted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
@@ -389,14 +389,14 @@ function PostDetailModal({
                 </div>
               <button
                 onClick={() => document.getElementById('reply-input')?.focus()}
-                className="flex items-center gap-2 px-4 py-3 hover:bg-surface-soft rounded-2xl text-sm font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 hover:bg-surface-soft rounded-2xl text-sm font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
               >
-                <MessageSquare size={24} />
+                <MessageSquare size={20} className="sm:w-6 sm:h-6" />
                 {post.repliesCount || 0}
               </button>
               <button
                 onClick={() => onShare(post)}
-                className="flex items-center gap-1.5 px-4 py-2.5 hover:bg-surface-soft rounded-xl text-xs font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 hover:bg-surface-soft rounded-xl text-xs font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
               >
                 <Share2 size={18} />
               </button>
@@ -1123,7 +1123,7 @@ export default function Feed() {
   }, [posts]);
 
   return (
-    <div className="pb-20 w-full">
+    <div className="pb-20 w-full overflow-x-hidden">
       <SEO 
         title="Home" 
         description="Discover school info, notes, and interschool events on Nextbench Community." 
@@ -1189,7 +1189,7 @@ export default function Feed() {
         </div>
       ) : (
         <>
-          <div className="flex flex-col w-full">
+          <div className="flex flex-col w-full min-w-0">
             <AnimatePresence>
               {combinedFeed.map((item, index) => {
                 const isProduct = item._kind === 'product';
@@ -1300,14 +1300,14 @@ export default function Feed() {
                 setPendingFiles([]);
               }
             }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-luxury-ink/20 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-surface-card rounded-3xl w-full max-w-2xl relative shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              className="bg-surface-card w-full h-full sm:h-auto sm:rounded-3xl sm:max-w-2xl relative shadow-2xl overflow-hidden sm:max-h-[90vh] flex flex-col"
             >
               {/* Full-Screen Loading Overlay inside Modal */}
               <AnimatePresence>
@@ -1394,7 +1394,7 @@ export default function Feed() {
                   </div>
 
                   {/* Bottom Toolbar */}
-                  <div className="mt-4 pt-4 border-t border-luxury-ink/5 flex items-center justify-between relative px-1">
+                  <div className="mt-4 pt-4 border-t border-luxury-ink/5 flex flex-wrap items-center justify-between gap-y-3 relative px-1">
                     <div className="flex items-center gap-1 relative">
                       <label className="p-2.5 rounded-full hover:bg-surface-soft text-luxury-ink/50 hover:text-brand-teal transition-colors cursor-pointer group relative">
                         <ImageIcon size={22} />
@@ -1553,7 +1553,7 @@ function HorizontalDiscoverClubs() {
   if (loading || clubs.length === 0) return null;
 
   return (
-    <div className="py-8 my-2 border-y border-luxury-ink/5 bg-gradient-to-r from-surface-soft/40 via-transparent to-surface-soft/40 -mx-4 px-4 sm:mx-0 sm:border-x-0 sm:px-0 relative overflow-hidden">
+    <div className="py-8 my-2 border-y border-luxury-ink/5 bg-gradient-to-r from-surface-soft/40 via-transparent to-surface-soft/40 px-4 sm:px-0 relative overflow-hidden">
       {/* Subtle decorative glow */}
       <div className="absolute top-0 left-1/4 w-1/2 h-px bg-gradient-to-r from-transparent via-brand-teal/20 to-transparent"></div>
       
