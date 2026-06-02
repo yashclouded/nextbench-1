@@ -67,10 +67,6 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
   const displayInfo = getPersonaDisplay(post, false);
   const profileLink = displayInfo.isAnonymous ? '#' : (post.authorUsername ? `/u/${post.authorUsername}` : `/profile/${post.authorId}`);
 
-  const totalReactions = post.type === 'confession' && post.reactionsCount
-    ? Object.values(post.reactionsCount).reduce((a, b) => a + b, 0)
-    : post.upvotesCount;
-
   const typeLabel = POST_TYPES.find(t => t.id === post.type)?.label || post.type;
 
   const handleProfileClick = (e: React.MouseEvent) => {
@@ -155,23 +151,25 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
           <div className="flex items-center gap-6">
             <button 
               onClick={(e) => { e.stopPropagation(); onUpvote?.(post); }}
-              className={`flex items-center gap-2 text-[14px] transition-colors group ${hasUpvoted && post.type !== 'confession' ? 'text-brand-pink font-bold' : 'text-luxury-ink/40 hover:text-brand-pink font-semibold'}`}
+              className={`flex items-center gap-1.5 text-[13px] transition-colors group ${hasUpvoted ? 'text-brand-pink font-bold' : 'text-luxury-ink/40 hover:text-brand-pink font-semibold'}`}
             >
-              <Heart size={18} className={`transition-transform group-hover:scale-110 ${hasUpvoted && post.type !== 'confession' ? 'fill-brand-pink' : ''}`} />
-              {(totalReactions > 0 || true) && <span>{totalReactions || 0}</span>}
+              <div className="p-2 rounded-full group-hover:bg-brand-pink/10 transition-colors">
+                <Heart size={16} className={hasUpvoted ? 'fill-brand-pink' : ''} />
+              </div>
+              {(post.upvotesCount > 0 || true) && <span className="relative -left-1">{post.upvotesCount || 0}</span>}
             </button>
             
-            {post.type !== 'confession' && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDownvote?.(post); }}
-                className={`flex items-center gap-2 text-[14px] transition-colors group ${hasDownvoted ? 'text-indigo-500 font-bold' : 'text-luxury-ink/40 hover:text-indigo-500 font-semibold'}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={hasDownvoted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:scale-110">
+            <button 
+              onClick={(e) => { e.stopPropagation(); onDownvote?.(post); }}
+              className={`flex items-center gap-1.5 text-[13px] transition-colors group ${hasDownvoted ? 'text-indigo-500 font-bold' : 'text-luxury-ink/40 hover:text-indigo-500 font-semibold'}`}
+            >
+              <div className="p-2 rounded-full group-hover:bg-indigo-500/10 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={hasDownvoted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
                 </svg>
-                {post.downvotesCount > 0 && <span>{post.downvotesCount}</span>}
-              </button>
-            )}
+              </div>
+              {(post.downvotesCount || 0) > 0 && <span className="relative -left-1">{post.downvotesCount || 0}</span>}
+            </button>
 
             <button 
               onClick={(e) => { e.stopPropagation(); onClick(); }}

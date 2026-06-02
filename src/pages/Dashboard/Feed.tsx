@@ -376,30 +376,9 @@ function PostDetailModal({
         {/* Action Bar */}
         <div className="px-6 md:px-8 py-4 border-t border-luxury-ink/5 flex flex-col gap-4 bg-surface-base/50">
           
-          {post.type === 'confession' && (
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-              {REACTION_KEYS.map(rk => {
-                const rt = REACTION_TYPES[rk];
-                const count = post.reactionsCount?.[rk] || 0;
-                const isSelected = userReaction === rk;
-                return (
-                  <button
-                    key={rk}
-                    onClick={() => handleReactionClick(rk)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border ${isSelected ? 'bg-purple-500/10 border-purple-500/30 text-purple-700' : 'bg-surface-card border-luxury-ink/5 hover:border-luxury-ink/20 text-luxury-ink/60'}`}
-                  >
-                    <span>{rt.emoji}</span>
-                    <span>{count > 0 ? count : rt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
-              {post.type !== 'confession' && (
-                <div className="flex items-center gap-1 bg-surface-soft/50 rounded-2xl p-1">
+              <div className="flex items-center gap-1 bg-surface-soft/50 rounded-2xl p-1">
                   <button
                     onClick={() => onUpvote(post)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasUpvoted ? 'bg-brand-pink/10 text-brand-pink' : 'hover:bg-white text-luxury-ink/40 hover:text-brand-pink'}`}
@@ -418,7 +397,6 @@ function PostDetailModal({
                     {post.downvotesCount || 0}
                   </button>
                 </div>
-              )}
               <button
                 onClick={() => document.getElementById('reply-input')?.focus()}
                 className="flex items-center gap-2 px-4 py-3 hover:bg-surface-soft rounded-2xl text-sm font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
