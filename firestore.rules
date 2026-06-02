@@ -328,7 +328,13 @@ service cloud.firestore {
         && isValidId(postId)
         && request.auth.uid == incoming().authorId
         && isValidPost(incoming())
-        && incoming().status == 'pending'
+        && (
+          incoming().status == 'pending'
+          ||
+          (incoming().status == 'approved' && 
+           incoming().get('imageUrls', []).size() == 0 &&
+           incoming().get('imageUrl', '') == '')
+        )
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
 
