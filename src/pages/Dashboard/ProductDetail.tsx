@@ -319,6 +319,15 @@ export default function ProductDetail() {
               )}
             </div>
             <h1 className="text-4xl md:text-5xl font-serif font-bold text-luxury-ink mb-4 leading-tight">{product.title}</h1>
+            {product.tags && product.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {product.tags.map((tag: string) => (
+                  <span key={tag} className="px-2.5 py-1 bg-luxury-ink/5 text-brand-teal rounded-lg text-[10px] font-bold uppercase tracking-widest">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
             <p className="text-3xl font-serif font-bold text-brand-pink mb-6 italic">₹{product.price}</p>
             <p className="text-luxury-ink/60 leading-relaxed text-base mb-8 max-w-lg whitespace-pre-wrap">{product.description}</p>
 
@@ -345,10 +354,15 @@ export default function ProductDetail() {
 
             <div className="flex flex-col gap-3">
               {/* Seller controls */}
-              {isSeller && isReserved && (
-                <div className="flex gap-3">
-                  <button onClick={handleMarkSold} className="flex-1 py-4 bg-brand-teal text-white text-xs font-bold uppercase tracking-[0.2em] shadow-lg hover:bg-brand-mint transition-all rounded-lg">Mark as Sold</button>
-                  <button onClick={handleUnreserve} className="flex-1 py-4 border-2 border-luxury-ink/10 text-luxury-ink/50 text-xs font-bold uppercase tracking-[0.2em] hover:border-red-300 hover:text-red-400 transition-all rounded-lg">Cancel Reservation</button>
+              {isSeller && !isSold && (
+                <div className="flex flex-col gap-3">
+                  {isReserved && (
+                    <div className="flex gap-3">
+                      <button onClick={handleMarkSold} className="flex-1 py-4 bg-brand-teal text-white text-xs font-bold uppercase tracking-[0.2em] shadow-lg hover:bg-brand-mint transition-all rounded-lg">Mark as Sold</button>
+                      <button onClick={handleUnreserve} className="flex-1 py-4 border-2 border-luxury-ink/10 text-luxury-ink/50 text-xs font-bold uppercase tracking-[0.2em] hover:border-red-300 hover:text-red-400 transition-all rounded-lg">Cancel Reservation</button>
+                    </div>
+                  )}
+                  <Link to={`/edit-item/${product.id}`} className="flex-1 py-4 text-center border-2 border-brand-teal text-brand-teal text-xs font-bold uppercase tracking-[0.2em] hover:bg-brand-teal hover:text-white transition-all rounded-lg">Edit Listing</Link>
                 </div>
               )}
 

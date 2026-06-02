@@ -662,7 +662,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
               <div className="absolute top-3 right-3 flex gap-2">
                 <Link to={`/product/${product.id}`} className="glass p-2 rounded-full text-luxury-ink/60 hover:text-brand-teal transition-colors shadow-sm"><ExternalLink size={14} /></Link>
                 {isOwnProfile && (
-                  <button onClick={() => handleDeleteListing(product.id)} className="glass p-2 rounded-full text-luxury-ink/60 hover:text-red-500 transition-colors shadow-sm"><Trash2 size={14} /></button>
+                  <>
+                    <Link to={`/edit-item/${product.id}`} className="glass p-2 rounded-full text-luxury-ink/60 hover:text-brand-teal transition-colors shadow-sm"><Edit2 size={14} /></Link>
+                    <button onClick={() => handleDeleteListing(product.id)} className="glass p-2 rounded-full text-luxury-ink/60 hover:text-red-500 transition-colors shadow-sm"><Trash2 size={14} /></button>
+                  </>
                 )}
               </div>
               {product.status === 'pending' && (

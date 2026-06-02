@@ -124,6 +124,7 @@ export default function App() {
               <Route path="/search" element={<ProtectedRoute requireAuth><Search /></ProtectedRoute>} />
               <Route path="/product/:id" element={<ProtectedRoute requireAuth><ProductDetail /></ProtectedRoute>} />
               <Route path="/sell" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
+              <Route path="/edit-item/:id" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
               <Route path="/profile/:userId" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
               <Route path="/messages" element={<ProtectedRoute requireAuth requireVerified><ChatList /></ProtectedRoute>} />

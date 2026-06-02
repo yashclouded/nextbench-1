@@ -118,7 +118,8 @@ export default function Search() {
           .filter(p => 
             (p.title && p.title.toLowerCase().includes(lowerQ)) || 
             (p.category && p.category.toLowerCase().includes(lowerQ)) ||
-            (p.sellerName && p.sellerName.toLowerCase().includes(lowerQ))
+            (p.sellerName && p.sellerName.toLowerCase().includes(lowerQ)) ||
+            (p.tags && p.tags.some((tag: string) => tag.toLowerCase().includes(lowerQ)))
           )
         );
       } catch (err) {
