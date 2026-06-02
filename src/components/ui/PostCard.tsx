@@ -124,7 +124,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
 
         {/* Content Preview */}
         <div className="mb-5 max-w-full sm:max-w-[92%]">
-          <p className="text-[15px] md:text-[16px] text-luxury-ink/75 leading-relaxed font-medium line-clamp-4">
+          <p className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-4">
             {post.content}
           </p>
         </div>

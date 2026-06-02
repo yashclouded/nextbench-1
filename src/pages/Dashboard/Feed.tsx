@@ -235,43 +235,10 @@ function PostDetailModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Scrollable Container */}
-        <div className="flex-1 overflow-y-auto flex flex-col">
-          {/* Image Section */}
-          {postImageUrls.length > 0 && (
-          <div className="relative bg-luxury-ink/5 flex-shrink-0">
-            <img
-              src={getOptimizedImageUrl(postImageUrls[currentImageIndex])}
-              alt={post.title}
-              className="post-detail-image"
-              referrerPolicy="no-referrer"
-            />
-            {/* Image indicators */}
-            {postImageUrls.length > 1 && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                {postImageUrls.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentImageIndex(i)}
-                    className={`w-2 h-2 rounded-full transition-all ${i === currentImageIndex ? 'bg-surface-card w-5' : 'bg-white/50 hover:bg-white/80'}`}
-                  />
-                ))}
-              </div>
-            )}
-            {/* Close on image view */}
-            <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-luxury-ink/40 backdrop-blur-md text-white rounded-full hover:bg-luxury-ink/60 transition-all">
-              <X size={18} />
-            </button>
-          </div>
-        )}
-
-        {/* Content Section */}
-        <div className="flex-1 p-6 md:p-8">
-          {/* No image? show close button here */}
-          {postImageUrls.length === 0 && (
-            <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-surface-base text-luxury-ink/40 rounded-full hover:bg-surface-soft hover:text-luxury-ink transition-all">
-              <X size={18} />
-            </button>
-          )}
+        <div className="flex-1 overflow-y-auto flex flex-col relative p-6 md:p-8">
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-surface-base text-luxury-ink/40 rounded-full hover:bg-surface-soft hover:text-luxury-ink transition-all z-10">
+            <X size={18} />
+          </button>
 
           {/* Author */}
           <div className="flex items-center gap-3 mb-5">
@@ -311,8 +278,32 @@ function PostDetailModal({
           </div>
 
           {/* Title & Content */}
-          <h2 className="text-2xl font-bold text-luxury-ink mb-3 leading-tight">{post.title}</h2>
-          <p className="text-luxury-ink/70 leading-relaxed whitespace-pre-wrap text-[15px]">{post.content}</p>
+          <h2 className="text-2xl font-bold text-luxury-ink mb-3 leading-tight pr-8">{post.title}</h2>
+          <p className="text-luxury-ink/70 leading-relaxed whitespace-pre-wrap text-[15px] mb-6">{post.content}</p>
+
+          {/* Image Section Moved Here */}
+          {postImageUrls.length > 0 && (
+            <div className="relative bg-luxury-ink/5 rounded-2xl overflow-hidden mb-6 border border-luxury-ink/5 shrink-0">
+              <img
+                src={getOptimizedImageUrl(postImageUrls[currentImageIndex])}
+                alt={post.title}
+                className="post-detail-image rounded-2xl"
+                referrerPolicy="no-referrer"
+              />
+              {/* Image indicators */}
+              {postImageUrls.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 bg-luxury-ink/40 backdrop-blur-md px-3 py-1.5 rounded-full">
+                  {postImageUrls.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentImageIndex(i)}
+                      className={`w-2 h-2 rounded-full transition-all ${i === currentImageIndex ? 'bg-white w-4' : 'bg-white/50 hover:bg-white/80'}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Time */}
           <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/20 mt-4 mb-8 border-b border-luxury-ink/5 pb-6">
@@ -370,7 +361,6 @@ function PostDetailModal({
               </button>
             </form>
           </div>
-        </div>
         </div>
 
         {/* Action Bar */}
@@ -1013,7 +1003,7 @@ export default function Feed() {
 
   const handleShare = async (post: Post) => {
     const text = `Check out "${post.title}" by ${post.authorName} on Nextbench Community!`;
-    const url = window.location.origin + '/community';
+    const url = window.location.origin + '/post/' + post.id;
 
     if (navigator.share) {
       try {
