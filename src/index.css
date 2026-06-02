@@ -6,55 +6,55 @@
    ═══════════════════════════════════════════════════ */
 
 :root {
-  --color-surface-base: #FAF9F6;
-  --color-surface-soft: #F3F1ED;
+  --color-surface-base: #F5F5F7;
+  --color-surface-soft: #EBEBED;
   --color-surface-card: #FFFFFF;
   --color-surface-elevated: #FFFFFF;
-  --color-luxury-ink: #1A1A1A;
-  --color-luxury-ink-muted: rgba(26, 26, 26, 0.5);
-  --color-luxury-ink-faint: rgba(26, 26, 26, 0.1);
-  --color-brand-teal: #3A8B95;
-  --color-brand-pink: #FF3E9B;
-  --color-brand-pink-soft: #FF88BA;
-  --color-brand-mint: #66D0BC;
-  --color-border: rgba(26, 26, 26, 0.06);
-  --color-border-strong: rgba(26, 26, 26, 0.12);
-  --color-glass-bg: rgba(255, 255, 255, 0.70);
-  --color-glass-border: rgba(255, 255, 255, 0.20);
-  --color-skeleton-from: #f0ece6;
-  --color-skeleton-via: #e8e4dc;
-  --color-shadow-brand: rgba(58, 139, 149, 0.15);
-  --color-glow-pink: rgba(255, 62, 155, 0.0);
-  --color-glow-teal: rgba(58, 139, 149, 0.0);
-  --color-overlay: rgba(26, 26, 26, 0.20);
-  --color-overlay-heavy: rgba(26, 26, 26, 0.60);
-  --nav-bg: rgba(255, 255, 255, 0.90);
+  --color-luxury-ink: #1D1D1F;
+  --color-luxury-ink-muted: rgba(29, 29, 31, 0.50);
+  --color-luxury-ink-faint: rgba(29, 29, 31, 0.08);
+  --color-brand-teal: #0071E3;
+  --color-brand-pink: #FF375F;
+  --color-brand-pink-soft: #FF6482;
+  --color-brand-mint: #34C759;
+  --color-border: rgba(29, 29, 31, 0.08);
+  --color-border-strong: rgba(29, 29, 31, 0.15);
+  --color-glass-bg: rgba(255, 255, 255, 0.72);
+  --color-glass-border: rgba(255, 255, 255, 0.28);
+  --color-skeleton-from: #E8E8EA;
+  --color-skeleton-via: #DCDCE0;
+  --color-shadow-brand: rgba(0, 113, 227, 0.18);
+  --color-glow-pink: rgba(255, 55, 95, 0.0);
+  --color-glow-teal: rgba(0, 113, 227, 0.0);
+  --color-overlay: rgba(29, 29, 31, 0.18);
+  --color-overlay-heavy: rgba(29, 29, 31, 0.58);
+  --nav-bg: rgba(245, 245, 247, 0.88);
 }
 
 [data-theme="dark"] {
-  --color-surface-base: #1C1B1A;
-  --color-surface-soft: #242321;
-  --color-surface-card: #1C1B1A;
-  --color-surface-elevated: #242321;
-  --color-luxury-ink: #D4D0C8;
-  --color-luxury-ink-muted: #8C8881;
-  --color-luxury-ink-faint: rgba(212, 208, 200, 0.05);
-  --color-brand-teal: #759489;
-  --color-brand-pink: #B57F89;
-  --color-brand-pink-soft: #D1A3AB;
-  --color-brand-mint: #8EA89C;
-  --color-border: #2C2B29;
-  --color-border-strong: #3A3835;
-  --color-glass-bg: rgba(28, 27, 26, 0.85);
-  --color-glass-border: rgba(212, 208, 200, 0.05);
-  --color-skeleton-from: #242321;
-  --color-skeleton-via: #2C2B29;
+  --color-surface-base: #000000;
+  --color-surface-soft: #1C1C1E;
+  --color-surface-card: #1C1C1E;
+  --color-surface-elevated: #2C2C2E;
+  --color-luxury-ink: #F5F5F7;
+  --color-luxury-ink-muted: rgba(245, 245, 247, 0.50);
+  --color-luxury-ink-faint: rgba(245, 245, 247, 0.06);
+  --color-brand-teal: #0A84FF;
+  --color-brand-pink: #FF375F;
+  --color-brand-pink-soft: #FF6482;
+  --color-brand-mint: #30D158;
+  --color-border: rgba(245, 245, 247, 0.10);
+  --color-border-strong: rgba(245, 245, 247, 0.18);
+  --color-glass-bg: rgba(28, 28, 30, 0.85);
+  --color-glass-border: rgba(245, 245, 247, 0.08);
+  --color-skeleton-from: #2C2C2E;
+  --color-skeleton-via: #3A3A3C;
   --color-shadow-brand: transparent;
   --color-glow-pink: transparent;
   --color-glow-teal: transparent;
-  --color-overlay: rgba(28, 27, 26, 0.8);
-  --color-overlay-heavy: rgba(28, 27, 26, 0.95);
-  --nav-bg: rgba(28, 27, 26, 0.95);
+  --color-overlay: rgba(0, 0, 0, 0.45);
+  --color-overlay-heavy: rgba(0, 0, 0, 0.80);
+  --nav-bg: rgba(28, 28, 30, 0.92);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -127,6 +127,22 @@
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Global chat-style scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-luxury-ink-muted);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-teal);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-luxury-ink-muted) transparent;
+}
+
+/* Keep utility class for explicit use */
 .chat-scroll::-webkit-scrollbar { width: 6px; }
 .chat-scroll::-webkit-scrollbar-track { background: transparent; }
 .chat-scroll::-webkit-scrollbar-thumb {

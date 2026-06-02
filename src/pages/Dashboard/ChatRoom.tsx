@@ -44,8 +44,18 @@ const QUICK_MESSAGES = [
   'I\'ll take it!',
 ];
 
-export default function ChatRoom() {
-  const { roomId } = useParams<{ roomId: string }>();
+interface ChatRoomProps {
+  /** When true, renders inline (no `fixed inset-0`) for the two-pane desktop layout */
+  panelMode?: boolean;
+  /** Override the back button handler (used by MessagesLayout on desktop) */
+  onBack?: () => void;
+  /** Override roomId (used when rendered as a panel without URL param) */
+  roomIdOverride?: string;
+}
+
+export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoomProps = {}) {
+  const params = useParams<{ roomId: string }>();
+  const roomId = roomIdOverride || params.roomId;
   const { user, userData } = useAuth();
   const { showToast } = useToast();
   const location = useLocation();
@@ -410,11 +420,11 @@ export default function ChatRoom() {
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-surface-base">
+    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-[100] flex flex-col bg-surface-base"}>
       {/* Header */}
       <div className="theme-card border-b px-4 md:px-6 py-3 flex items-center justify-between z-10" style={{ borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/messages')} className="p-2 hover:bg-surface-soft rounded-full transition-all">
+          <button onClick={() => onBack ? onBack() : navigate('/messages')} className="p-2 hover:bg-surface-soft rounded-full transition-all">
             <ArrowLeft size={20} className="text-luxury-ink" />
           </button>
           <div className="flex items-center gap-3 p-2 -ml-2 rounded-xl transition-colors">

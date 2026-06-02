@@ -332,8 +332,8 @@ service cloud.firestore {
           incoming().status == 'pending'
           ||
           (incoming().status == 'approved' && 
-           (!incoming().keys().hasAny(['imageUrls']) || incoming().imageUrls.size() == 0) &&
-           (!incoming().keys().hasAny(['imageUrl']) || incoming().imageUrl == null || incoming().imageUrl == ''))
+           incoming().get('imageUrls', []).size() == 0 &&
+           incoming().get('imageUrl', '') == '')
         )
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;

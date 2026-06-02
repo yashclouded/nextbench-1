@@ -7,7 +7,7 @@ import React from 'react';
  * that failure, reloads the page once to get fresh HTML with new chunk
  * URLs, and prevents the dreaded "black screen" crash.
  */
-export function lazyWithRetry<T extends React.ComponentType<unknown>>(
+export function lazyWithRetry<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>,
 ): React.LazyExoticComponent<T> {
   return React.lazy(() => retryImport(factory));
@@ -15,7 +15,7 @@ export function lazyWithRetry<T extends React.ComponentType<unknown>>(
 
 const SESSION_KEY = 'chunk_retry_force_refreshed';
 
-async function retryImport<T extends React.ComponentType<unknown>>(
+async function retryImport<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>,
   retries = 2,
 ): Promise<{ default: T }> {
