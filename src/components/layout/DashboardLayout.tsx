@@ -28,20 +28,20 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="w-full flex relative z-10">
         
         {/* Left Sidebar (snapped to left edge) */}
-        <div className="hidden md:block w-80px xl:w-280px shrink-0 border-r" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-card)' }}>
+        <div className="hidden md:block w-[72px] xl:w-[240px] shrink-0 border-r" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-card)' }}>
           <SidebarNav />
         </div>
 
         {/* Center the rest of the content (Main + Right Sidebar) in the remaining space */}
         <div className="flex-1 flex justify-center">
-          <div className="flex w-full max-w-1100px">
+          <div className="flex w-full max-w-[1050px]">
             {/* Center Main Content */}
             <main className="flex-1 min-w-0 md:border-r pb-20 md:pb-0" style={{ borderColor: 'var(--color-border)' }}>
               {children}
             </main>
 
             {/* Right Sidebar (hidden on mobile and tablet) */}
-            <div className="hidden lg:block w-[320px] xl:w-350px shrink-0">
+            <div className="hidden lg:block w-[280px] xl:w-[300px] shrink-0">
               <SuggestedUsers />
             </div>
           </div>

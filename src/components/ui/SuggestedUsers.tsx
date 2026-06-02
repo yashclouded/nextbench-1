@@ -114,10 +114,10 @@ export default function SuggestedUsers() {
   if (!loading && suggestions.length === 0) return null;
 
   return (
-    <div className="pt-8 px-5 sticky top-0 h-screen overflow-y-auto no-scrollbar hidden lg:block">
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[13px] font-semibold text-luxury-ink">Suggested for you</h3>
+    <div className="pt-8 pl-4 pr-6 sticky top-0 h-screen overflow-y-auto no-scrollbar hidden lg:block">
+      <div className="mb-6 bg-surface-elevated rounded-2xl border border-border p-5">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-[14px] font-bold text-luxury-ink">Suggested for you</h3>
         </div>
         <div className="flex flex-col gap-4">
           {loading ? (
@@ -149,10 +149,10 @@ export default function SuggestedUsers() {
                 </div>
                 <button
                   onClick={(e) => toggleFollow(e, suggestion.id)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all shrink-0 ${
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shrink-0 ${
                     isFollowing 
-                      ? 'bg-luxury-ink/5 text-luxury-ink/50 hover:text-red-500' 
-                      : 'bg-brand-teal text-white hover:bg-brand-teal/90'
+                      ? 'bg-luxury-ink/5 text-luxury-ink/50 hover:text-red-500 hover:bg-red-500/10' 
+                      : 'bg-brand-teal/10 text-brand-teal hover:bg-brand-teal/20'
                   }`}
                 >
                   {isFollowing ? 'Following' : 'Follow'}
@@ -165,7 +165,7 @@ export default function SuggestedUsers() {
       </div>
 
       {/* Trending Section */}
-      <div className="border-t pt-5 mb-6" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="mb-6 bg-surface-elevated rounded-2xl border border-border p-5">
         <TrendingSidebar />
       </div>
 
