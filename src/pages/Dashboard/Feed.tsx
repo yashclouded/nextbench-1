@@ -12,7 +12,7 @@ import { getOptimizedImageUrl } from '../../lib/utils';
 import { useFollowingIds } from '../../lib/follows';
 import { isTextSafe } from '../../lib/moderation';
 import { createNotification } from '../../lib/notifications';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import ImageCropper from '../../components/ui/ImageCropper';
 import ProductCard from '../../components/ui/ProductCard';
 import PostCard from '../../components/ui/PostCard';
@@ -459,6 +459,25 @@ export default function Feed() {
   const [wishlistMap, setWishlistMap] = useState<Record<string, string>>({});
 
   const [rawPosts, setRawPosts] = useState<Post[]>([]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const postIdFromUrl = searchParams.get('postId');
+  
+  useEffect(() => {
+    if (postIdFromUrl && rawPosts.length > 0 && !selectedPost) {
+      const p = rawPosts.find(p => p.id === postIdFromUrl);
+      if (p) {
+        setSelectedPost(p);
+      } else {
+        getDoc(doc(db, 'posts', postIdFromUrl)).then(snap => {
+          if (snap.exists()) setSelectedPost({ id: snap.id, ...snap.data() } as Post);
+        });
+      }
+      // Remove query param to clean up url
+      searchParams.delete('postId');
+      setSearchParams(searchParams);
+    }
+  }, [postIdFromUrl, rawPosts, selectedPost, setSearchParams, searchParams]);
   
   // Confession state
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -1058,6 +1077,17 @@ export default function Feed() {
       await updateDoc(postRef, {
         repliesCount: (selectedPost.repliesCount || 0) + 1
       });
+
+      // Send notification to post author
+      if (selectedPost.authorId !== user.uid) {
+        createNotification({
+          userId: selectedPost.authorId,
+          type: 'new_message',
+          title: 'New Comment',
+          message: `${userData?.name || user.email?.split('@')[0]} commented on your post`,
+          link: `/post/${selectedPost.id}`
+        });
+      }
       
       if (replyingTo) {
         const parentReplyRef = doc(db, 'post_replies', replyingTo.id);
@@ -1067,6 +1097,17 @@ export default function Feed() {
             repliesCount: (parentReply.repliesCount || 0) + 1,
             updatedAt: serverTimestamp()
           });
+
+          // Send notification to parent reply author
+          if (parentReply.authorId !== user.uid) {
+            createNotification({
+              userId: parentReply.authorId,
+              type: 'new_message',
+              title: 'New Reply',
+              message: `${userData?.name || user.email?.split('@')[0]} replied to your comment`,
+              link: `/post/${selectedPost.id}`
+            });
+          }
         }
       }
 

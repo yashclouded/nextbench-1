@@ -50,10 +50,12 @@ export default function PostView() {
 
   const handleInteraction = (action: string) => {
     if (!requireAuth()) return;
-    // If logged in, they should probably view this in the community feed or we can handle it.
-    // For now, redirect to the feed where they can interact properly if they are logged in.
-    // Alternatively, we could implement full interaction here, but the Feed already has it all.
-    navigate('/community');
+    // Redirect to community with postId to open the modal
+    if (post && post.id) {
+      navigate(`/community?postId=${post.id}`);
+    } else {
+      navigate('/community');
+    }
   };
 
   if (loading) {

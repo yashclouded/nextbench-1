@@ -820,7 +820,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             const hasImage = postImageUrls.length > 0;
 
             return (
-              <div key={post.id} className="theme-card rounded-2xl p-5 md:p-6 transition-all hover:scale-[1.005]">
+              <div key={post.id} onClick={() => navigate(`/community?postId=${post.id}`)} className="theme-card rounded-2xl p-5 md:p-6 transition-all hover:scale-[1.005] cursor-pointer">
                 {hasImage && (
                   <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-4 bg-surface-soft" style={{ border: '1px solid var(--color-border)' }}>
                     <img 
