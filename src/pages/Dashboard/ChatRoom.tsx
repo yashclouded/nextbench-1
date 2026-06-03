@@ -635,11 +635,11 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
       })()}
       {/* Quick Replies */}
       {showQuickReplies && !isBlocked && (
-        <div className="px-4 md:px-6 pb-2">
+        <div className="px-3 pb-1 chat-bg">
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
             {QUICK_MESSAGES.map((msg, i) => (
               <button key={i} onClick={() => sendMessage(msg)}
-                className="whitespace-nowrap px-4 py-2 theme-card border rounded-full text-xs font-medium text-luxury-ink/60 hover:bg-brand-teal/5 hover:text-brand-teal hover:border-brand-teal/20 transition-all" style={{ borderColor: 'var(--color-border)' }}>
+                className="whitespace-nowrap px-4 py-2 bg-surface-card border rounded-full text-xs font-medium text-luxury-ink/60 hover:bg-brand-teal/5 hover:text-brand-teal hover:border-brand-teal/20 transition-all shadow-sm" style={{ borderColor: 'var(--color-border)' }}>
                 {msg}
               </button>
             ))}
@@ -648,9 +648,9 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
       )}
 
       {/* Input / Select Mode Actions */}
-      <div className="p-4 md:p-6 theme-card border-t pb-safe" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="px-3 py-3 pb-safe chat-bg">
         {isSelectMode ? (
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between bg-surface-card rounded-2xl px-4 py-3 shadow-lg border" style={{ borderColor: 'var(--color-border)' }}>
             <div className="text-sm font-bold text-luxury-ink">
               {selectedMessages.size} selected
             </div>
@@ -670,7 +670,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             </div>
           </div>
         ) : isBlocked ? (
-          <div className="text-center py-4 bg-surface-soft rounded-2xl border border-luxury-ink/5">
+          <div className="text-center py-4 bg-surface-card rounded-2xl border border-luxury-ink/5 shadow-lg">
             <p className="text-sm font-bold text-luxury-ink/40">
               {isBlockedByMe ? "You have blocked this user." : "You cannot message this user."}
             </p>
@@ -678,7 +678,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
         ) : (
           <div className="relative">
             {replyingTo && (
-              <div className="absolute bottom-full left-0 right-0 mb-4 bg-surface-card border rounded-xl p-3 flex items-start justify-between shadow-lg" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="mb-2 bg-surface-card border rounded-2xl px-4 py-3 flex items-start justify-between shadow-md" style={{ borderColor: 'var(--color-border)' }}>
                 <div className="flex-1 overflow-hidden">
                   <div className="text-[10px] font-bold text-brand-teal uppercase tracking-widest mb-1 flex items-center gap-1"><CornerDownRight size={10} /> Replying to</div>
                   <div className="text-sm text-luxury-ink/70 line-clamp-1">{replyingTo.text || '📷 Image'}</div>
@@ -688,74 +688,80 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                 </button>
               </div>
             )}
-            
-            <form onSubmit={handleSendMessage} className="relative flex items-center gap-2">
-            <input 
-              type="file" 
-            ref={fileInputRef} 
-            onChange={handleImageUpload} 
-            accept="image/*" 
-            className="hidden" 
-          />
-          <button 
-            type="button" 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="p-3.5 rounded-xl border border-luxury-ink/10 bg-surface-soft text-brand-teal hover:bg-brand-teal/10 hover:border-brand-teal/30 transition-all shrink-0 disabled:opacity-50"
-            title="Send Image"
-          >
-            {isUploading ? (
-              <div className="w-5 h-5 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Camera size={20} className="fill-brand-teal/10" />
-            )}
-          </button>
-          
-          <button type="button" onClick={() => setShowQuickReplies(!showQuickReplies)}
-            className={`p-3.5 rounded-xl border transition-all shrink-0 ${showQuickReplies ? 'bg-brand-teal text-white border-brand-teal' : 'bg-surface-soft border-luxury-ink/10 text-brand-teal hover:bg-brand-teal/10 hover:border-brand-teal/30'}`}
-            title="Quick replies">
-            ⚡
-          </button>
-          
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onPaste={async (e: React.ClipboardEvent<HTMLInputElement>) => {
-              const items = e.clipboardData?.items;
-              if (!items) return;
-              for (const item of Array.from(items)) {
-                if (item.type.startsWith('image/')) {
-                  e.preventDefault();
-                  const file = item.getAsFile();
-                  if (!file || !roomId) return;
-                  if (file.size > 5 * 1024 * 1024) {
-                    showToast('Image must be less than 5MB', 'error');
-                    return;
-                  }
-                  setIsUploading(true);
-                  try {
-                    const imageUrl = await uploadChatImage(file, roomId);
-                    await sendMessage(undefined, imageUrl);
-                  } catch {
-                    showToast('Failed to upload image', 'error');
-                  } finally {
-                    setIsUploading(false);
-                  }
-                  return;
-                }
-              }
-            }}
-            placeholder={isUploading ? "Uploading image..." : "Type your message..."}
-            disabled={isUploading}
-            className="flex-1 bg-surface-base border border-luxury-ink/5 rounded-2xl py-4 px-6 focus:outline-none focus:border-brand-teal transition-all text-sm font-medium"
-          />
-          <button type="submit" disabled={!newMessage.trim() || isUploading}
-            className="p-3.5 bg-luxury-ink text-surface-base rounded-xl hover:bg-brand-teal transition-all shadow-lg disabled:opacity-30 disabled:cursor-not-allowed shrink-0">
-            <Send size={18} />
-          </button>
-        </form>
-        </div>
+
+            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+              <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+
+              {/* Camera button — outside pill */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="p-3 rounded-full bg-surface-card border border-luxury-ink/10 text-brand-teal hover:bg-brand-teal/10 transition-all shrink-0 disabled:opacity-50 shadow-md"
+                title="Send Image"
+              >
+                {isUploading ? (
+                  <div className="w-5 h-5 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Camera size={20} />
+                )}
+              </button>
+
+              {/* Input pill */}
+              <div className="flex-1 flex items-center gap-1 bg-surface-card rounded-full border border-luxury-ink/10 shadow-md px-4" style={{ borderColor: 'var(--color-border)' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickReplies(!showQuickReplies)}
+                  className={`p-2 rounded-full transition-all shrink-0 text-base ${showQuickReplies ? 'text-brand-teal' : 'text-luxury-ink/40 hover:text-brand-teal'}`}
+                  title="Quick replies"
+                >
+                  ⚡
+                </button>
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onPaste={async (e: React.ClipboardEvent<HTMLInputElement>) => {
+                    const items = e.clipboardData?.items;
+                    if (!items) return;
+                    for (const item of Array.from(items)) {
+                      if (item.type.startsWith('image/')) {
+                        e.preventDefault();
+                        const file = item.getAsFile();
+                        if (!file || !roomId) return;
+                        if (file.size > 5 * 1024 * 1024) {
+                          showToast('Image must be less than 5MB', 'error');
+                          return;
+                        }
+                        setIsUploading(true);
+                        try {
+                          const imageUrl = await uploadChatImage(file, roomId);
+                          await sendMessage(undefined, imageUrl);
+                        } catch {
+                          showToast('Failed to upload image', 'error');
+                        } finally {
+                          setIsUploading(false);
+                        }
+                        return;
+                      }
+                    }
+                  }}
+                  placeholder={isUploading ? "Uploading..." : "Type your message..."}
+                  disabled={isUploading}
+                  className="flex-1 bg-transparent py-3.5 text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
+                />
+              </div>
+
+              {/* Send button — outside pill */}
+              <button
+                type="submit"
+                disabled={!newMessage.trim() || isUploading}
+                className="p-3 bg-brand-teal text-white rounded-full hover:opacity-90 transition-all shadow-md disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+              >
+                <Send size={18} />
+              </button>
+            </form>
+          </div>
         )}
       </div>
       {/* Image Viewer */}
@@ -801,7 +807,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              src={viewingImage}
+              src={viewingImage ?? ''}
               alt="Full size"
               className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
               onClick={e => e.stopPropagation()}
@@ -837,7 +843,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleDeleteForMe(deleteConfirmMsgId)}
+                  onClick={() => handleDeleteForMe(deleteConfirmMsgId!)}
                   className="px-5 py-2.5 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 transition-colors shadow-lg"
                 >
                   Delete for me
@@ -876,7 +882,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleDeleteForEveryone(deleteEveryoneConfirmMsgId)}
+                  onClick={() => handleDeleteForEveryone(deleteEveryoneConfirmMsgId!)}
                   className="px-5 py-2.5 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 transition-colors shadow-lg"
                 >
                   Delete for everyone
