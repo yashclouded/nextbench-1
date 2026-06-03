@@ -3,7 +3,7 @@ import SEO from '../../components/seo/SEO';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, ChevronLeft, ChevronRight, Star, MessageSquare, Heart, Share2, X, Send, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, addDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, addDoc, onSnapshot, deleteDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useAuth } from '../../lib/AuthContext';
@@ -136,24 +136,62 @@ export default function ProductDetail() {
     if (product.sellerId === user.uid) { showToast('This is your listing.', 'info'); return; }
     setIsStartingChat(true);
     try {
-      const q = query(collection(db, 'chatRooms'), where('participants', 'array-contains', user.uid), where('productId', '==', id));
-      const snapshot = await getDocs(q);
+      // 1. Check for any existing DM room between these two users (type: 'dm')
+      const dmQuery = query(
+        collection(db, 'chatRooms'),
+        where('participants', 'array-contains', user.uid),
+        where('type', '==', 'dm')
+      );
+      const dmSnapshot = await getDocs(dmQuery);
+      const existingDMRoom = dmSnapshot.docs.find(d => d.data().participants.includes(product.sellerId));
+
+      // 2. Also check for a product-specific room for this listing
+      const productQuery = query(
+        collection(db, 'chatRooms'),
+        where('participants', 'array-contains', user.uid),
+        where('productId', '==', id)
+      );
+      const productSnapshot = await getDocs(productQuery);
+
       let roomId = '';
-      if (!snapshot.empty) { roomId = snapshot.docs[0].id; }
-      else {
+
+      if (existingDMRoom) {
+        // Existing DM — send an interest message into it instead of making a new chat
+        roomId = existingDMRoom.id;
+        const interestMessage = `Hey! I'm interested in your listing: "${product.title}" (₹${product.price})`;
+        await addDoc(collection(db, 'chatRooms', roomId, 'messages'), {
+          senderId: user.uid,
+          text: interestMessage,
+          createdAt: serverTimestamp(),
+        });
+        await updateDoc(doc(db, 'chatRooms', roomId), {
+          lastMessage: interestMessage,
+          lastSenderId: user.uid,
+          unreadBy: arrayUnion(product.sellerId),
+          updatedAt: serverTimestamp(),
+        });
+        createNotification({ userId: product.sellerId, type: 'new_message', title: 'New inquiry', message: interestMessage, link: `/chat/${roomId}` });
+        showToast('Message sent in your existing chat!', 'success');
+      } else if (!productSnapshot.empty) {
+        // Already have a product-specific room for this listing — just navigate there
+        roomId = productSnapshot.docs[0].id;
+      } else {
+        // No existing chat at all — create a new product-specific room
         const inquiryMessage = `${userData.name} wants to chat about "${product.title}"`;
         const newRoom = await addDoc(collection(db, 'chatRooms'), {
           participants: [user.uid, product.sellerId],
+          type: 'dm',
           productId: id,
           productTitle: product.title,
           lastMessage: inquiryMessage,
           lastSenderId: user.uid,
           unreadBy: [product.sellerId],
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
         roomId = newRoom.id;
         createNotification({ userId: product.sellerId, type: 'new_message', title: 'New inquiry', message: inquiryMessage, link: `/chat/${roomId}` });
       }
+
       navigate(`/chat/${roomId}`, { state: { otherUser: { id: product.sellerId, name: product.sellerName, school: product.sellerSchool } } });
     } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'chatRooms'); }
     finally { setIsStartingChat(false); }
