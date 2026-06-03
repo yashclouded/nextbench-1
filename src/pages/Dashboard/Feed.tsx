@@ -827,8 +827,26 @@ export default function Feed() {
       return;
     }
 
+    const isUpvoted = upvotedPostIds.has(post.id);
+    const isDownvoted = downvotedPostIds.has(post.id);
+
+    // Optimistic UI update
+    setUpvotedPostIds(prev => {
+      const next = new Set(prev);
+      if (isUpvoted) next.delete(post.id);
+      else next.add(post.id);
+      return next;
+    });
+
+    if (!isUpvoted && isDownvoted) {
+      setDownvotedPostIds(prev => {
+        const next = new Set(prev);
+        next.delete(post.id);
+        return next;
+      });
+    }
+
     try {
-      const isUpvoted = upvotedPostIds.has(post.id);
       if (isUpvoted) {
         const upvoteId = upvoteMap[post.id];
         if (upvoteId) await deleteDoc(doc(db, 'post_upvotes', upvoteId));
@@ -858,6 +876,20 @@ export default function Feed() {
         });
       }
     } catch (e) {
+      // Revert optimistic update
+      setUpvotedPostIds(prev => {
+        const next = new Set(prev);
+        if (isUpvoted) next.add(post.id);
+        else next.delete(post.id);
+        return next;
+      });
+      if (!isUpvoted && isDownvoted) {
+        setDownvotedPostIds(prev => {
+          const next = new Set(prev);
+          next.add(post.id);
+          return next;
+        });
+      }
       handleFirestoreError(e, OperationType.UPDATE, 'posts');
     }
   };
@@ -872,8 +904,26 @@ export default function Feed() {
       return;
     }
 
+    const isDownvoted = downvotedPostIds.has(post.id);
+    const isUpvoted = upvotedPostIds.has(post.id);
+
+    // Optimistic UI update
+    setDownvotedPostIds(prev => {
+      const next = new Set(prev);
+      if (isDownvoted) next.delete(post.id);
+      else next.add(post.id);
+      return next;
+    });
+
+    if (!isDownvoted && isUpvoted) {
+      setUpvotedPostIds(prev => {
+        const next = new Set(prev);
+        next.delete(post.id);
+        return next;
+      });
+    }
+
     try {
-      const isDownvoted = downvotedPostIds.has(post.id);
       if (isDownvoted) {
         const downvoteId = downvoteMap[post.id];
         if (downvoteId) await deleteDoc(doc(db, 'post_downvotes', downvoteId));
@@ -903,6 +953,20 @@ export default function Feed() {
         });
       }
     } catch (e) {
+      // Revert optimistic update
+      setDownvotedPostIds(prev => {
+        const next = new Set(prev);
+        if (isDownvoted) next.add(post.id);
+        else next.delete(post.id);
+        return next;
+      });
+      if (!isDownvoted && isUpvoted) {
+        setUpvotedPostIds(prev => {
+          const next = new Set(prev);
+          next.add(post.id);
+          return next;
+        });
+      }
       handleFirestoreError(e, OperationType.UPDATE, 'posts');
     }
   };
@@ -916,8 +980,17 @@ export default function Feed() {
       showToast('You must be verified to like.', 'error');
       return;
     }
+    const isUpvoted = replyUpvotedIds.has(replyId);
+
+    // Optimistic UI update
+    setReplyUpvotedIds(prev => {
+      const next = new Set(prev);
+      if (isUpvoted) next.delete(replyId);
+      else next.add(replyId);
+      return next;
+    });
+
     try {
-      const isUpvoted = replyUpvotedIds.has(replyId);
       const reply = replies.find(r => r.id === replyId);
       if (!reply) return;
 
@@ -939,6 +1012,13 @@ export default function Feed() {
         });
       }
     } catch (e) {
+      // Revert optimistic update
+      setReplyUpvotedIds(prev => {
+        const next = new Set(prev);
+        if (isUpvoted) next.add(replyId);
+        else next.delete(replyId);
+        return next;
+      });
       handleFirestoreError(e, OperationType.UPDATE, 'post_replies');
     }
   };
