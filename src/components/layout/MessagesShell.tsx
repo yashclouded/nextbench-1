@@ -1,11 +1,5 @@
 /**
  * MessagesShell.tsx
- *
- * Full-screen shell for the messages page.
- * - Icon-only left nav (like Twitter DMs)
- * - No right sidebar
- * - Renders MessagesLayout as the main content
- * - Mobile: bottom nav only, no left sidebar
  */
 
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -80,14 +74,14 @@ export default function MessagesShell() {
               className={({ isActive }) =>
                 `relative flex items-center justify-center w-11 h-11 rounded-xl transition-all group ${
                   isActive
-                    ? 'bg-brand-teal/10 text-brand-teal'
-                    : 'text-luxury-ink/40 hover:bg-surface-soft hover:text-luxury-ink'
+                    ? 'bg-surface-soft/60 text-luxury-ink'
+                    : 'text-luxury-ink/50 hover:bg-surface-soft/40 hover:text-luxury-ink/80'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
+                  <Icon size={20} className={`transition-all duration-200 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px]'}`} />
                   {/* Unread badge on messages icon */}
                   {label === 'Messages' && unreadCount > 0 && (
                     <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-teal rounded-full" />

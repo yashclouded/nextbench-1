@@ -544,7 +544,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                 }}
                 className={`max-w-[75%] px-5 py-3.5 rounded-2xl text-sm font-medium cursor-pointer relative ${
                 isMe 
-                  ? 'bg-luxury-ink text-surface-base rounded-tr-sm shadow-md' 
+                  ? 'bg-brand-teal text-white rounded-tr-sm shadow-md' 
                   : 'theme-card text-luxury-ink rounded-tl-sm border'
               }`} style={!isMe ? { borderColor: 'var(--color-border)' } : undefined}>
                 
@@ -748,7 +748,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             className="flex-1 bg-surface-base border border-luxury-ink/5 rounded-2xl py-4 px-6 focus:outline-none focus:border-brand-teal transition-all text-sm font-medium"
           />
           <button type="submit" disabled={!newMessage.trim() || isUploading}
-            className="p-3.5 bg-luxury-ink text-surface-base rounded-xl hover:bg-brand-teal transition-all shadow-lg disabled:opacity-30 disabled:cursor-not-allowed shrink-0">
+            className="p-3.5 bg-brand-teal text-white rounded-xl hover:opacity-90 transition-all shadow-lg disabled:opacity-30 disabled:cursor-not-allowed shrink-0">
             <Send size={18} />
           </button>
         </form>

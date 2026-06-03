@@ -455,7 +455,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
                   }}
                   className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer relative ${
                     isMe
-                      ? 'bg-luxury-ink text-surface-base rounded-tr-sm shadow-md'
+                      ? 'bg-brand-teal text-white rounded-tr-sm shadow-md'
                       : 'theme-card text-luxury-ink rounded-tl-sm border'
                   }`}
                   style={!isMe ? { borderColor: 'var(--color-border)' } : undefined}
