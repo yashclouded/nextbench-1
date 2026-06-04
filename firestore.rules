@@ -71,6 +71,12 @@ service cloud.firestore {
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['verified', 'reputation', 'isAdmin', 'verificationStatus', 'city', 'school', 'updatedAt'])
           && isValidUser(incoming())
           && incoming().updatedAt == request.time)
+        ||
+        // Presence heartbeat
+        (request.auth.uid == userId
+          && incoming().diff(existing()).affectedKeys().hasOnly(['online', 'lastSeen'])
+          && incoming().online is bool
+          && incoming().lastSeen == request.time)
       );
 
       allow delete: if isAdmin();

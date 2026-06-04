@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Moon, Sun, ShieldAlert, Edit2, LogOut, Loader2, LifeBuoy, Bookmark, User, Settings, ExternalLink, Trash2 } from 'lucide-react';
+import { X, Moon, Sun, ShieldAlert, Edit2, LogOut, Loader2, LifeBuoy, Bookmark, User, Settings, ExternalLink, Trash2, Lock } from 'lucide-react';
 import { collection, query, where, getDocs, deleteDoc, doc, getDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -39,6 +39,21 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
   const [supportReason, setSupportReason] = useState('');
   const [supportDetails, setSupportDetails] = useState('');
   const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
+
+  const isFollowersOnlyDM = userData?.chatPrivacy?.followersOnly || false;
+
+  const toggleFollowersOnlyDM = async (val: boolean) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        'chatPrivacy.followersOnly': val
+      });
+      showToast('Privacy settings updated', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to update privacy settings', 'error');
+    }
+  };
 
   useEffect(() => {
     if (isOpen && activeTab === 'blocked' && user) {
@@ -271,6 +286,27 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
                         className={`w-12 h-6 rounded-full transition-all relative ${theme === 'dark' ? 'bg-brand-teal' : 'bg-luxury-ink/20'}`}
                       >
                         <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-luxury-ink mb-4 uppercase tracking-widest">Privacy</h3>
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-surface-soft/50 border" style={{ borderColor: 'var(--color-border)' }}>
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-brand-pink/10 rounded-lg text-brand-pink">
+                          <Lock size={20} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-luxury-ink text-sm">Only followers can DM me</p>
+                          <p className="text-[10px] text-luxury-ink/50 uppercase tracking-widest">Others will send a request</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleFollowersOnlyDM(!isFollowersOnlyDM)}
+                        className={`w-12 h-6 rounded-full transition-all relative ${isFollowersOnlyDM ? 'bg-brand-teal' : 'bg-luxury-ink/20'}`}
+                      >
+                        <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${isFollowersOnlyDM ? 'translate-x-6' : 'translate-x-0'}`} />
                       </button>
                     </div>
                   </div>

@@ -351,7 +351,7 @@ export default function Search() {
                         ) : (
                           <button
                             onClick={(e) => handleJoinClub(e, c.id)}
-                            className="px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 bg-luxury-ink text-surface-base hover:bg-brand-mint hover:text-white shadow-md font-bold"
+                            className="px-4 py-2 rounded-xl text-[10px] font: bold uppercase tracking-widest transition-all shrink-0 bg-luxury-ink text-surface-base hover:bg-brand-mint hover:text-white shadow-md font-bold"
                           >
                             Join
                           </button>

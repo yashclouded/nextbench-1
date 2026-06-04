@@ -114,7 +114,7 @@ export default function SuggestedUsers() {
   if (!loading && suggestions.length === 0) return null;
 
   return (
-    <div className="pt-8 pl-4 pr-6 sticky top-0 h-screen overflow-y-auto no-scrollbar hidden lg:block">
+    <div className="pt-8 pl-4 pr-6 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto no-scrollbar">
       <div className="mb-6 bg-surface-elevated rounded-2xl border border-border p-5">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-[14px] font-bold text-luxury-ink">Suggested for you</h3>

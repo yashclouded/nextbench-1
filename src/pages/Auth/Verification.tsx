@@ -176,7 +176,7 @@ export default function Verification() {
               
               <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="group relative border-2 border-dashed border-luxury-ink/10 rounded-[2rem] p-16 transition-all hover:border-brand-teal hover:bg-brand-teal/5 cursor-pointer mb-12 overflow-hidden"
+                className="group relative border-2 border-dashed border-luxury-ink/10 rounded-2rem p-16 transition-all hover:border-brand-teal hover:bg-brand-teal/5 cursor-pointer mb-12 overflow-hidden"
               >
                 <input 
                   type="file" 
@@ -220,7 +220,7 @@ export default function Verification() {
               
               <div 
                 onClick={() => selfieInputRef.current?.click()}
-                className="group relative aspect-[4/3] bg-luxury-ink/5 rounded-[2rem] overflow-hidden flex items-center justify-center mb-12 cursor-pointer border-2 border-dashed border-luxury-ink/10 hover:border-brand-pink transition-all"
+                className="group relative aspect-4/3 bg-luxury-ink/5 rounded-2rem overflow-hidden flex items-center justify-center mb-12 cursor-pointer border-2 border-dashed border-luxury-ink/10 hover:border-brand-pink transition-all"
               >
                 <input 
                   type="file" 

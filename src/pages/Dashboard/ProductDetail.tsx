@@ -28,6 +28,8 @@ interface ProductData {
   sellerName: string;
   sellerSchool: string;
   reservedById?: string;
+  tags?: string[];      
+  city?: string;        
 }
 
 interface Review {
@@ -338,7 +340,7 @@ export default function ProductDetail() {
                 <button
                   key={idx}
                   onClick={() => setActiveImgIdx(idx)}
-                  className={`relative w-20 aspect-[4/3] rounded-xl overflow-hidden border-2 bg-luxury-ink/5 transition-all duration-300 hover:scale-105 ${
+                  className={`relative w-20 aspect-4/3 rounded-xl overflow-hidden border-2 bg-luxury-ink/5 transition-all duration-300 hover:scale-105 ${
                     idx === activeImgIdx
                       ? 'border-brand-teal scale-105 shadow-md shadow-brand-teal/20'
                       : 'border-transparent opacity-60 hover:opacity-100'
@@ -486,7 +488,7 @@ export default function ProductDetail() {
       {/* Review Modal */}
       <AnimatePresence>
         {showReviewModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm">
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-surface-card rounded-2xl w-full max-w-md p-8 relative shadow-2xl border border-luxury-ink/5">
               <button onClick={() => setShowReviewModal(false)} className="absolute top-4 right-4 p-2 text-luxury-ink/40 hover:text-luxury-ink"><X size={20} /></button>
               <h3 className="text-xl font-bold text-luxury-ink mb-2">Rate this Transaction</h3>

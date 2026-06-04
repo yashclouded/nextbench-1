@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Phone, Flag, Camera, X, Image as ImageIcon, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2, Download } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, where, writeBatch, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, getDocs, where, writeBatch, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useToast } from '../../lib/ToastContext';
 import { uploadChatImage } from '../../lib/storage';
@@ -13,6 +13,7 @@ import { createNotification, isChatMessageNotification } from '../../lib/notific
 import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import ReportModal from '../../components/ui/ReportModal';
 import MessageText from '../../components/ui/MessageText';
+import { useUserPresence } from '../../lib/presence';
 
 
 interface Message {
@@ -35,6 +36,8 @@ interface ChatRoomData {
   pinnedMessageId?: string;
   pinnedMessageText?: string;
   unreadBy?: string[];
+  status?: string;
+  requestedBy?: string;
 }
 
 const QUICK_MESSAGES = [
@@ -81,7 +84,11 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const blockedIds = useBlockedIds();
   const blockedByIds = useBlockedByIds();
-
+  const otherUserId: string | undefined = 
+    (typeof otherUser?.id === 'string' ? otherUser.id : undefined) 
+    ?? roomData?.participants?.find(id => id !== user?.uid);
+  const otherPresence = useUserPresence(otherUserId);
+  console.log('otherUserId:', otherUserId, 'presence:', otherPresence);
   const isBlockedByMe = otherUser ? blockedIds.has(otherUser.id) : false;
   const hasBlockedMe = otherUser ? blockedByIds.has(otherUser.id) : false;
   const isBlocked = isBlockedByMe || hasBlockedMe;
@@ -412,6 +419,41 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
     setSelectedMessages(new Set());
   };
 
+  const handleAcceptRequest = async () => {
+    if (!roomId) return;
+    try {
+      await updateDoc(doc(db, 'chatRooms', roomId), {
+        status: 'active',
+        requestedBy: null
+      });
+      showToast('Chat request accepted', 'success');
+    } catch (err) {
+      showToast('Failed to accept request', 'error');
+    }
+  };
+
+  const handleDeclineRequest = async () => {
+    if (!roomId || !user) return;
+    if (!confirm('Are you sure you want to decline and delete this request?')) return;
+    try {
+      const batch = writeBatch(db);
+      const msgsRef = collection(db, 'chatRooms', roomId, 'messages');
+      const msgsSnap = await getDocs(msgsRef);
+      msgsSnap.docs.forEach(d => batch.delete(d.ref));
+      batch.delete(doc(db, 'chatRooms', roomId));
+      await batch.commit();
+      
+      showToast('Chat request declined', 'info');
+      navigate('/messages');
+    } catch (err) {
+      showToast('Failed to decline request', 'error');
+    }
+  };
+
+  const isPendingRequester = roomData?.status === 'pending' && roomData?.requestedBy === user?.uid;
+  const isPendingRecipient = roomData?.status === 'pending' && roomData?.requestedBy !== user?.uid;
+  const hasSentPendingMessage = isPendingRequester && messages.some(m => m.senderId === user?.uid);
+
   if (!user || !otherUser) return (
     <div className="pt-32 text-center">
       <div className="w-10 h-10 border-2 border-brand-teal border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -420,7 +462,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
   );
 
   return (
-    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-[100] flex flex-col bg-surface-base pb-[64px] md:pb-0"}>
+    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-100 flex flex-col bg-surface-base pb-64px md:pb-0"}>
       {/* Header */}
       <div className="theme-card border-b px-4 md:px-6 py-3 flex items-center justify-between z-10" style={{ borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-3">
@@ -440,15 +482,27 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                 {otherUser.name}
                 {otherUser.verified && <ShieldCheck size={14} className="text-brand-teal" />}
               </Link>
-              {roomData?.productTitle && roomData?.productId ? (
+              <div className="flex flex-col gap-0.5">
+              {roomData?.productTitle && roomData?.productId && (
                 <Link to={`/product/${roomData.productId}`} className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 hover:text-brand-pink transition-colors flex items-center gap-1">
                   <Package size={10} /> {roomData.productTitle}
                 </Link>
-              ) : (
-                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 flex items-center gap-1">
-                  Direct Message
-                </span>
               )}
+              <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  otherPresence.status === 'online' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' :
+                  otherPresence.status === 'recent' ? 'bg-amber-400' : 'bg-luxury-ink/20'
+                }`} />
+                <span className={
+                  otherPresence.status === 'online' ? 'text-emerald-500' :
+                  otherPresence.status === 'recent' ? 'text-amber-500' : 'text-luxury-ink/30'
+                }>
+                  {otherPresence.lastSeen || otherPresence.status !== 'offline' 
+                    ? otherPresence.label 
+                    : 'Direct Message'}
+                </span>
+              </span>
+            </div>
             </div>
           </div>
         </div>
@@ -545,11 +599,11 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                   setMenuPosition(selectedMessageId === msg.id ? null : pos);
                   setSelectedMessageId(selectedMessageId === msg.id ? null : msg.id);
                 }}
-                className={`max-w-[75%] px-5 py-3.5 rounded-2xl text-sm font-medium cursor-pointer relative ${
-                isMe 
-                  ? 'bg-luxury-ink text-surface-base rounded-tr-sm shadow-md' 
-                  : 'theme-card text-luxury-ink rounded-tl-sm border'
-              }`} style={!isMe ? { borderColor: 'var(--color-border)' } : undefined}>
+                className={`max-w-[75%] px-5 py-3.5 rounded-2xl text-sm font-medium cursor-pointer relative shadow-sm ${
+                  isMe 
+                    ? 'bubble-mine rounded-tr-sm' 
+                    : 'bubble-theirs rounded-tl-sm'
+                }`} style={!isMe ? { borderColor: 'var(--color-border)' } : undefined}>
                 
                 {!isDeleted && msg.replyToText && (
                   <div className={`text-xs mb-2 p-2 rounded-lg border-l-2 ${isMe ? 'bg-surface-base/20 border-surface-base/40' : 'bg-surface-soft border-brand-teal'}`}>
@@ -568,7 +622,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                         <img 
                           src={getOptimizedImageUrl(msg.image)} 
                           alt="Shared" 
-                          className="max-w-full max-h-[300px] object-contain hover:opacity-90 transition-opacity"
+                          className="max-w-full max-h-300px object-contain hover:opacity-90 transition-opacity"
                           onClick={(e) => { e.stopPropagation(); setViewingImage(getOptimizedImageUrl(msg.image)); }}
                           referrerPolicy="no-referrer"
                           onLoad={scrollToBottom}
@@ -669,6 +723,14 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
               </button>
             </div>
           </div>
+        ) : isPendingRecipient ? (
+          <div className="bg-surface-card rounded-2xl p-4 border border-amber-500/20 shadow-lg text-center mb-2 mx-auto max-w-sm">
+            <p className="text-sm font-bold text-luxury-ink mb-3">{otherUser?.name} wants to message you.</p>
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={handleDeclineRequest} className="px-6 py-2 rounded-full border border-luxury-ink/10 text-sm font-bold hover:bg-surface-soft transition-colors text-luxury-ink/60">Decline</button>
+              <button onClick={handleAcceptRequest} className="px-6 py-2 rounded-full bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors shadow-md">Accept</button>
+            </div>
+          </div>
         ) : isBlocked ? (
           <div className="text-center py-4 bg-surface-card rounded-2xl border border-luxury-ink/5 shadow-lg">
             <p className="text-sm font-bold text-luxury-ink/40">
@@ -677,6 +739,12 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
           </div>
         ) : (
           <div className="relative">
+            {isPendingRequester && (
+              <div className="mb-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-2 text-center shadow-sm">
+                <p className="text-xs font-bold text-amber-700">Waiting for {otherUser?.name} to accept your request.</p>
+              </div>
+            )}
+            
             {replyingTo && (
               <div className="mb-2 bg-surface-card border rounded-2xl px-4 py-3 flex items-start justify-between shadow-md" style={{ borderColor: 'var(--color-border)' }}>
                 <div className="flex-1 overflow-hidden">
@@ -696,7 +764,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
+                disabled={isUploading || hasSentPendingMessage}
                 className="p-3 rounded-full bg-surface-card border border-luxury-ink/10 text-brand-teal hover:bg-brand-teal/10 transition-all shrink-0 disabled:opacity-50 shadow-md"
                 title="Send Image"
               >
@@ -746,8 +814,8 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                       }
                     }
                   }}
-                  placeholder={isUploading ? "Uploading..." : "Type your message..."}
-                  disabled={isUploading}
+                  placeholder={hasSentPendingMessage ? "Request pending..." : isUploading ? "Uploading..." : "Type your message..."}
+                  disabled={isUploading || hasSentPendingMessage}
                   className="flex-1 bg-transparent py-3.5 text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
                 />
               </div>
@@ -755,7 +823,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
               {/* Send button — outside pill */}
               <button
                 type="submit"
-                disabled={!newMessage.trim() || isUploading}
+                disabled={!newMessage.trim() || isUploading || hasSentPendingMessage}
                 className="p-3 bg-brand-teal text-white rounded-full hover:opacity-90 transition-all shadow-md disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
               >
                 <Send size={18} />
@@ -771,7 +839,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+            className="fixed inset-0 z-300 flex items-center justify-center bg-black/90 backdrop-blur-sm"
             onClick={() => setViewingImage(null)}
           >
             <button
@@ -822,7 +890,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => setDeleteConfirmMsgId(null)}
           >
             <motion.div
@@ -861,7 +929,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => setDeleteEveryoneConfirmMsgId(null)}
           >
             <motion.div

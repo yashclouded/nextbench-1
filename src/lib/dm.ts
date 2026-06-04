@@ -6,7 +6,7 @@
  */
 
 import {
-  collection, query, where, getDocs, addDoc, serverTimestamp
+  collection, query, where, getDocs, addDoc, serverTimestamp, getDoc, doc, limit
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -29,10 +29,32 @@ export async function getOrCreateDMRoom(
   const snap = await getDocs(q);
 
   // Check if any of these rooms also contain the other user
-  for (const doc of snap.docs) {
-    const data = doc.data();
+  for (const d of snap.docs) {
+    const data = d.data();
     if (data.participants.includes(otherUserId)) {
-      return doc.id;
+      return d.id;
+    }
+  }
+
+  // Check if we need to create a pending room
+  let isPending = false;
+  
+  const targetUserDoc = await getDoc(doc(db, 'users', otherUserId));
+  if (targetUserDoc.exists()) {
+    const targetData = targetUserDoc.data();
+    if (targetData?.chatPrivacy?.followersOnly) {
+      // Check if currentUser follows the target
+      const followSnap = await getDocs(
+        query(
+          collection(db, 'follows'),
+          where('followerId', '==', currentUserId),
+          where('followingId', '==', otherUserId),
+          limit(1)
+        )
+      );
+      if (followSnap.empty) {
+        isPending = true;
+      }
     }
   }
 
@@ -44,6 +66,8 @@ export async function getOrCreateDMRoom(
     productTitle: '',
     lastMessage: '',
     lastSenderId: '',
+    status: isPending ? 'pending' : 'active',
+    requestedBy: isPending ? currentUserId : null,
     updatedAt: serverTimestamp(),
   });
 

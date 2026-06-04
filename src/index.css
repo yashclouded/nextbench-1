@@ -151,12 +151,12 @@
 
 /* ── Chat background (theme-aware) ─────────────────── */
 .chat-bg {
-  background-image: url('/chatbackgroundLight.png');
+  background-image: url('/chatbackgroundLight2.png');
   background-size: auto;
   background-repeat: repeat;
 }
 [data-theme="dark"] .chat-bg {
-  background-image: url('/chatbackground.png');
+  background-image: url('/chatbackground2.png');
   background-size: auto;
   background-repeat: repeat;
 }
@@ -437,4 +437,33 @@
 }
 .username-badge:hover {
   color: var(--color-brand-teal);
+}
+
+/* ═══════════════════════════════════════════════════
+   IMESSAGE-STYLE BUBBLE BORDERS
+   ═══════════════════════════════════════════════════ */
+
+/* "Their" messages — light border like iMessage */
+.bubble-theirs {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-luxury-ink);
+}
+
+/* "My" messages — brand color with subtle inner glow border */
+.bubble-mine {
+  background: var(--color-luxury-ink);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-surface-base);
+}
+
+[data-theme="dark"] .bubble-theirs {
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+[data-theme="dark"] .bubble-mine {
+  background: var(--color-brand-teal);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }

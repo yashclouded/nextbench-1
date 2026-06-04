@@ -39,7 +39,7 @@ export default function MessagesShell() {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
-        <div className="hidden md:block w-[72px] shrink-0 border-r" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-card)' }}>
+        <div className="hidden md:block w-72px shrink-0 border-r" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-card)' }}>
           <SidebarNav />
         </div>
 

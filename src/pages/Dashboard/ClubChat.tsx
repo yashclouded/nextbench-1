@@ -337,7 +337,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
   };
 
   return (
-    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-[100] flex flex-col bg-surface-base pb-[64px] md:pb-0"}>
+    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-100 flex flex-col bg-surface-base pb-64px md:pb-0"}>
       {/* Header */}
       <div className="theme-card border-b px-4 md:px-6 py-3 flex items-center justify-between z-10 shrink-0" style={{ borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-3 min-w-0">
@@ -345,7 +345,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
             <ArrowLeft size={20} className="text-luxury-ink" />
           </button>
           <Link to={`/club/${clubId}/settings`} className="flex items-center gap-3 p-2 -ml-2 rounded-xl hover:bg-surface-soft transition-colors">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal/20 to-brand-pink/20 flex items-center justify-center overflow-hidden border border-luxury-ink/5 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-brand-teal/20 to-brand-pink/20 flex items-center justify-center overflow-hidden border border-luxury-ink/5 shrink-0">
               {club.avatar ? (
                 <img src={getOptimizedImageUrl(club.avatar)} alt={club.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
@@ -412,7 +412,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
         >
         {messages.length === 0 && (
           <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gradient-to-br from-brand-teal/10 to-brand-pink/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-linear-to-br from-brand-teal/10 to-brand-pink/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Users className="text-brand-teal" size={32} />
             </div>
             <p className="text-luxury-ink/20 font-serif italic text-lg mb-2">Welcome to {club.name}</p>
@@ -456,10 +456,10 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
                     if (isSelectMode) toggleMessageSelection(msg.id);
                     else setSelectedMessageId(selectedMessageId === msg.id ? null : msg.id);
                   }}
-                  className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer relative ${
+                  className={`max-w-[70%] px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer relative shadow-sm ${
                     isMe
-                      ? 'bg-luxury-ink text-surface-base rounded-tr-sm shadow-md'
-                      : 'theme-card text-luxury-ink rounded-tl-sm border'
+                      ? 'bubble-mine rounded-tr-sm'
+                      : 'bubble-theirs rounded-tl-sm'
                   }`}
                   style={!isMe ? { borderColor: 'var(--color-border)' } : undefined}
                 >
@@ -491,7 +491,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
                           <img
                             src={getOptimizedImageUrl(msg.image)}
                             alt="Shared"
-                            className="max-w-full max-h-[300px] object-contain hover:opacity-90 transition-opacity"
+                            className="max-w-full max-h-300px object-contain hover:opacity-90 transition-opacity"
                             onClick={(e) => { e.stopPropagation(); window.open(getOptimizedImageUrl(msg.image), '_blank'); }}
                             referrerPolicy="no-referrer"
                             onLoad={scrollToBottom}
@@ -646,7 +646,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
       <AnimatePresence>
         {deleteConfirmMsgId && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => setDeleteConfirmMsgId(null)}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="theme-card w-full max-w-sm rounded-3xl p-6 shadow-2xl border" style={{ borderColor: 'var(--color-border)' }}
@@ -666,7 +666,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
       <AnimatePresence>
         {deleteEveryoneConfirmMsgId && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => setDeleteEveryoneConfirmMsgId(null)}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="theme-card w-full max-w-sm rounded-3xl p-6 shadow-2xl border" style={{ borderColor: 'var(--color-border)' }}
