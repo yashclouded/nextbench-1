@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PollDisplay from './PollDisplay';
 import { useNavigate } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -28,6 +29,11 @@ interface Post {
   feedScore?: number;
   city?: string;
   createdAt: any;
+  poll?: {
+    choices: string[];
+    expiresAt: any;
+    votes: Record<string, number>;
+  };
 }
 
 interface PostCardProps {
@@ -132,6 +138,11 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
             {post.content}
           </p>
         </div>
+
+        {/* Poll */}
+        {(post as any).poll && (post as any).poll.choices?.length > 0 && (
+          <PollDisplay postId={post.id} poll={(post as any).poll} compact />
+        )}
 
         {/* Image */}
         {hasImage && (

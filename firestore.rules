@@ -322,7 +322,8 @@ service cloud.firestore {
         && (!data.keys().hasAny(['isAnonymous']) || (data.isAnonymous is bool))
         && (!data.keys().hasAny(['personaName']) || (data.personaName == null || data.personaName is string))
         && (!data.keys().hasAny(['authorProfilePicture']) || (data.authorProfilePicture == null || data.authorProfilePicture is string))
-        && (!data.keys().hasAny(['reactionsCount']) || (data.reactionsCount == null || data.reactionsCount is map));
+        && (!data.keys().hasAny(['reactionsCount']) || (data.reactionsCount == null || data.reactionsCount is map))
+        && (!data.keys().hasAny(['poll']) || (data.poll == null || data.poll is map));
     }
 
     match /posts/{postId} {
@@ -351,8 +352,8 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'type', 'city', 'privacy', 'updatedAt'])
           && incoming().updatedAt == request.time)
         ||
-        // Any verified user can update upvotes, replies, and reactions counts
-        (incoming().diff(existing()).affectedKeys().hasOnly(['upvotesCount', 'repliesCount', 'reactionsCount', 'updatedAt']))
+        // Any verified user can update upvotes, replies, reactions counts, and poll votes
+        (incoming().diff(existing()).affectedKeys().hasOnly(['upvotesCount', 'repliesCount', 'reactionsCount', 'poll', 'updatedAt']))
         ||
         (isAdmin() && incoming().updatedAt == request.time)
       );

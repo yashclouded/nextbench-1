@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings } from 'lucide-react';
+import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3 } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -16,6 +16,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import ImageCropper from '../../components/ui/ImageCropper';
 import ProductCard from '../../components/ui/ProductCard';
 import PostCard from '../../components/ui/PostCard';
+import PollDisplay from '../../components/ui/PollDisplay';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import { getPersonaDisplay } from '../../lib/confessions';
@@ -46,6 +47,11 @@ interface Post {
   downvotesCount?: number;
   repliesCount: number;
   feedScore?: number;
+  poll?: {
+    choices: string[];
+    expiresAt: any;
+    votes: Record<string, number>;
+  };
 }
 
 interface Product {
@@ -281,6 +287,11 @@ function PostDetailModal({
           <h2 className="text-xl sm:text-2xl font-bold text-luxury-ink mb-3 leading-tight">{post.title}</h2>
           <p className="text-luxury-ink/70 leading-relaxed whitespace-pre-wrap break-words text-[15px] mb-6">{post.content}</p>
 
+          {/* Poll */}
+          {post.poll && post.poll.choices?.length > 0 && (
+            <PollDisplay postId={post.id} poll={post.poll} />
+          )}
+
           {/* Image Section Moved Here */}
           {postImageUrls.length > 0 && (
             <div className="relative bg-luxury-ink/5 rounded-2xl overflow-hidden mb-6 border border-luxury-ink/5 shrink-0">
@@ -489,6 +500,13 @@ export default function Feed() {
   // Confession state
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedPostType, setSelectedPostType] = useState('info');
+
+  // Poll state
+  const [showPollCreator, setShowPollCreator] = useState(false);
+  const [pollChoices, setPollChoices] = useState<string[]>(['', '']);
+  const [pollDays, setPollDays] = useState(1);
+  const [pollHours, setPollHours] = useState(0);
+  const [pollMinutes, setPollMinutes] = useState(0);
 
   // Firestore listener — stable subscription, no dependency on followingIds/friendIds.
   // This listener only fires when Firestore posts actually change,
@@ -826,6 +844,13 @@ export default function Feed() {
         imageUrls,
         upvotesCount: 0,
         repliesCount: 0,
+        ...(showPollCreator && pollChoices.filter(c => c.trim()).length >= 2 ? {
+          poll: {
+            choices: pollChoices.filter(c => c.trim()),
+            expiresAt: new Date(Date.now() + (pollDays * 86400000) + (pollHours * 3600000) + (pollMinutes * 60000)),
+            votes: {},
+          }
+        } : {}),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -861,6 +886,11 @@ export default function Feed() {
       setPendingFiles([]);
       setIsAnonymous(false);
       setSelectedPostType('info');
+      setShowPollCreator(false);
+      setPollChoices(['', '']);
+      setPollDays(1);
+      setPollHours(0);
+      setPollMinutes(0);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'posts');
     } finally {
@@ -1462,6 +1492,33 @@ export default function Feed() {
               onClick={(e) => e.stopPropagation()}
               className="bg-surface-card w-full h-full sm:h-auto sm:rounded-3xl sm:max-w-2xl relative shadow-2xl overflow-hidden sm:max-h-[90vh] flex flex-col"
             >
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSubmitting) return;
+                  const form = document.getElementById('create-post-form') as HTMLFormElement;
+                  const titleNode = form?.elements.namedItem('title') as HTMLInputElement;
+                  const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
+                  const title = titleNode?.value || '';
+                  const content = contentNode?.value || '';
+                  if (title.trim() || content.trim() || imageFiles.length > 0) {
+                    if (window.confirm('Discard your post?')) {
+                      setIsModalOpen(false);
+                      setImageFiles([]);
+                      setPendingFiles([]);
+                    }
+                  } else {
+                    setIsModalOpen(false);
+                    setImageFiles([]);
+                    setPendingFiles([]);
+                  }
+                }}
+                className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center rounded-full bg-luxury-ink/10 hover:bg-luxury-ink/20 text-luxury-ink/50 hover:text-luxury-ink/80 transition-all"
+              >
+                <X size={16} />
+              </button>
+
               {/* Full-Screen Loading Overlay inside Modal */}
               <AnimatePresence>
                 {isSubmitting && (
@@ -1525,6 +1582,82 @@ export default function Feed() {
                       className="w-full flex-1 bg-transparent text-[16px] leading-relaxed text-luxury-ink/80 placeholder-luxury-ink/40 focus:outline-none resize-none min-h-[200px]"
                     ></textarea>
 
+                    {/* Poll Creator */}
+                    {showPollCreator && (
+                      <div className="mx-1 mb-4 p-4 rounded-2xl border border-luxury-ink/10 bg-surface-base/50">
+                        <div className="space-y-3 mb-4">
+                          {pollChoices.map((choice, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-lg bg-luxury-ink/5 flex items-center justify-center shrink-0">
+                                <BarChart3 size={14} className="text-luxury-ink/30" />
+                              </div>
+                              <input
+                                type="text"
+                                value={choice}
+                                onChange={(e) => {
+                                  const newChoices = [...pollChoices];
+                                  newChoices[i] = e.target.value;
+                                  setPollChoices(newChoices);
+                                }}
+                                placeholder={`Choice ${i + 1}`}
+                                maxLength={25}
+                                className="flex-1 bg-transparent border border-luxury-ink/10 rounded-xl px-3 py-2 text-sm font-medium text-luxury-ink placeholder-luxury-ink/30 focus:outline-none focus:border-brand-teal transition-colors"
+                              />
+                              <span className="text-[11px] text-luxury-ink/30 font-mono shrink-0">{choice.length}/25</span>
+                              {pollChoices.length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPollChoices(pollChoices.filter((_, j) => j !== i))}
+                                  className="p-1 text-luxury-ink/30 hover:text-red-500 transition-colors"
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {pollChoices.length < 4 && (
+                          <button
+                            type="button"
+                            onClick={() => setPollChoices([...pollChoices, ''])}
+                            className="flex items-center gap-2 text-[13px] font-semibold text-brand-teal hover:text-brand-teal/80 transition-colors mb-4"
+                          >
+                            <Plus size={14} /> Add choice
+                          </button>
+                        )}
+                        <div className="border-t border-luxury-ink/5 pt-4">
+                          <p className="text-[12px] font-bold text-luxury-ink/50 mb-3">Poll length</p>
+                          <div className="flex gap-3">
+                            <div className="flex-1">
+                              <label className="text-[10px] text-luxury-ink/40 font-semibold">Days</label>
+                              <select value={pollDays} onChange={(e) => setPollDays(Number(e.target.value))} className="w-full mt-1 bg-surface-card border border-luxury-ink/10 rounded-xl px-3 py-2 text-sm font-semibold text-luxury-ink focus:outline-none focus:border-brand-teal appearance-none cursor-pointer">
+                                {[0,1,2,3,4,5,6,7].map(d => <option key={d} value={d}>{d}</option>)}
+                              </select>
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-[10px] text-luxury-ink/40 font-semibold">Hours</label>
+                              <select value={pollHours} onChange={(e) => setPollHours(Number(e.target.value))} className="w-full mt-1 bg-surface-card border border-luxury-ink/10 rounded-xl px-3 py-2 text-sm font-semibold text-luxury-ink focus:outline-none focus:border-brand-teal appearance-none cursor-pointer">
+                                {Array.from({length:24},(_,i)=>i).map(h => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-[10px] text-luxury-ink/40 font-semibold">Minutes</label>
+                              <select value={pollMinutes} onChange={(e) => setPollMinutes(Number(e.target.value))} className="w-full mt-1 bg-surface-card border border-luxury-ink/10 rounded-xl px-3 py-2 text-sm font-semibold text-luxury-ink focus:outline-none focus:border-brand-teal appearance-none cursor-pointer">
+                                {[0,5,10,15,20,25,30,45].map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setShowPollCreator(false); setPollChoices(['', '']); }}
+                          className="mt-4 w-full text-center text-[13px] font-semibold text-red-400 hover:text-red-500 transition-colors"
+                        >
+                          Remove poll
+                        </button>
+                      </div>
+                    )}
+
                     {/* Image Previews */}
                     {imageFiles.length > 0 && (
                       <div className="mt-4 flex gap-2 overflow-x-auto pb-2 no-scrollbar shrink-0">
@@ -1564,6 +1697,14 @@ export default function Feed() {
                         />
                         <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-luxury-ink text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Add Image</span>
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowPollCreator(!showPollCreator)}
+                        className={`p-2.5 rounded-full transition-colors group relative ${showPollCreator ? 'bg-brand-teal/10 text-brand-teal' : 'hover:bg-surface-soft text-luxury-ink/50 hover:text-brand-teal'}`}
+                      >
+                        <BarChart3 size={22} />
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-luxury-ink text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Add Poll</span>
+                      </button>
 
                       <div className="relative">
                         <button
