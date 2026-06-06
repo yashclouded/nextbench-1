@@ -3,16 +3,23 @@ import React, { useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import SuggestedUsers from '../ui/SuggestedUsers';
+import { useAuth } from '../../lib/AuthContext';
 
 export default function RightSidebarDrawer() {
   const [open, setOpen] = useState(false);
+  const { user, userData } = useAuth();
+  const hasPlusButton = user && userData?.verified;
 
   return (
     <>
       {/* Floating trigger button — only on < lg screens */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-4 z-40 lg:hidden w-11 h-11 rounded-full bg-brand-teal text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        className={`fixed z-40 lg:hidden w-11 h-11 rounded-full bg-brand-teal text-white shadow-lg flex items-center justify-center active:scale-95 transition-all duration-300 ${
+          hasPlusButton 
+            ? 'bottom-24 right-4 max-sm:bottom-[168px] max-sm:right-[22px]' 
+            : 'bottom-24 right-4'
+        }`}
         aria-label="Open trending panel"
       >
         <Sparkles size={18} />
