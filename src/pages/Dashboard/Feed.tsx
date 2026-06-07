@@ -11,6 +11,7 @@ import { uploadPostImage } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useFollowingIds } from '../../lib/follows';
 import { isTextSafe } from '../../lib/moderation';
+import { checkAllImagesSafety, preloadModerationModel } from '../../lib/imageModeration';
 import { createNotification } from '../../lib/notifications';
 import { Link, useSearchParams } from 'react-router-dom';
 import ImageCropper from '../../components/ui/ImageCropper';
@@ -437,6 +438,7 @@ export default function Feed() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittingStatus, setSubmittingStatus] = useState('Posting...');
   const [contentType, setContentType] = useState<'all' | 'posts' | 'marketplace'>('all');
 
   // Image cropper state
@@ -819,13 +821,26 @@ export default function Feed() {
     try {
       let imageUrls: string[] = [];
       if (imageFiles.length > 0) {
+        setSubmittingStatus('Uploading images...');
         imageUrls = await Promise.all(imageFiles.map(file => uploadPostImage(file)));
       }
 
-      const isTextOnly = imageUrls.length === 0;
-      const isClean = isTextSafe(title) && isTextSafe(content);
-      const shouldAutoApprove = isTextOnly && isClean;
+      const isTextClean = isTextSafe(title) && isTextSafe(content);
+      let areImagesSafe = true;
+
+      if (imageUrls.length > 0 && isTextClean) {
+        // Only run NSFW scan if text is already clean (otherwise post goes to pending anyway)
+        setSubmittingStatus('Scanning images for safety...');
+        const moderationResult = await checkAllImagesSafety(imageFiles);
+        areImagesSafe = moderationResult.isSafe;
+        if (!areImagesSafe) {
+          console.log('[Feed] Image flagged:', moderationResult.reason);
+        }
+      }
+
+      const shouldAutoApprove = isTextClean && areImagesSafe;
       const initialStatus = shouldAutoApprove ? 'approved' : 'pending';
+      setSubmittingStatus('Publishing...');
 
       await addDoc(collection(db, 'posts'), {
         title,
@@ -874,8 +889,10 @@ export default function Feed() {
           });
         }
       } else {
-        if (!isClean && isTextOnly) {
+        if (!isTextClean) {
           showToast('Post flagged for containing sensitive words. Submitted for review.', 'warning');
+        } else if (!areImagesSafe) {
+          showToast('Image flagged by safety check. Submitted for manual review.', 'warning');
         } else {
           showToast('Post submitted for approval!', 'success');
         }
@@ -1345,7 +1362,7 @@ export default function Feed() {
             )}
           </div>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { setIsModalOpen(true); preloadModerationModel(); }}
             className="flex-1 text-left px-4 py-2.5 rounded-full border text-sm text-luxury-ink/40 hover:bg-surface-soft transition-colors"
             style={{ borderColor: 'var(--color-border)' }}
           >
@@ -1357,7 +1374,7 @@ export default function Feed() {
       {/* Floating Action Button for Mobile */}
       {user && userData?.verified && (
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => { setIsModalOpen(true); preloadModerationModel(); }}
           className="fixed bottom-24 right-4 sm:hidden z-50 flex items-center justify-center w-14 h-14 bg-brand-teal text-white rounded-full shadow-xl hover:scale-105 active:scale-95 transition-all"
         >
           <Plus size={24} />
@@ -1529,8 +1546,8 @@ export default function Feed() {
                     className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center"
                   >
                     <div className="w-12 h-12 border-4 border-brand-teal border-t-transparent rounded-full animate-spin mb-4" />
-                    <p className="text-luxury-ink font-bold text-lg">Posting...</p>
-                    <p className="text-luxury-ink/50 text-sm mt-1">Uploading media and publishing to community</p>
+                    <p className="text-luxury-ink font-bold text-lg">{submittingStatus}</p>
+                    <p className="text-luxury-ink/50 text-sm mt-1">{submittingStatus === 'Scanning images for safety...' ? 'AI is checking your images — this only takes a moment' : 'Uploading media and publishing to community'}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
