@@ -11,6 +11,7 @@ import { useToast } from '../../lib/ToastContext';
 import { createNotification } from '../../lib/notifications';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useScrollLock } from '../../hooks/useScrollLock';
+import ShareModal from '../../components/ui/ShareModal';
 
 interface ProductData {
   id: string;
@@ -53,6 +54,7 @@ export default function ProductDetail() {
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [wishlistDocId, setWishlistDocId] = useState<string | null>(null);
+  const [shareModalData, setShareModalData] = useState<{isOpen: boolean, url: string, title: string, sharedPost?: any}>({isOpen: false, url: '', title: ''});
 
   // Reviews
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -122,13 +124,20 @@ export default function ProductDetail() {
     } catch { showToast('Failed to update wishlist', 'error'); }
   };
 
-  const handleShare = async () => {
+  const handleShare = () => {
     if (!product) return;
-    const shareData = { title: product.title, text: `Check out "${product.title}" on Nextbench — ₹${product.price}`, url: window.location.href };
-    try {
-      if (navigator.share) { await navigator.share(shareData); }
-      else { await navigator.clipboard.writeText(window.location.href); showToast('Link copied to clipboard!', 'success'); }
-    } catch { /* cancelled */ }
+    setShareModalData({
+      isOpen: true,
+      url: window.location.href,
+      title: product.title,
+      sharedPost: {
+        id: product.id,
+        title: product.title,
+        description: product.description || '',
+        image: product.image || undefined,
+        authorName: product.sellerName || 'Unknown User'
+      }
+    });
   };
 
   const handleContactSeller = async () => {
@@ -510,6 +519,14 @@ export default function ProductDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ShareModal
+        isOpen={shareModalData.isOpen}
+        onClose={() => setShareModalData(prev => ({ ...prev, isOpen: false }))}
+        postUrl={shareModalData.url}
+        postTitle={shareModalData.title}
+        sharedPost={shareModalData.sharedPost}
+      />
     </div>
   );
 }
