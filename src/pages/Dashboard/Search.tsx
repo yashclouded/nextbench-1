@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { collection, query, getDocs, limit, where } from 'firebase/firestore';
+import { collection, query, getDocs, limit, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Search as SearchIcon, Users, Grid3X3, Package, ArrowRight, Globe } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import PostCard from '../../components/ui/PostCard';
 import ProductCard from '../../components/ui/ProductCard';
@@ -13,18 +13,31 @@ import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import { AnimatePresence, motion } from 'motion/react';
 
+
 export default function Search() {
   const { user, userData } = useAuth();
   const { showToast } = useToast();
   const { followingIds } = useFollowingIds();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'users' | 'posts' | 'products' | 'clubs'>('all');
-  
+  const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [clubs, setClubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [upvotedPostIds, setUpvotedPostIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'post_upvotes'), where('userId', '==', user.uid));
+    const unsub = onSnapshot(q, snap => {
+      const ids = new Set<string>();
+      snap.forEach(d => ids.add(d.data().postId));
+      setUpvotedPostIds(ids);
+    });
+    return () => unsub();
+  }, [user]);
 
   // Cache for suggestions to avoid re-fetching on empty search
   const [suggestionsFetched, setSuggestionsFetched] = useState(false);
@@ -43,13 +56,25 @@ export default function Search() {
           setLoading(true);
           try {
             const [usersSnap, postsSnap, productsSnap, clubsSnap] = await Promise.all([
-              getDocs(query(collection(db, 'users'), limit(5))),
+              getDocs(query(collection(db, 'users'), limit(200))),
               getDocs(query(collection(db, 'posts'), limit(5))),
               getDocs(query(collection(db, 'products'), limit(5))),
               getDocs(query(collection(db, 'clubs'), where('type', '==', 'public'), limit(5)))
             ]);
             
-            const fetchedUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+            const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+            const fetchedUsers = allUsers
+              .filter((u: any) => u.id !== user?.uid && u.verified === true)
+              .map((u: any) => {
+                let score = 0;
+                if (userData?.school && u.school === userData.school) score += 100;
+                if (userData?.city && u.city === userData.city) score += 30;
+                if (followingIds.has(u.id)) score -= 50;
+                score += Math.random() * 5;
+                return { ...u, _score: score };
+              })
+              .sort((a: any, b: any) => b._score - a._score)
+              .slice(0, 15);
             const fetchedPosts = postsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
             const fetchedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((p: any) => p.status !== 'sold');
             const fetchedClubs = clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
@@ -274,7 +299,7 @@ export default function Search() {
                   {(activeTab === 'all' ? users.slice(0, 3) : users).map((u) => {
                     const isFollowing = followingIds.has(u.id);
                     return (
-                      <Link key={u.id} to={`/profile/${u.id}`} className="flex items-center justify-between group p-2 hover:bg-surface-soft rounded-xl transition-colors">
+                      <Link key={u.id || u.uid || Math.random()} to={`/profile/${u.id || u.uid}`} className="flex items-center justify-between group p-2 hover:bg-surface-soft rounded-xl transition-colors">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-12 h-12 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-lg shrink-0 overflow-hidden border border-brand-teal/5">
                             {u.profilePicture ? (
@@ -286,7 +311,12 @@ export default function Search() {
                             {u.username && (
                               <p className="text-[11px] text-luxury-ink/50 truncate">@{u.username}</p>
                             )}
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/40 truncate">{u.school}</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/40 truncate">
+                              {u.school}
+                              {userData?.school && u.school === userData.school && (
+                                <span className="ml-1 text-brand-teal">· Same school</span>
+                              )}
+                            </p>
                           </div>
                         </div>
                         {user?.uid !== u.id && (
@@ -373,7 +403,12 @@ export default function Search() {
                 )}
                 <div className="flex flex-col gap-6 w-full">
                   {(activeTab === 'all' ? posts.slice(0, 3) : posts).map((p) => (
-                    <PostCard key={`search-post-${p.id}`} post={p as any} hasUpvoted={false} onClick={() => {}} />
+                    <PostCard 
+                      key={`search-post-${p.id}`} 
+                      post={p as any} 
+                      hasUpvoted={upvotedPostIds.has(p.id)}
+                      onClick={() => navigate(`/community?postId=${p.id}`)}
+                    />
                   ))}
                 </div>
               </motion.div>

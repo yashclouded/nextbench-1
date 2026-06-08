@@ -181,9 +181,7 @@ export default function TrendingSidebar() {
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
           </span>
           <span className="text-[10px] font-bold text-green-600/70">
-            {onlineCount > 0
-              ? `${onlineCount} online now`
-              : 'Be the first online'}
+            {`${Math.max(1, onlineCount)} online now`}
           </span>
         </div>
       </div>

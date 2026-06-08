@@ -87,3 +87,9 @@ export async function uploadClubAvatar(file: File, clubId: string): Promise<stri
   return uploadToCloudinary(file, `nextbench/clubs/${clubId}`);
 }
 
+/**
+ * Uploads a cover/banner photo for a user profile.
+ */
+export async function uploadCoverPhoto(file: File, userId: string): Promise<string> {
+  return uploadToCloudinary(file, `nextbench/covers/${userId}`);
+}

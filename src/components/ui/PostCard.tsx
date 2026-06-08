@@ -25,6 +25,7 @@ interface Post {
   imageUrl?: string;
   imageUrls?: string[];
   upvotesCount: number;
+  downvotesCount?: number;
   repliesCount: number;
   feedScore?: number;
   city?: string;
@@ -96,7 +97,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
       >
         {/* Title */}
         {post.title && (
-          <h3 className="text-[17px] md:text-[19px] font-semibold text-luxury-ink/90 leading-snug tracking-normal mb-2 break-words">
+          <h3 className="text-[17px] md:text-[19px] font-semibold text-luxury-ink/90 leading-snug tracking-normal mb-2 wrap-break-word">
             {post.title}
           </h3>
         )}
@@ -112,11 +113,11 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
             </div>
             
             <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
-              <span className="text-[13px] sm:text-[14px] font-semibold text-luxury-ink hover:underline cursor-pointer truncate max-w-[120px] sm:max-w-[180px]">{displayInfo.name}</span>
+              <span className="text-[13px] sm:text-[14px] font-semibold text-luxury-ink hover:underline cursor-pointer truncate max-w-30 sm:max-w-180px">{displayInfo.name}</span>
               <span className="text-[13px] text-luxury-ink/40">·</span>
               <span className="text-[13px] sm:text-[14px] text-luxury-ink/50 font-medium shrink-0">{timeAgo(post.createdAt)}</span>
               <span className="text-[13px] text-luxury-ink/40 hidden sm:inline">·</span>
-              <span className="text-[13px] sm:text-[14px] text-luxury-ink/50 font-medium truncate max-w-[100px] sm:max-w-[180px] hidden sm:inline">{displayInfo.school}</span>
+              <span className="text-[13px] sm:text-[14px] text-luxury-ink/50 font-medium truncate max-w-100px sm:max-w-180px hidden sm:inline">{displayInfo.school}</span>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
@@ -134,7 +135,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
 
         {/* Content Preview */}
         <div className="mb-5">
-          <p className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-4 break-words overflow-wrap-anywhere">
+          <p className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-4 wrap-break-word overflow-wrap-anywhere">
             {post.content}
           </p>
         </div>
