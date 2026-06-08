@@ -563,9 +563,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
       {/* ─── Profile Header ───────────────────────────────── */}
       <div className="px-6 -mt-16 md:-mt-20 relative z-10">
-        <div className="flex flex-col md:flex-row items-start md:items-end gap-4 md:gap-8 mb-6">
 
-          {/* Avatar with ring over cover */}
+        {/* Top row: avatar + action buttons */}
+        <div className="flex items-end justify-between mb-4">
+          {/* Avatar */}
           <div className="relative shrink-0 group ring-4 ring-surface-base rounded-full">
             <div
               onClick={() => {
@@ -593,7 +594,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
               )}
             </div>
 
-            {/* Custom profile picture dropdown menu */}
+            {/* Profile picture dropdown menu */}
             {showPfpMenu && isOwnProfile && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: -5 }}
@@ -642,26 +643,22 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             )}
           </div>
 
-          {/* Action buttons aligned to bottom-right on desktop */}
-          <div className="flex items-center gap-3 md:ml-auto md:pb-2 flex-wrap">
+          {/* Action buttons — top right, vertically centered with avatar bottom */}
+          <div className="flex items-center gap-3 flex-wrap pb-1">
             {isOwnProfile ? (
               <>
-                <button onClick={() => { setEditName(profileUser.name || ''); setEditAbout(profileUser.about || ''); setIsEditing(true); }}
-                  className="p-2.5 rounded-full transition-all hover:scale-105" style={{ border: '1px solid var(--color-border)' }}
+                <button
+                  onClick={() => { setEditName(profileUser.name || ''); setEditAbout(profileUser.about || ''); setIsEditing(true); }}
+                  className="p-2.5 rounded-full transition-all hover:scale-105"
+                  style={{ border: '1px solid var(--color-border)' }}
                   title="Edit Profile"
                 >
                   <Edit2 size={20} className="text-luxury-ink/60" />
                 </button>
-                <Link to="/wishlist"
-                  className="p-2.5 rounded-full transition-all hover:scale-105" style={{ border: '1px solid var(--color-border)' }}
-                  title="Wishlist"
-                >
+                <Link to="/wishlist" className="p-2.5 rounded-full transition-all hover:scale-105" style={{ border: '1px solid var(--color-border)' }} title="Wishlist">
                   <Heart size={20} className="text-luxury-ink/60" />
                 </Link>
-                <button onClick={() => setShowSettingsModal(true)}
-                  className="p-2.5 rounded-full transition-all hover:scale-105" style={{ border: '1px solid var(--color-border)' }}
-                  title="Settings"
-                >
+                <button onClick={() => setShowSettingsModal(true)} className="p-2.5 rounded-full transition-all hover:scale-105" style={{ border: '1px solid var(--color-border)' }} title="Settings">
                   <Settings size={20} className="text-luxury-ink/60" />
                 </button>
                 {deferredPrompt && (
@@ -669,7 +666,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                     <Smartphone size={20} />
                   </button>
                 )}
-                <Link to="/sell" className="bg-luxury-ink text-surface-base px-6 py-2.5 rounded-full font-bold hover:bg-luxury-ink/80 transition-all text-sm hidden sm:block" style={{ color: 'var(--color-surface-base)' }}>
+                <Link to="/sell" className="bg-luxury-ink text-surface-base px-6 py-2.5 rounded-full font-bold hover:bg-luxury-ink/80 transition-all text-sm" style={{ color: 'var(--color-surface-base)' }}>
                   List Item
                 </Link>
               </>
@@ -677,50 +674,25 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
               <>
                 <button
                   onClick={handleFollow}
-                  className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold transition-all ${followAnimating ? 'scale-95 opacity-80' : ''} ${
-                    isFollowing
-                      ? 'text-luxury-ink hover:text-red-500'
-                      : 'bg-luxury-ink text-surface-base hover:bg-luxury-ink/80'
-                  }`}
+                  className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold transition-all ${followAnimating ? 'scale-95 opacity-80' : ''} ${isFollowing ? 'text-luxury-ink hover:text-red-500' : 'bg-luxury-ink text-surface-base hover:bg-luxury-ink/80'}`}
                   style={isFollowing ? { background: 'var(--color-surface-card)', border: '1px solid var(--color-border)' } : { color: 'var(--color-surface-base)' }}
                 >
                   {isFollowing ? 'Following' : 'Follow'}
                 </button>
-                <button
-                  onClick={handleDM}
-                  disabled={isDMing}
-                  className="flex items-center justify-center w-10 h-10 rounded-full text-luxury-ink hover:bg-luxury-ink/5 transition-all disabled:opacity-50"
-                  style={{ border: '1px solid var(--color-border)' }}
-                >
+                <button onClick={handleDM} disabled={isDMing} className="flex items-center justify-center w-10 h-10 rounded-full text-luxury-ink hover:bg-luxury-ink/5 transition-all disabled:opacity-50" style={{ border: '1px solid var(--color-border)' }}>
                   <MessageSquare size={18} />
                 </button>
                 <div className="relative" ref={moreMenuRef}>
-                  <button
-                    onClick={() => setShowMoreMenu(!showMoreMenu)}
-                    className="flex items-center justify-center w-10 h-10 rounded-full text-luxury-ink/60 hover:bg-luxury-ink/5 transition-all"
-                    style={{ border: '1px solid var(--color-border)' }}
-                  >
+                  <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="flex items-center justify-center w-10 h-10 rounded-full text-luxury-ink/60 hover:bg-luxury-ink/5 transition-all" style={{ border: '1px solid var(--color-border)' }}>
                     <MoreHorizontal size={18} />
                   </button>
                   {showMoreMenu && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      className="absolute right-0 top-12 w-52 rounded-2xl shadow-2xl overflow-hidden z-50"
-                      style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border)' }}
-                    >
-                      <button
-                        onClick={handleBlock}
-                        className="w-full flex items-center gap-3 px-5 py-4 text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors text-left"
-                      >
+                    <motion.div initial={{ opacity: 0, scale: 0.95, y: -5 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="absolute right-0 top-12 w-52 rounded-2xl shadow-2xl overflow-hidden z-50" style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border)' }}>
+                      <button onClick={handleBlock} className="w-full flex items-center gap-3 px-5 py-4 text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors text-left">
                         <Ban size={16} className={isBlocked ? 'text-brand-mint' : 'text-red-500'} />
                         {isBlocked ? 'Unblock User' : 'Block User'}
                       </button>
-                      <button
-                        onClick={() => { setShowReportModal(true); setShowMoreMenu(false); }}
-                        className="w-full flex items-center gap-3 px-5 py-4 text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors text-left border-t"
-                        style={{ borderColor: 'var(--color-border)' }}
-                      >
+                      <button onClick={() => { setShowReportModal(true); setShowMoreMenu(false); }} className="w-full flex items-center gap-3 px-5 py-4 text-sm font-medium text-luxury-ink hover:bg-surface-soft transition-colors text-left border-t" style={{ borderColor: 'var(--color-border)' }}>
                         <Flag size={16} className="text-amber-500" />
                         Report User
                       </button>
@@ -732,8 +704,8 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
           </div>
         </div>
 
-        {/* Name, username, bio */}
-        <div className="mb-6">
+        {/* Name, username, bio — full width below avatar */}
+        <div className="mb-5">
           <div className="flex items-center gap-3 mb-1 flex-wrap">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-luxury-ink">{firstName} {lastName}</h1>
             {isFriend && (
@@ -744,13 +716,9 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
           </div>
 
           {profileUser.username && (
-            <button onClick={handleCopyUsername} className="flex items-center gap-1.5 mb-2 group/un">
+            <button onClick={handleCopyUsername} className="flex items-center gap-1.5 mb-1 group/un">
               <span className="username-badge">@{profileUser.username}</span>
-              {copiedUsername ? (
-                <Check size={12} className="text-brand-mint" />
-              ) : (
-                <Copy size={12} className="text-luxury-ink/20 opacity-0 group-hover/un:opacity-100 transition-opacity" />
-              )}
+              {copiedUsername ? <Check size={12} className="text-brand-mint" /> : <Copy size={12} className="text-luxury-ink/20 opacity-0 group-hover/un:opacity-100 transition-opacity" />}
             </button>
           )}
 
@@ -775,32 +743,29 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
           {profileUser.about ? (
             <p className="text-sm text-luxury-ink/80 max-w-lg leading-relaxed mt-3">{profileUser.about}</p>
           ) : isOwnProfile ? (
-            <button
-              onClick={() => { setEditName(profileUser.name || ''); setEditAbout(''); setIsEditing(true); }}
-              className="mt-3 text-sm text-luxury-ink/30 hover:text-brand-teal transition-colors flex items-center gap-1.5 italic"
-            >
+            <button onClick={() => { setEditName(profileUser.name || ''); setEditAbout(''); setIsEditing(true); }} className="mt-3 text-sm text-luxury-ink/30 hover:text-brand-teal transition-colors flex items-center gap-1.5 italic">
               <Edit2 size={13} /> Add a bio...
             </button>
           ) : null}
         </div>
 
         {/* ─── Stats Bar ────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-3 mb-8">
-          <button onClick={openFollowers} className="flex items-center gap-2 px-4 py-2.5 rounded-2xl hover:bg-surface-soft transition-colors group" style={{ border: '1px solid var(--color-border)' }}>
-            <span className="text-base font-bold text-luxury-ink group-hover:text-brand-teal transition-colors">{followersCount}</span>
-            <span className="text-xs text-luxury-ink/50 font-medium">Followers</span>
+        <div className="flex items-center gap-5 mb-8">
+          <button onClick={openFollowers} className="flex items-center gap-1.5 group">
+            <span className="text-sm font-bold text-luxury-ink group-hover:text-brand-teal transition-colors">{followersCount}</span>
+            <span className="text-sm text-luxury-ink/50 group-hover:text-brand-teal/70 transition-colors">Followers</span>
           </button>
-          <button onClick={openFollowing} className="flex items-center gap-2 px-4 py-2.5 rounded-2xl hover:bg-surface-soft transition-colors group" style={{ border: '1px solid var(--color-border)' }}>
-            <span className="text-base font-bold text-luxury-ink group-hover:text-brand-teal transition-colors">{followingCount}</span>
-            <span className="text-xs text-luxury-ink/50 font-medium">Following</span>
+          <button onClick={openFollowing} className="flex items-center gap-1.5 group">
+            <span className="text-sm font-bold text-luxury-ink group-hover:text-brand-teal transition-colors">{followingCount}</span>
+            <span className="text-sm text-luxury-ink/50 group-hover:text-brand-teal/70 transition-colors">Following</span>
           </button>
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl" style={{ border: '1px solid var(--color-border)' }}>
-            <span className="text-base font-bold text-luxury-ink">{soldListings.length}</span>
-            <span className="text-xs text-luxury-ink/50 font-medium">Deals</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-luxury-ink">{soldListings.length}</span>
+            <span className="text-sm text-luxury-ink/50">Deals</span>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl" style={{ border: '1px solid var(--color-border)' }}>
-            <span className="text-base font-bold text-luxury-ink">{profileUser.reputation?.toFixed(1) || '5.0'}</span>
-            <span className="text-xs text-luxury-ink/50 font-medium flex items-center gap-1">Rep <Star size={11} className="text-brand-teal" /></span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-luxury-ink">{profileUser.reputation?.toFixed(1) || '5.0'}</span>
+            <span className="text-sm text-luxury-ink/50 flex items-center gap-0.5">Reputation <Star size={11} className="text-brand-teal" /></span>
           </div>
         </div>
       </div>
