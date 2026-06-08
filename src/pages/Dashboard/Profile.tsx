@@ -636,11 +636,6 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             {isOwnProfile && (
               <input type="file" ref={fileInputRef} onChange={handleProfilePictureUpload} accept="image/*,.heic,.heif" className="hidden" />
             )}
-            {profileUser.verified && (
-              <div className="absolute bottom-0 right-0 bg-brand-teal text-white p-2 rounded-full shadow-md border-2" style={{ borderColor: 'var(--color-surface-base)' }}>
-                {profileUser.accountType === 'organization' ? <Building2 size={18} /> : <ShieldCheck size={18} />}
-              </div>
-            )}
           </div>
 
           {/* Action buttons — top right, vertically centered with avatar bottom */}
@@ -707,8 +702,15 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
         {/* Name, username, bio — full width below avatar */}
         <div className="mb-5">
           <div className="flex items-center gap-3 mb-1 flex-wrap">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-luxury-ink">{firstName} {lastName}</h1>
-            {isFriend && (
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-luxury-ink flex items-center gap-2">
+                {firstName} {lastName}
+                {profileUser.verified && (
+                  <span title={profileUser.accountType === 'organization' ? 'Verified Organization' : 'Verified Student'} className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-teal text-white shrink-0" style={{ marginTop: '2px' }}>
+                    {profileUser.accountType === 'organization' ? <Building2 size={13} /> : <ShieldCheck size={13} />}
+                  </span>
+                )}
+              </h1>
+              {isFriend && (
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold bg-brand-teal/10 text-brand-teal px-2 py-1 rounded-full">
                 <Handshake size={12} /> Friends
               </span>
@@ -743,8 +745,18 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
           {profileUser.about ? (
             <p className="text-sm text-luxury-ink/80 max-w-lg leading-relaxed mt-3">{profileUser.about}</p>
           ) : isOwnProfile ? (
-            <button onClick={() => { setEditName(profileUser.name || ''); setEditAbout(''); setIsEditing(true); }} className="mt-3 text-sm text-luxury-ink/30 hover:text-brand-teal transition-colors flex items-center gap-1.5 italic">
-              <Edit2 size={13} /> Add a bio...
+            <button
+              onClick={() => { setEditName(profileUser.name || ''); setEditAbout(''); setIsEditing(true); }}
+              className="mt-3 flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-dashed transition-all group hover:border-brand-teal hover:bg-brand-teal/5"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <div className="w-7 h-7 rounded-lg bg-luxury-ink/5 group-hover:bg-brand-teal/10 flex items-center justify-center transition-colors">
+                <Edit2 size={13} className="text-luxury-ink/30 group-hover:text-brand-teal transition-colors" />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-bold text-luxury-ink/40 group-hover:text-brand-teal transition-colors">Add a bio</p>
+                <p className="text-[10px] text-luxury-ink/25">Tell people a little about yourself</p>
+              </div>
             </button>
           ) : null}
         </div>
@@ -838,12 +850,23 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
               ))}
 
               {displayedListings.length === 0 && (
-                <div className="col-span-full rounded-2xl p-12 text-center border-2 border-dashed" style={{ borderColor: 'var(--color-border)' }}>
-                  <Package className="mx-auto text-luxury-ink/10 mb-3" size={40} />
-                  <p className="text-luxury-ink/30 font-serif italic text-lg">No {activeTab} listings.</p>
+                <div className="col-span-full rounded-2xl p-14 text-center border-2 border-dashed flex flex-col items-center" style={{ borderColor: 'var(--color-border)' }}>
+                  <div className="relative mb-5">
+                    <div className="w-20 h-20 rounded-2xl bg-luxury-ink/5 flex items-center justify-center">
+                      <Package className="text-luxury-ink/20" size={36} />
+                    </div>
+                    {/* Decorative mini cards */}
+                    <div className="absolute -top-2 -right-3 w-10 h-10 rounded-xl bg-brand-teal/10 rotate-12" />
+                    <div className="absolute -bottom-2 -left-3 w-8 h-8 rounded-lg bg-brand-pink/10 -rotate-6" />
+                  </div>
+                  <p className="text-base font-bold text-luxury-ink/30 mb-1">
+                    {activeTab === 'active' ? 'No active listings' : activeTab === 'pending' ? 'Nothing pending review' : 'No sold items yet'}
+                  </p>
+                  <p className="text-xs text-luxury-ink/20 max-w-48">
+                    {activeTab === 'active' ? 'Items you list for sale will appear here' : activeTab === 'pending' ? 'Listings awaiting approval show up here' : 'Completed sales will be recorded here'}
+                  </p>
                 </div>
               )}
-
               {activeTab === 'active' && isOwnProfile && (
                 <Link to="/sell" className="border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-10 hover:border-brand-teal hover:bg-brand-teal/5 transition-all group" style={{ borderColor: 'var(--color-border)' }}>
                   <div className="w-14 h-14 bg-luxury-ink/5 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-teal transition-all">
@@ -866,53 +889,63 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
               const hasImage = postImageUrls.length > 0;
 
               return (
-                <div key={post.id} onClick={() => navigate(`/community?postId=${post.id}`)} className="theme-card rounded-2xl p-5 md:p-6 transition-all hover:scale-[1.005] cursor-pointer">
+                <div key={post.id} onClick={() => navigate(`/community?postId=${post.id}`)} className="theme-card rounded-2xl overflow-hidden transition-all hover:scale-[1.005] cursor-pointer group">
                   {hasImage && (
-                    <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-4 bg-surface-soft" style={{ border: '1px solid var(--color-border)' }}>
+                    <div className="relative w-full aspect-video overflow-hidden bg-surface-soft">
                       <img
                         src={getOptimizedImageUrl(postImageUrls[0])}
                         alt={post.title}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         referrerPolicy="no-referrer"
                       />
                     </div>
                   )}
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <span className="inline-block px-3 py-1 bg-brand-teal/10 text-brand-teal rounded-full text-[10px] font-bold uppercase tracking-widest mb-2">
-                        {post.type}
+                  <div className="p-5 md:p-6">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <span className="inline-block px-2.5 py-1 bg-brand-teal/10 text-brand-teal rounded-full text-[10px] font-bold uppercase tracking-widest mb-2">
+                          {post.type}
+                        </span>
+                        <h3 className="text-base font-bold text-luxury-ink leading-snug">{post.title}</h3>
+                      </div>
+                      {post.status === 'pending' && (
+                        <span className="bg-amber-500/10 text-amber-500 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shrink-0 ml-3">Pending</span>
+                      )}
+                    </div>
+                    <p className="text-luxury-ink/60 leading-relaxed mb-4 text-sm line-clamp-2">{post.content}</p>
+                    <div className="flex items-center gap-4 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-luxury-ink/40">
+                        <Heart size={14} /> {post.upvotesCount || 0}
                       </span>
-                      <h3 className="text-xl font-bold text-luxury-ink">{post.title}</h3>
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-luxury-ink/40">
+                        <MessageSquare size={14} /> {post.repliesCount || 0}
+                      </span>
+                      {((userData as any)?.role === 'admin' || post.authorId === user?.uid) && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeletePost(post.id); }}
+                          className="ml-auto p-2 hover:bg-red-500/10 hover:text-red-500 rounded-full text-luxury-ink/40 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
-                    {post.status === 'pending' && (
-                      <span className="bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shrink-0">Pending</span>
-                    )}
-                  </div>
-                  <p className="text-luxury-ink/70 leading-relaxed mb-4 text-sm line-clamp-3">{post.content}</p>
-
-                  <div className="flex items-center gap-4 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
-                    <div className="text-sm font-bold text-luxury-ink/40 flex items-center gap-5">
-                      <span className="flex items-center gap-2"><Heart size={16} /> {post.upvotesCount || 0}</span>
-                      <span className="flex items-center gap-2"><MessageSquare size={16} /> {post.repliesCount || 0}</span>
-                    </div>
-                    {((userData as any)?.role === 'admin' || post.authorId === user?.uid) && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeletePost(post.id); }}
-                        className="ml-auto p-2 hover:bg-red-500/10 hover:text-red-500 rounded-full text-luxury-ink/40 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
                   </div>
                 </div>
               );
             })}
 
             {myPosts.filter(post => post.privacy !== 'private' || isFriend || isOwnProfile).length === 0 && (
-              <div className="col-span-full rounded-2xl p-12 text-center border-2 border-dashed" style={{ borderColor: 'var(--color-border)' }}>
-                <MessageSquare className="mx-auto text-luxury-ink/10 mb-3" size={40} />
-                <p className="text-luxury-ink/30 font-serif italic text-lg">No community posts yet.</p>
+            <div className="rounded-2xl p-14 text-center border-2 border-dashed flex flex-col items-center" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="relative mb-5">
+                <div className="w-20 h-20 rounded-2xl bg-luxury-ink/5 flex items-center justify-center">
+                  <MessageSquare className="text-luxury-ink/20" size={36} />
+                </div>
+                <div className="absolute -top-2 -right-3 w-10 h-10 rounded-xl bg-brand-teal/10 rotate-12" />
+                <div className="absolute -bottom-2 -left-3 w-8 h-8 rounded-lg bg-brand-pink/10 -rotate-6" />
               </div>
+              <p className="text-base font-bold text-luxury-ink/30 mb-1">No posts yet</p>
+              <p className="text-xs text-luxury-ink/20">Community posts will show up here</p>
+            </div>
             )}
           </div>
         )}
