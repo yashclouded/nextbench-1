@@ -339,6 +339,14 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       const reactionsQ = query(collection(db, 'post_reactions'), where('postId', '==', postId));
       const reactionsSnap = await getDocs(reactionsQ);
       reactionsSnap.forEach(docSnap => batch.delete(docSnap.ref));
+
+      const downvotesQ = query(collection(db, 'post_downvotes'), where('postId', '==', postId));
+      const downvotesSnap = await getDocs(downvotesQ);
+      downvotesSnap.forEach(docSnap => batch.delete(docSnap.ref));
+
+      const notificationsQ = query(collection(db, 'notifications'), where('postId', '==', postId));
+      const notificationsSnap = await getDocs(notificationsQ);
+      notificationsSnap.forEach(docSnap => batch.delete(docSnap.ref));
       
       batch.delete(doc(db, 'posts', postId));
       

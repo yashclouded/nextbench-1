@@ -26,6 +26,13 @@ interface Message {
   isDeletedForEveryone?: boolean;
   replyToId?: string;
   replyToText?: string;
+  sharedPost?: {
+    id: string;
+    title: string;
+    description: string;
+    image?: string;
+    authorName: string;
+  };
 }
 
 interface ChatRoomData {
@@ -628,6 +635,22 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                           onLoad={scrollToBottom}
                         />
                       </div>
+                    )}
+                    {msg.sharedPost && (
+                      <Link to={`/post/${msg.sharedPost.id}`} className="block mb-2 rounded-xl overflow-hidden border border-luxury-ink/10 bg-surface-base hover:opacity-90 transition-opacity">
+                        {msg.sharedPost.image && (
+                          <div className="w-full h-32 bg-luxury-ink/5">
+                            <img src={getOptimizedImageUrl(msg.sharedPost.image)} alt="Shared Post" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          </div>
+                        )}
+                        <div className="p-3">
+                          <p className="text-[10px] font-bold text-luxury-ink/40 uppercase tracking-widest mb-1">{msg.sharedPost.authorName}</p>
+                          <p className="text-sm font-bold text-luxury-ink line-clamp-1">{msg.sharedPost.title}</p>
+                          {msg.sharedPost.description && (
+                            <p className="text-xs text-luxury-ink/60 line-clamp-2 mt-1">{msg.sharedPost.description}</p>
+                          )}
+                        </div>
+                      </Link>
                     )}
                       {msg.text && <MessageText text={msg.text} />}
                   </>

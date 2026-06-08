@@ -7,6 +7,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useToast } from '../lib/ToastContext';
 import PostCard from '../components/ui/PostCard';
 import Navbar from '../components/layout/Navbar';
+import ShareModal from '../components/ui/ShareModal';
 
 export default function PostView() {
   const { postId } = useParams<{ postId: string }>();
@@ -15,6 +16,7 @@ export default function PostView() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [shareModalData, setShareModalData] = useState<{isOpen: boolean, url: string, title: string, sharedPost?: any}>({isOpen: false, url: '', title: ''});
 
   useEffect(() => {
     if (!postId) return;
@@ -130,11 +132,29 @@ export default function PostView() {
             onSave={() => handleInteraction('save')}
             onShare={() => {
               const url = window.location.origin + '/post/' + post.id;
-              navigator.clipboard.writeText(url).then(() => showToast('Link copied!', 'success'));
+              setShareModalData({
+                isOpen: true,
+                url,
+                title: post.title,
+                sharedPost: {
+                  id: post.id,
+                  title: post.title,
+                  description: post.content || '',
+                  image: post.images?.[0] || undefined,
+                  authorName: post.authorName || 'Unknown User'
+                }
+              });
             }}
           />
         </div>
       </main>
+      <ShareModal
+        isOpen={shareModalData.isOpen}
+        onClose={() => setShareModalData(prev => ({ ...prev, isOpen: false }))}
+        postUrl={shareModalData.url}
+        postTitle={shareModalData.title}
+        sharedPost={shareModalData.sharedPost}
+      />
     </div>
   );
 }

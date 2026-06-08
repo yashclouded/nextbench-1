@@ -13,6 +13,7 @@ import { useFollowingIds } from '../../lib/follows';
 import { isTextSafe } from '../../lib/moderation';
 import { checkAllImagesSafety, preloadModerationModel } from '../../lib/imageModeration';
 import { createNotification } from '../../lib/notifications';
+import ShareModal from '../../components/ui/ShareModal';
 import { Link, useSearchParams } from 'react-router-dom';
 import ImageCropper from '../../components/ui/ImageCropper';
 import ProductCard from '../../components/ui/ProductCard';
@@ -440,6 +441,7 @@ export default function Feed() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittingStatus, setSubmittingStatus] = useState('Posting...');
   const [contentType, setContentType] = useState<'all' | 'posts' | 'marketplace'>('all');
+  const [shareModalData, setShareModalData] = useState<{isOpen: boolean, url: string, title: string, sharedPost?: any}>({isOpen: false, url: '', title: ''});
 
   // Image cropper state
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
@@ -1204,22 +1206,20 @@ export default function Feed() {
     }
   };
 
-  const handleShare = async (post: Post) => {
-    const text = `Check out "${post.title}" by ${post.authorName} on Nextbench Community!`;
+  const handleShare = (post: Post) => {
     const url = window.location.origin + '/post/' + post.id;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: post.title, text, url });
-      } catch (err) { /* cancelled */ }
-    } else {
-      try {
-        await navigator.clipboard.writeText(`${text} ${url}`);
-        showToast('Link copied to clipboard!', 'success');
-      } catch (err) {
-        showToast('Failed to copy link', 'error');
+    setShareModalData({
+      isOpen: true,
+      url,
+      title: post.title,
+      sharedPost: {
+        id: post.id,
+        title: post.title,
+        description: post.content || '',
+        image: post.images?.[0] || undefined,
+        authorName: post.authorName || 'Unknown User'
       }
-    }
+    });
   };
 
   const handleSavePost = async (post: Post) => {
@@ -1843,6 +1843,14 @@ export default function Feed() {
           aspect={1}
         />
       )}
+      {/* ─── Share Modal ──────────────────────────────── */}
+      <ShareModal
+        isOpen={shareModalData.isOpen}
+        onClose={() => setShareModalData(prev => ({...prev, isOpen: false}))}
+        postUrl={shareModalData.url}
+        postTitle={shareModalData.title}
+        sharedPost={shareModalData.sharedPost}
+      />
 
     </div>
   );
