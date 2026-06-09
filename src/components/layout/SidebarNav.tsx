@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, PlusCircle, MessageSquare, User, LogOut, ShieldCheck, Bell } from 'lucide-react';
+import { Home, Search, PlusCircle, MessageSquare, User, LogOut, ShieldCheck, Bell, UserPlus } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { auth } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -83,6 +83,7 @@ export default function SidebarNav() {
     { name: 'Sell', path: '/sell', icon: PlusCircle },
     { name: 'Messages', path: '/messages', icon: MessageSquare },
     { name: 'Notifications', path: '/notifications', icon: Bell },
+    { name: 'Invite', path: '/invite', icon: UserPlus },
     { name: 'Profile', path: user ? (userData?.username ? `/u/${userData.username}` : `/profile/${user.uid}`) : '/login', icon: User },
     ...(userData?.isAdmin ? [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : []),
   ];

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Moon, Sun, ShieldAlert, Edit2, LogOut, Loader2, LifeBuoy, Bookmark, User, Settings, ExternalLink, Trash2, Lock } from 'lucide-react';
 import { collection, query, where, getDocs, deleteDoc, doc, getDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
+import { signOut } from 'firebase/auth';
 import { useAuth } from '../../lib/AuthContext';
 import { useTheme } from '../../lib/ThemeContext';
 import { useToast } from '../../lib/ToastContext';
@@ -214,6 +215,16 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      onClose();
+      navigate('/login');
+    } catch (err) {
+      showToast('Failed to log out', 'error');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -347,6 +358,25 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
                         </div>
                       </button>
                     )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-luxury-ink mb-4 uppercase tracking-widest">Danger Zone</h3>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center justify-between p-4 rounded-xl bg-surface-soft/50 border hover:border-red-500 transition-all group"
+                      style={{ borderColor: 'var(--color-border)' }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-red-500/10 rounded-lg text-red-500">
+                          <LogOut size={20} />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-luxury-ink text-sm group-hover:text-red-500 transition-colors">Log Out</p>
+                          <p className="text-[10px] text-luxury-ink/50 uppercase tracking-widest">Sign out of your account</p>
+                        </div>
+                      </div>
+                    </button>
                   </div>
                 </div>
               )}

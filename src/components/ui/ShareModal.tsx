@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Search, Send, Link as LinkIcon, CheckCircle2, ShieldCheck, User, Share2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
-import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, limit, documentId } from 'firebase/firestore';
 import { getOrCreateDMRoom } from '../../lib/dm';
 import { useToast } from '../../lib/ToastContext';
 import { getOptimizedImageUrl } from '../../lib/utils';
@@ -76,6 +76,9 @@ export default function ShareModal({ isOpen, onClose, postUrl, postTitle, shared
         where('name', '<=', endStr),
         limit(20)
       );
+    } else if (followingIds.size > 0) {
+      const idsToFetch = Array.from(followingIds).slice(0, 30);
+      q = query(collection(db, 'users'), where(documentId(), 'in', idsToFetch));
     } else {
       q = query(collection(db, 'users'), limit(20));
     }
@@ -95,7 +98,7 @@ export default function ShareModal({ isOpen, onClose, postUrl, postTitle, shared
     });
 
     return () => unsub();
-  }, [searchUsers, isOpen, user]);
+  }, [searchUsers, isOpen, user, followingIds]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(postUrl);

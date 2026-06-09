@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from '../../lib/firebase';
 import { signInWithPopup, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, addDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs, addDoc, query, where, limit, writeBatch } from 'firebase/firestore';
 import { useAuth } from '../../lib/AuthContext';
 import { uploadSchoolIdCard } from '../../lib/storage';
 
@@ -176,6 +176,7 @@ export default function Signup() {
   const [school, setSchool] = useState('');
   const [schoolsList, setSchoolsList] = useState<{ name: string; city: string }[]>([]);
   const [error, setError] = useState('');
+  const [referralCode, setReferralCode] = useState(localStorage.getItem('pendingReferral') || '');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -258,7 +259,9 @@ export default function Signup() {
         const selectedSchoolData = schoolsList.find(s => s.name === school);
         const userCity = selectedSchoolData?.city || 'Lucknow';
 
-        await setDoc(docRef, {
+        const batch = writeBatch(db);
+
+        const userData: any = {
           name: user.displayName || 'Unknown Student',
           email: user.email || '',
           school: school,
@@ -273,7 +276,29 @@ export default function Signup() {
           about: null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
+        };
+
+        // Apply referral if code is provided
+        if (referralCode.trim()) {
+          try {
+            const q = query(collection(db, 'users'), where('referralCode', '==', referralCode.trim().toUpperCase()), limit(1));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              const referrerDoc = snap.docs[0];
+              userData.referredBy = referrerDoc.id;
+              
+              const referralDocRef = doc(db, 'users', referrerDoc.id, 'referrals', user.uid);
+              batch.set(referralDocRef, { timestamp: serverTimestamp() });
+            }
+          } catch (refErr) {
+            console.error('Failed to apply referral:', refErr);
+          }
+        }
+
+        batch.set(docRef, userData);
+        await batch.commit();
+        localStorage.removeItem('pendingReferral');
+
         navigate('/dashboard');
       } else {
         // Navigate everyone to dashboard, where interaction guards will restrict them
@@ -337,6 +362,17 @@ export default function Signup() {
               >
                 Not your school here?
               </button>
+            </div>
+
+            <div className="space-y-1.5 mt-4">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 ml-1">Referral Code (Optional)</label>
+              <input 
+                type="text" 
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                placeholder="Enter invite code"
+                className="w-full bg-surface-base border border-luxury-ink/5 rounded-sm py-4 px-6 focus:outline-none focus:border-brand-teal transition-all text-sm font-medium uppercase"
+              />
             </div>
 
             {/* Terms agreement */}

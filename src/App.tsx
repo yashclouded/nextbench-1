@@ -35,6 +35,7 @@ const TermsPage     = lazyWithRetry(() => import('./pages/Legal/TermsPage'));
 const PrivacyPage   = lazyWithRetry(() => import('./pages/Legal/PrivacyPage'));
 const CareersPage   = lazyWithRetry(() => import('./pages/Legal/CareersPage'));
 const UsernameProfile = lazyWithRetry(() => import('./pages/Dashboard/UsernameProfile'));
+const Invite        = lazyWithRetry(() => import('./pages/Dashboard/Invite'));
 const NotFound      = lazyWithRetry(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -90,6 +91,14 @@ function DashLayout() {
 }
 
 export default function App() {
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get('ref');
+    if (refCode) {
+      localStorage.setItem('pendingReferral', refCode);
+    }
+  }, []);
+
   return (
     <ErrorBoundary>
       <div className="bg-surface-base font-sans select-none">
@@ -132,6 +141,7 @@ export default function App() {
               <Route path="/club/join/:inviteCode" element={<ProtectedRoute requireAuth requireVerified><ClubJoin /></ProtectedRoute>} />
               <Route path="/club/:clubId"          element={<ProtectedRoute requireAuth requireVerified><ClubChat /></ProtectedRoute>} />
               <Route path="/club/:clubId/settings" element={<ProtectedRoute requireAuth requireVerified><ClubSettings /></ProtectedRoute>} />
+              <Route path="/invite"     element={<ProtectedRoute requireAuth><Invite /></ProtectedRoute>} />
               <Route path="/u/:username" element={<ProtectedRoute requireAuth><UsernameProfile /></ProtectedRoute>} />
             </Route>
 

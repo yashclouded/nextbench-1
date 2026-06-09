@@ -2,9 +2,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Building2, Globe, FileText, ArrowRight, ArrowLeft, ShieldCheck, Upload, GraduationCap, BookOpen, Users, Briefcase, HelpCircle, CheckCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { auth, db, functions } from '../../lib/firebase';
 import { signInWithPopup, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, query, where, limit, getDocs, writeBatch } from 'firebase/firestore';
 import { useAuth } from '../../lib/AuthContext';
 import { uploadOrgDocument } from '../../lib/storage';
 import { useToast } from '../../lib/ToastContext';
@@ -26,6 +26,7 @@ export default function OrgSignup() {
   const [orgWebsite, setOrgWebsite] = useState('');
   const [orgCity, setOrgCity] = useState('');
   const [orgDescription, setOrgDescription] = useState('');
+  const [referralCode, setReferralCode] = useState(localStorage.getItem('pendingReferral') || '');
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docPreview, setDocPreview] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -152,7 +153,9 @@ export default function OrgSignup() {
       const docSnap = await getDoc(docRef);
 
       if (!docSnap.exists()) {
-        await setDoc(docRef, {
+        const batch = writeBatch(db);
+
+        const userData: any = {
           name: orgName.trim(),
           email: firebaseUser.email || '',
           school: orgName.trim(), // reuse school field as org identifier for compatibility
@@ -174,7 +177,29 @@ export default function OrgSignup() {
           orgDescription: orgDescription.trim() || null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
+        };
+
+        // Apply referral if code is provided
+        if (referralCode.trim()) {
+          try {
+            const q = query(collection(db, 'users'), where('referralCode', '==', referralCode.trim().toUpperCase()), limit(1));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              const referrerDoc = snap.docs[0];
+              userData.referredBy = referrerDoc.id;
+              
+              const referralDocRef = doc(db, 'users', referrerDoc.id, 'referrals', firebaseUser.uid);
+              batch.set(referralDocRef, { timestamp: serverTimestamp() });
+            }
+          } catch (refErr) {
+            console.error('Failed to apply referral:', refErr);
+          }
+        }
+
+        batch.set(docRef, userData);
+        await batch.commit();
+        localStorage.removeItem('pendingReferral');
+
         showToast('Organization registered! Pending admin verification.', 'success');
         navigate('/dashboard');
       } else {
@@ -335,6 +360,17 @@ export default function OrgSignup() {
                     rows={3}
                     maxLength={600}
                     className="w-full bg-surface-card border border-brand-teal/10 rounded-sm py-4 px-6 shadow-sm focus:outline-none focus:border-brand-pink transition-all text-sm font-medium resize-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 ml-1">Referral Code (Optional)</label>
+                  <input
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    placeholder="Enter invite code"
+                    className="w-full bg-surface-card border border-brand-teal/10 rounded-sm py-4 px-6 shadow-sm focus:outline-none focus:border-brand-pink transition-all text-sm font-medium uppercase"
                   />
                 </div>
               </motion.div>

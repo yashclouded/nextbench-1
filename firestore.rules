@@ -38,7 +38,11 @@ service cloud.firestore {
         && (!data.keys().hasAny(['orgType']) || (data.orgType == null || data.orgType in ['company', 'school', 'coaching', 'ngo', 'other']))
         && (!data.keys().hasAny(['orgDocumentUrl']) || (data.orgDocumentUrl == null || (data.orgDocumentUrl is string && data.orgDocumentUrl.size() <= 2000)))
         && (!data.keys().hasAny(['orgWebsite']) || (data.orgWebsite == null || (data.orgWebsite is string && data.orgWebsite.size() <= 500)))
-        && (!data.keys().hasAny(['orgDescription']) || (data.orgDescription == null || (data.orgDescription is string && data.orgDescription.size() <= 600)));
+        && (!data.keys().hasAny(['orgDescription']) || (data.orgDescription == null || (data.orgDescription is string && data.orgDescription.size() <= 600)))
+        // Referral System
+        && (!data.keys().hasAny(['referralCode']) || (data.referralCode == null || data.referralCode is string))
+        && (!data.keys().hasAny(['referredBy']) || (data.referredBy == null || data.referredBy is string))
+        && (!data.keys().hasAny(['referralCount']) || (data.referralCount is number));
     }
 
     match /users/{userId} {
@@ -63,10 +67,11 @@ service cloud.firestore {
           && (!incoming().keys().hasAny(['anonymousPersonaName']) || (incoming().anonymousPersonaName == null || incoming().anonymousPersonaName is string))
           && incoming().updatedAt == request.time)
         ||
-        (incoming().diff(existing()).affectedKeys().hasOnly(['username', 'lastUsernameChange', 'name', 'city', 'profilePicture', 'about', 'idCardUrl', 'selfieUrl', 'verificationStatus', 'updatedAt', 'anonymousPersonaName', 'orgName', 'orgWebsite', 'orgDescription']) 
+        (incoming().diff(existing()).affectedKeys().hasOnly(['username', 'lastUsernameChange', 'name', 'city', 'profilePicture', 'about', 'idCardUrl', 'selfieUrl', 'verificationStatus', 'updatedAt', 'anonymousPersonaName', 'orgName', 'orgWebsite', 'orgDescription', 'referralCode']) 
           && request.auth.uid == userId
           && isValidUser(incoming())
           && (incoming().get('verificationStatus', 'approved') == existing().get('verificationStatus', 'approved') || (existing().get('verificationStatus', 'approved') in ['rejected', 'flagged_manual'] && incoming().get('verificationStatus', 'approved') == 'pending'))
+          && (!incoming().diff(existing()).affectedKeys().hasAny(['referralCode']) || existing().get('referralCode', null) == null)
           && incoming().updatedAt == request.time)
         ||
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['verified', 'reputation', 'isAdmin', 'verificationStatus', 'verificationRejectionReason', 'city', 'school', 'updatedAt'])
@@ -81,6 +86,13 @@ service cloud.firestore {
       );
 
       allow delete: if isAdmin();
+
+      match /referrals/{referredId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn()
+          && request.auth.uid == referredId
+          && incoming().timestamp == request.time;
+      }
     }
 
     function isValidProduct(data) {

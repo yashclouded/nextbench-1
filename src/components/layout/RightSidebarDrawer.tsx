@@ -48,11 +48,10 @@ export default function RightSidebarDrawer() {
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               drag="x"
-              dragDirectionLock
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={{ left: 0, right: 0.5 }}
+              dragConstraints={{ left: 0, right: 300 }}
+              dragElastic={{ left: 0, right: 1 }}
               onDragEnd={(e, { offset, velocity }) => {
-                if (offset.x > 100 || velocity.x > 300) {
+                if (offset.x > 50 || velocity.x > 100) {
                   setOpen(false);
                 }
               }}

@@ -15,6 +15,7 @@ import { checkAllImagesSafety, preloadModerationModel } from '../../lib/imageMod
 import { createNotification } from '../../lib/notifications';
 import ShareModal from '../../components/ui/ShareModal';
 import { Link, useSearchParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import ImageCropper from '../../components/ui/ImageCropper';
 import ProductCard from '../../components/ui/ProductCard';
 import PostCard from '../../components/ui/PostCard';
@@ -1519,8 +1520,9 @@ export default function Feed() {
       </AnimatePresence>
 
       {/* ─── Create Post Modal ──────────────────────────── */}
-      <AnimatePresence>
-        {isModalOpen && (
+      {createPortal(
+        <AnimatePresence>
+          {isModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1640,7 +1642,7 @@ export default function Feed() {
                       name="content"
                       required
                       placeholder="What's on your mind?"
-                      className="w-full flex-1 bg-transparent text-[16px] leading-relaxed text-luxury-ink/80 placeholder-luxury-ink/40 focus:outline-none resize-none min-h-200px"
+                      className="w-full flex-1 bg-transparent text-[16px] leading-relaxed text-luxury-ink/80 placeholder-luxury-ink/40 focus:outline-none resize-none min-h-[300px]"
                     ></textarea>
 
                     {/* Poll Creator */}
@@ -1869,7 +1871,9 @@ export default function Feed() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
 
       {/* ─── Image Cropper ──────────────────────────────── */}
       {cropImageSrc && (
