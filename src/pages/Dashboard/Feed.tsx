@@ -613,21 +613,33 @@ export default function Feed() {
       collection(db, 'products'),
       where('status', 'in', ['available', 'sold'])
     );
+    const sellerCache: Record<string, any> = {};
+
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       try {
         const fetchedProducts: Product[] = [];
-        
-        // Removed N+1 getDoc queries for sellers to improve speed
-        // Relying purely on denormalized data.
+
+        const uncachedIds = new Set<string>();
+        snapshot.forEach(docSnap => {
+          const sellerId = docSnap.data().sellerId;
+          if (sellerId && !sellerCache[sellerId]) uncachedIds.add(sellerId);
+        });
+        if (uncachedIds.size > 0) {
+          await Promise.all(Array.from(uncachedIds).map(async (uid) => {
+            const uDoc = await getDoc(doc(db, 'users', uid));
+            sellerCache[uid] = uDoc.exists() ? uDoc.data() : {};
+          }));
+        }
 
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
+          const sellerData = sellerCache[data.sellerId] || {};
           fetchedProducts.push({
             id: docSnap.id,
             ...data,
-            sellerName: data.sellerName || 'Unknown User',
-            sellerSchool: data.sellerSchool || 'Unknown School',
-            sellerProfilePicture: data.sellerProfilePicture || null,
+            sellerName: sellerData.name || data.sellerName || 'Unknown User',
+            sellerSchool: sellerData.school || data.sellerSchool || 'Unknown School',
+            sellerProfilePicture: sellerData.profilePicture || data.sellerProfilePicture || null,
           } as Product);
         });
 
@@ -738,6 +750,29 @@ export default function Feed() {
     });
     return () => unsubscribe();
   }, [user]);
+
+  // ─── Paste to add image ───────────────────────────────
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const pastedImages: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) pastedImages.push(file);
+        }
+      }
+      if (pastedImages.length > 0) {
+        const dt = new DataTransfer();
+        pastedImages.forEach(f => dt.items.add(f));
+        handleFilesSelected(dt.files);
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isModalOpen]);
 
   // ─── Image Crop Flow ──────────────────────────────────
 
@@ -1721,7 +1756,7 @@ export default function Feed() {
                           }}
                           className="hidden"
                         />
-                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-luxury-ink text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Add Image</span>
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Add Image</span>
                       </label>
                       <button
                         type="button"
@@ -1729,7 +1764,7 @@ export default function Feed() {
                         className={`p-2.5 rounded-full transition-colors group relative ${showPollCreator ? 'bg-brand-teal/10 text-brand-teal' : 'hover:bg-surface-soft text-luxury-ink/50 hover:text-brand-teal'}`}
                       >
                         <BarChart3 size={22} />
-                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-luxury-ink text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Add Poll</span>
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Add Poll</span>
                       </button>
 
                       <div className="relative">

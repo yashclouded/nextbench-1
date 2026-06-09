@@ -3,6 +3,7 @@ import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 import { X, ZoomIn, ZoomOut, Check, RotateCw } from 'lucide-react';
 import { useScrollLock } from '../../hooks/useScrollLock';
+import { useTheme } from '../../lib/ThemeContext';
 
 interface ImageCropperProps {
   imageSrc: string;
@@ -13,12 +14,20 @@ interface ImageCropperProps {
 
 export default function ImageCropper({ imageSrc, onCropComplete, onCancel, aspect = 1 }: ImageCropperProps) {
   useScrollLock(true);
+  const { isDark } = useTheme(); 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [selectedAspect, setSelectedAspect] = useState(aspect);
+  
+  const [naturalAspect, setNaturalAspect] = useState<number>(1);
 
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setNaturalAspect(img.width / img.height);
+    img.src = imageSrc;
+  }, [imageSrc]);
   const onCropDone = useCallback((_: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels);
   }, []);
@@ -72,9 +81,9 @@ export default function ImageCropper({ imageSrc, onCropComplete, onCancel, aspec
   }, [croppedAreaPixels, imageSrc, onCropComplete, rotation]);
 
   return (
-    <div className="fixed inset-0 z-200 bg-luxury-ink/95 flex flex-col">
+    <div className="fixed inset-0 z-200 flex flex-col bg-[#0a0a0a]">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-luxury-ink/80 backdrop-blur-xl border-b border-white/5">
+      <div className="flex items-center justify-between px-6 py-4 backdrop-blur-xl border-b border-white/10 bg-[#111111]">
         <button onClick={onCancel} className="p-2 text-white/60 hover:text-white transition-colors rounded-xl hover:bg-white/10">
           <X size={22} />
         </button>
@@ -91,7 +100,7 @@ export default function ImageCropper({ imageSrc, onCropComplete, onCancel, aspec
           crop={crop}
           zoom={zoom}
           rotation={rotation}
-          aspect={selectedAspect}
+          {...(selectedAspect !== 0 ? { aspect: selectedAspect } : {})}
           onCropChange={setCrop}
           onZoomChange={setZoom}
           onRotationChange={setRotation}
@@ -106,14 +115,16 @@ export default function ImageCropper({ imageSrc, onCropComplete, onCancel, aspec
       </div>
 
       {/* Controls */}
-      <div className="px-6 py-5 bg-luxury-ink/80 backdrop-blur-xl border-t border-white/5">
+      <div className="px-6  py-5 backdrop-blur-xl border-t border-white/10 bg-[#111111]">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           {/* Aspect Ratio Toggles */}
           <div className="flex gap-2">
             {[
+              { label: 'Original', value: naturalAspect },
               { label: '1:1', value: 1 },
-              { label: '4:5', value: 4 / 5 },
-              { label: '16:9', value: 16 / 9 },
+              { label: '4:5', value: 4/5 },
+              { label: '9:16', value: 9/16 },
+              { label: '16:9', value: 16/9 },
             ].map((opt) => (
               <button
                 key={opt.label}
