@@ -22,7 +22,8 @@ service cloud.firestore {
         && data.verified is bool
         && (!data.keys().hasAny(['reputation']) || data.reputation is number)
         && (!data.keys().hasAny(['isAdmin']) || data.isAdmin is bool)
-        && (!data.keys().hasAny(['verificationStatus']) || data.verificationStatus in ['pending', 'approved', 'rejected'])
+        && (!data.keys().hasAny(['verificationStatus']) || data.verificationStatus in ['pending', 'approved', 'rejected', 'flagged_manual'])
+        && (!data.keys().hasAny(['verificationRejectionReason']) || (data.verificationRejectionReason == null || data.verificationRejectionReason is string))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         // Cloudinary URLs can be long — allow up to 2000 chars
@@ -65,10 +66,10 @@ service cloud.firestore {
         (incoming().diff(existing()).affectedKeys().hasOnly(['username', 'lastUsernameChange', 'name', 'city', 'profilePicture', 'about', 'idCardUrl', 'selfieUrl', 'verificationStatus', 'updatedAt', 'anonymousPersonaName', 'orgName', 'orgWebsite', 'orgDescription']) 
           && request.auth.uid == userId
           && isValidUser(incoming())
-          && (incoming().get('verificationStatus', 'approved') == existing().get('verificationStatus', 'approved') || (existing().get('verificationStatus', 'approved') == 'rejected' && incoming().get('verificationStatus', 'approved') == 'pending'))
+          && (incoming().get('verificationStatus', 'approved') == existing().get('verificationStatus', 'approved') || (existing().get('verificationStatus', 'approved') in ['rejected', 'flagged_manual'] && incoming().get('verificationStatus', 'approved') == 'pending'))
           && incoming().updatedAt == request.time)
         ||
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['verified', 'reputation', 'isAdmin', 'verificationStatus', 'city', 'school', 'updatedAt'])
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['verified', 'reputation', 'isAdmin', 'verificationStatus', 'verificationRejectionReason', 'city', 'school', 'updatedAt'])
           && isValidUser(incoming())
           && incoming().updatedAt == request.time)
         ||
