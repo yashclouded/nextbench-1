@@ -10,7 +10,7 @@ import { useToast } from '../../lib/ToastContext';
 import { createNotification } from '../../lib/notifications';
 import { getOptimizedImageUrl } from '../../lib/utils';
 
-interface PendingUser { id: string; name: string; school: string; email: string; verified: boolean; isAdmin: boolean; reputation: number; idCardUrl?: string; selfieUrl?: string; }
+interface PendingUser { id: string; name: string; school: string; email: string; verified: boolean; isAdmin: boolean; reputation: number; idCardUrl?: string; selfieUrl?: string; verificationStatus?: string; verificationRejectionReason?: string; }
 interface PendingProduct { id: string; title: string; category: string; price: number; sellerName: string; sellerId: string; image: string; description: string; }
 interface SchoolRequest { id: string; schoolName: string; city: string; website: string; requesterName: string; requesterEmail: string; idCardUrl: string; status: string; }
 interface PendingPost { id: string; title: string; content: string; type: string; school: string; authorName: string; status: string; city?: string; isAnonymous?: boolean; personaName?: string; realAuthorName?: string; }
@@ -65,7 +65,7 @@ export default function AdminPanel() {
     if (activeTab === 'Verifications') {
       const fetchPending = async () => {
         try {
-          const q = query(collection(db, 'users'), where('verificationStatus', '==', 'pending'));
+          const q = query(collection(db, 'users'), where('verificationStatus', 'in', ['pending', 'flagged_manual']));
           const snapshot = await getDocs(q);
           setPendingVerifications(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PendingUser)));
         } catch (err) { handleFirestoreError(err, OperationType.LIST, 'users'); }
@@ -366,8 +366,20 @@ export default function AdminPanel() {
                 {item.name?.[0]?.toUpperCase() || 'U'}
               </Link>
               <div className="flex-1 text-center md:text-left">
-                <Link to={`/profile/${item.id}`} className="text-base font-bold text-luxury-ink mb-1 hover:text-brand-teal transition-colors block">{item.name}</Link>
-                <p className="text-xs font-medium text-luxury-ink/40">{item.school} • {item.email}</p>
+                <div className="flex items-center gap-2 flex-wrap justify-center md:justify-start">
+                  <Link to={`/profile/${item.id}`} className="text-base font-bold text-luxury-ink hover:text-brand-teal transition-colors block">{item.name}</Link>
+                  {item.verificationStatus === 'flagged_manual' && (
+                    <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-full text-[9px] font-bold text-red-600 uppercase tracking-widest">
+                      ❌ AI Rejected
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-medium text-luxury-ink/40 mb-1">{item.school} • {item.email}</p>
+                {item.verificationStatus === 'flagged_manual' && item.verificationRejectionReason && (
+                  <p className="text-xs text-amber-700 bg-amber-50/50 border border-amber-100 rounded-lg p-2 mt-1.5 leading-relaxed font-medium italic">
+                    AI feedback: "{item.verificationRejectionReason}"
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {item.idCardUrl && (

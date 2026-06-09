@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Camera, IdCard, CheckCircle, ArrowRight, ShieldCheck, UploadCloud, AlertCircle } from 'lucide-react';
+import { Camera, IdCard, CheckCircle, ArrowRight, ShieldCheck, UploadCloud, AlertCircle, RefreshCw, XCircle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import React, { useState, useRef } from 'react';
 import { uploadToCloudinary } from '../../lib/storage';
@@ -16,6 +16,10 @@ export default function Verification() {
   const [idPreview, setIdPreview] = useState<string | null>(null);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
+  
+  // Real-time verification states
+  const [aiStatus, setAiStatus] = useState<'idle' | 'analyzing' | 'approved' | 'rejected' | 'flagged_manual' | 'error'>('idle');
+  const [verificationError, setVerificationError] = useState<string>('');
   
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -36,9 +40,16 @@ export default function Verification() {
       setStep(3);
       return;
     }
-    // If user already submitted and is pending, jump to step 3 immediately
+    // If user already submitted and is pending or flagged_manual, jump to step 3 immediately
     if (userData?.verificationStatus === 'pending' && userData?.idCardUrl) {
       setStep(3);
+      setAiStatus('idle');
+    } else if (userData?.verificationStatus === 'flagged_manual' && userData?.idCardUrl) {
+      setStep(3);
+      setAiStatus('flagged_manual');
+      if (userData?.verificationRejectionReason) {
+        setVerificationError(userData.verificationRejectionReason);
+      }
     }
   }, [userData]);
 
@@ -107,9 +118,12 @@ export default function Verification() {
         return;
       }
       setIsUploading(true);
+      setAiStatus('analyzing');
+      setStep(3); // Transition to the verification status screen immediately
+      
       try {
         // Force-refresh the Firebase auth token so Firestore security rules
-        // see the latest claims (email_verified, etc.) before we write.
+        // see the latest claims before we write.
         await user.getIdToken(true);
 
         const [idUrl, selfieUrl] = await Promise.all([
@@ -117,28 +131,83 @@ export default function Verification() {
           uploadToCloudinary(selfieFile, 'ids')
         ]);
         
+        // Save initial details to Firestore
         await updateDoc(doc(db, 'users', user.uid), {
           idCardUrl: idUrl,
           selfieUrl: selfieUrl,
           verificationStatus: 'pending',
           updatedAt: serverTimestamp()
         });
-        setStep(3);
+
+        // Trigger automated verification API endpoint
+        const response = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: user.uid,
+            profileName: userData?.name || user.displayName || '',
+            schoolName: userData?.school || '',
+            idCardUrl: idUrl,
+            selfieUrl: selfieUrl
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error (Status: ${response.status})`);
+        }
+
+        const verifyResult = await response.json();
+
+        if (verifyResult.success) {
+          if (verifyResult.verificationStatus === 'approved') {
+            setAiStatus('approved');
+            showToast('Profile automatically verified!', 'success');
+          } else if (verifyResult.verificationStatus === 'flagged_manual') {
+            setAiStatus('flagged_manual');
+            if (verifyResult.rejectionReason) {
+              setVerificationError(verifyResult.rejectionReason);
+            }
+            showToast('Verification inconclusive. Routed to manual review.', 'info');
+          } else if (verifyResult.verificationStatus === 'rejected') {
+            setAiStatus('rejected');
+            setVerificationError(verifyResult.rejectionReason || 'Details on ID did not match your selfie or profile.');
+            showToast('Identity verification rejected.', 'error');
+          }
+        } else {
+          // Soft-fail fallback inside the response success block
+          setAiStatus('error');
+          setVerificationError(verifyResult.reason || 'Verification check timed out. Queued for manual verification.');
+        }
+
       } catch (error) {
-        console.error("Upload error:", error);
-        showToast('Failed to upload images. Please try again.', 'error');
+        console.error("Verification error:", error);
+        // Fallback to manual queue (soft-fail) in case of network/upload failure
+        setAiStatus('error');
+        setVerificationError('Our automated system encountered an issue. Your ID has been securely queued for manual review by our team.');
+        showToast('Automated check failed. Falling back to manual queue.', 'warning');
       } finally {
         setIsUploading(false);
       }
     } else {
-      navigate('/dashboard');
+      if (aiStatus === 'rejected') {
+        // Reset and restart onboarding
+        setIdFile(null);
+        setIdPreview(null);
+        setSelfieFile(null);
+        setSelfiePreview(null);
+        setVerificationError('');
+        setAiStatus('idle');
+        setStep(1);
+      } else {
+        navigate('/dashboard');
+      }
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 pt-28 pb-20">
       <div className="w-full max-w-xl">
-        {isRejected && (
+        {isRejected && step === 1 && (
           <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-xl text-center">
             <h3 className="text-red-600 font-bold mb-1">Application Rejected</h3>
             <p className="text-red-500/80 text-xs font-medium">Your previous ID verification was rejected. Please upload a clearer photo of your valid student ID.</p>
@@ -203,7 +272,7 @@ export default function Verification() {
 
               <div className="flex items-start gap-4 p-6 bg-surface-soft rounded-2xl mb-12 text-left">
                 <AlertCircle className="text-brand-teal shrink-0" size={20} />
-                <p className="text-xs font-medium text-luxury-ink/60 leading-relaxed">Your ID is used only for verification and is stored with government-grade encryption. We never share it with anyone.</p>
+                <p className="text-xs font-medium text-luxury-ink/60 leading-relaxed">Your ID is used only for verification and is stored securely. We never share it with anyone.</p>
               </div>
             </div>
           )}
@@ -257,45 +326,140 @@ export default function Verification() {
 
           {step === 3 && (
             <div className="text-center">
-              <motion.div 
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="w-24 h-24 bg-brand-teal rounded-full flex items-center justify-center mx-auto mb-10 luxury-shadow shadow-brand-teal/40"
-              >
-                <CheckCircle className="text-white" size={40} />
-              </motion.div>
-              <h2 className="text-3xl font-serif font-bold text-luxury-ink mb-6 italic">Submission <span className="not-italic">Complete.</span></h2>
-              <p className="text-luxury-ink/50 mb-12 leading-relaxed text-lg">
-                {userData?.accountType === 'organization'
-                  ? <>Your organization documents have been submitted for admin review. This usually takes <span className="text-brand-teal font-bold">24-48 hours</span> during business days.</>
-                  : <>Your credentials have been submitted for manual approval. This usually takes <span className="text-brand-teal font-bold">2-4 hours</span> during business days.</>
-                }
-              </p>
-              
-              <div className="p-8 bg-brand-teal/5 rounded-3xl mb-12">
-                <div className="flex items-center gap-2 mb-2 justify-center">
-                  <ShieldCheck className="text-brand-teal" size={16} />
-                  <span className="text-xs font-bold uppercase tracking-widest text-brand-teal">Application Pending</span>
+              {/* Case 1: Analyzing */}
+              {aiStatus === 'analyzing' && (
+                <div className="py-6">
+                  <div className="w-24 h-24 border-4 border-brand-teal border-t-transparent rounded-full animate-spin mx-auto mb-10" />
+                  <h2 className="text-3xl font-serif font-bold text-luxury-ink mb-6 italic">Verifying <span className="not-italic">Identity.</span></h2>
+                  <p className="text-luxury-ink/50 mb-10 leading-relaxed text-base">
+                    Our AI model is securely analyzing your student ID and matching facial features. This usually takes 2–4 seconds...
+                  </p>
+                  <div className="theme-card rounded-2xl p-6 border text-left space-y-4 max-w-sm mx-auto" style={{ borderColor: 'var(--color-border)' }}>
+                    <div className="flex items-center gap-3 text-xs font-bold text-brand-teal uppercase tracking-wider">
+                      <CheckCircle size={14} /> Uploading secure assets
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-bold text-luxury-ink/40 uppercase tracking-wider animate-pulse">
+                      <RefreshCw size={14} className="animate-spin" /> Verifying name and school matches
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-bold text-luxury-ink/20 uppercase tracking-wider">
+                      <ShieldCheck size={14} /> Scanning face matches & authenticity
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm font-medium text-luxury-ink/40 italic">Ref ID: NB-2026-XQ97</p>
-              </div>
+              )}
+
+              {/* Case 2: Approved */}
+              {aiStatus === 'approved' && (
+                <div>
+                  <motion.div 
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-24 h-24 bg-brand-teal rounded-full flex items-center justify-center mx-auto mb-10 luxury-shadow shadow-brand-teal/40"
+                  >
+                    <CheckCircle className="text-white" size={40} />
+                  </motion.div>
+                  <h2 className="text-3xl font-serif font-bold text-luxury-ink mb-6 italic">Profile <span className="not-italic">Verified!</span></h2>
+                  <p className="text-luxury-ink/50 mb-12 leading-relaxed text-lg">
+                    Awesome! Gemini successfully verified your identity and school credentials. Your account is active.
+                  </p>
+                  <div className="p-8 bg-brand-teal/5 rounded-3xl mb-12">
+                    <span className="text-xs font-bold uppercase tracking-widest text-brand-teal flex items-center gap-2 justify-center">
+                      <ShieldCheck size={16} /> Automated Trust Approved
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Case 3: Rejected */}
+              {aiStatus === 'rejected' && (
+                <div>
+                  <motion.div 
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-24 h-24 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-10 luxury-shadow shadow-red-500/40"
+                  >
+                    <XCircle className="text-white" size={40} />
+                  </motion.div>
+                  <h2 className="text-3xl font-serif font-bold text-luxury-ink mb-6 italic">Verification <span className="not-italic">Rejected.</span></h2>
+                  <p className="text-luxury-ink/50 mb-8 leading-relaxed text-base">
+                    We could not verify your identity. This is usually due to mismatching names or unrecognizable photos.
+                  </p>
+                  
+                  {verificationError && (
+                    <div className="p-6 bg-red-50 border border-red-100 rounded-2xl text-left mb-12">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-red-600 mb-2">AI Reason:</h4>
+                      <p className="text-sm font-medium text-red-600/80 leading-relaxed">{verificationError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Case 4 & 5: Flagged Manual or Error (Soft-failed to manual queue) */}
+              {(aiStatus === 'flagged_manual' || aiStatus === 'error' || aiStatus === 'idle') && (
+                <div>
+                  <motion.div 
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="w-24 h-24 bg-amber-500 rounded-full flex items-center justify-center mx-auto mb-10 luxury-shadow shadow-amber-500/40"
+                  >
+                    <ShieldCheck className="text-white" size={40} />
+                  </motion.div>
+                  <h2 className="text-3xl font-serif font-bold text-luxury-ink mb-6 italic">Submission <span className="not-italic">Complete.</span></h2>
+                  <p className="text-luxury-ink/50 mb-8 leading-relaxed text-base">
+                    {userData?.accountType === 'organization'
+                      ? <>Your organization documents have been submitted for admin review. This usually takes <span className="text-brand-teal font-bold">24-48 hours</span> during business days.</>
+                      : <>Your credentials have been queued for manual approval. This usually takes <span className="text-brand-teal font-bold">2-4 hours</span> during business days.</>
+                    }
+                  </p>
+
+                  {(aiStatus === 'flagged_manual' || aiStatus === 'error') && (
+                    <div className="p-6 bg-amber-50/50 border border-amber-100 rounded-2xl text-left mb-12">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-2">
+                        {aiStatus === 'flagged_manual' ? 'Queue Status (Manual Review Needed):' : 'System Notice:'}
+                      </h4>
+                      <p className="text-xs font-medium text-amber-700/80 leading-relaxed">
+                        {aiStatus === 'flagged_manual'
+                          ? (verificationError || 'AI was unable to confidently verify your document (such as due to low lighting or name variation). Our campus admins will review it manually.')
+                          : 'Our automated verification system is currently busy. Your application has been fallback-queued for manual review so that onboarding is not interrupted.'}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="p-8 bg-brand-teal/5 rounded-3xl mb-12">
+                    <div className="flex items-center gap-2 mb-2 justify-center">
+                      <ShieldCheck className="text-brand-teal" size={16} />
+                      <span className="text-xs font-bold uppercase tracking-widest text-brand-teal">Application Pending</span>
+                    </div>
+                    <p className="text-sm font-medium text-luxury-ink/40 italic">Ref ID: NB-2026-XQ97</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           <button 
             onClick={handleNext}
-            disabled={isUploading}
+            disabled={isUploading || aiStatus === 'analyzing'}
             className={`w-full py-6 rounded-full font-bold text-lg transition-all flex items-center justify-center gap-3 ${
-              isUploading 
+              isUploading || aiStatus === 'analyzing'
                 ? 'bg-luxury-ink/10 text-luxury-ink/20 cursor-not-allowed' 
+                : aiStatus === 'rejected'
+                ? 'bg-red-500 text-white hover:bg-red-600 active:scale-95 luxury-shadow'
                 : 'bg-luxury-ink text-surface-base hover:bg-brand-teal active:scale-95 luxury-shadow'
             }`}
           >
-            {isUploading ? 'Securing Document...' : step === 3 ? 'Go to Marketplace' : 'Confirm & Upload'}
-            {!isUploading && step < 3 && <ArrowRight size={20} />}
+            {isUploading || aiStatus === 'analyzing'
+              ? 'Processing...' 
+              : aiStatus === 'rejected'
+              ? 'Restart Onboarding'
+              : step === 3
+              ? 'Go to Marketplace'
+              : 'Confirm & Upload'}
+            {!isUploading && aiStatus !== 'analyzing' && step < 3 && <ArrowRight size={20} />}
           </button>
         </motion.div>
       </div>
     </div>
   );
 }
+
