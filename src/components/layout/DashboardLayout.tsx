@@ -32,7 +32,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <MobileHeader />
       
       {/* Centered Layout Container */}
-      <div className={`w-full flex justify-center relative z-10 ${isMessagesPage ? 'flex-1 min-h-0' : ''}`}>
+      <div className={`w-full flex justify-center relative ${isMessagesPage ? 'flex-1 min-h-0' : ''}`}>
         
         {/* Main Content Wrapper restricted to 1350px */}
         <div className={`flex w-full max-w-[1350px] min-w-0 ${isMessagesPage ? 'h-full' : ''}`}>

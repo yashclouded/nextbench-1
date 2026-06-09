@@ -63,6 +63,13 @@ interface ChatRoomProps {
   roomIdOverride?: string;
 }
 
+/** Returns the correct profile URL for a user — prefers /u/:username, falls back to /profile/:id */
+function profileUrl(u: { id?: string; username?: string } | null | undefined, fallbackId?: string): string {
+  if (u?.username) return `/u/${u.username}`;
+  const id = u?.id || fallbackId || '';
+  return `/profile/${id}`;
+}
+
 export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoomProps = {}) {
   const params = useParams<{ roomId: string }>();
   const roomId = roomIdOverride || params.roomId;
@@ -91,13 +98,15 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const blockedIds = useBlockedIds();
   const blockedByIds = useBlockedByIds();
-  const otherUserId: string | undefined = 
-    (typeof otherUser?.id === 'string' ? otherUser.id : undefined) 
+
+  // Resolve the other user's ID — prefer state, fall back to room participants
+  const otherUserId: string | undefined =
+    (typeof otherUser?.id === 'string' ? otherUser.id : undefined)
     ?? roomData?.participants?.find(id => id !== user?.uid);
+
   const otherPresence = useUserPresence(otherUserId);
-  console.log('otherUserId:', otherUserId, 'presence:', otherPresence);
-  const isBlockedByMe = otherUser ? blockedIds.has(otherUser.id) : false;
-  const hasBlockedMe = otherUser ? blockedByIds.has(otherUser.id) : false;
+  const isBlockedByMe = otherUserId ? blockedIds.has(otherUserId) : false;
+  const hasBlockedMe = otherUserId ? blockedByIds.has(otherUserId) : false;
   const isBlocked = isBlockedByMe || hasBlockedMe;
 
   useEffect(() => {
@@ -112,15 +121,16 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
         const roomDoc = await getDoc(doc(db, 'chatRooms', roomId));
         if (roomDoc.exists()) {
           const data = roomDoc.data() as ChatRoomData;
-          if (!roomData) setRoomData(data); // only set if we didn't have it
-          
-          const otherUserId = data.participants.find(id => id !== user.uid);
-          if (otherUserId && !otherUser) {
-            const userDoc = await getDoc(doc(db, 'users', otherUserId));
+          if (!roomData) setRoomData(data);
+
+          const resolvedOtherUserId = data.participants.find(id => id !== user.uid);
+          if (resolvedOtherUserId && !otherUser) {
+            const userDoc = await getDoc(doc(db, 'users', resolvedOtherUserId));
             if (userDoc.exists()) {
-              setOtherUser({ id: otherUserId, ...userDoc.data() });
+              // Always include `id` so profileUrl() and block checks work correctly
+              setOtherUser({ id: resolvedOtherUserId, ...userDoc.data() });
             } else {
-              setOtherUser({ id: otherUserId, name: 'Deleted User', profilePicture: null });
+              setOtherUser({ id: resolvedOtherUserId, name: 'Deleted User', profilePicture: null });
             }
           }
         }
@@ -128,7 +138,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
         handleFirestoreError(err, OperationType.GET, `chatRooms/${roomId}`);
       }
     };
-    
+
     if (!roomData || !otherUser) {
       fetchRoom();
     }
@@ -137,9 +147,8 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
     const unsubRoom = onSnapshot(doc(db, 'chatRooms', roomId), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data() as ChatRoomData;
-        // Update local state if needed
         setRoomData(prev => prev ? { ...prev, ...data } : data);
-        
+
         if (data.unreadBy?.includes(user.uid)) {
           updateDoc(doc(db, 'chatRooms', roomId), {
             unreadBy: arrayRemove(user.uid)
@@ -197,14 +206,13 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
   };
 
   useEffect(() => {
-    // Aggressive strict scroll to bottom 
     let attempts = 0;
     const interval = setInterval(() => {
       scrollToBottom();
       attempts++;
       if (attempts > 10) clearInterval(interval);
     }, 50);
-    
+
     return () => clearInterval(interval);
   }, [messages]);
 
@@ -216,11 +224,11 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
 
   const sendMessage = async (text?: string, image?: string) => {
     if ((!text?.trim() && !image) || !user || !roomId) return;
-    
+
     const messageText = text?.trim();
     setNewMessage('');
     setShowQuickReplies(false);
-    
+
     const currentReply = replyingTo;
     setReplyingTo(null);
 
@@ -231,20 +239,20 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
       };
       if (messageText) msgData.text = messageText;
       if (image) msgData.image = image;
-      
+
       if (currentReply) {
         msgData.replyToId = currentReply.id;
         msgData.replyToText = currentReply.text || '📷 Image';
       }
 
       await addDoc(collection(db, 'chatRooms', roomId, 'messages'), msgData);
-      
+
       const updateData: any = {
         lastMessage: image ? '📷 Image' : messageText,
         lastSenderId: user.uid,
         updatedAt: serverTimestamp()
       };
-      
+
       const recipientId = roomData?.participants?.find((id: string) => id !== user.uid);
       if (recipientId) {
         updateData.unreadBy = arrayUnion(recipientId);
@@ -275,7 +283,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0] || !roomId) return;
     const file = e.target.files[0];
-    
+
     if (file.size > 5 * 1024 * 1024) {
       showToast('Image must be less than 5MB', 'error');
       return;
@@ -329,7 +337,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
   const handleClearChat = async () => {
     if (!user || !roomId || messages.length === 0) return;
     if (!confirm('Are you sure you want to clear this chat?')) return;
-    
+
     try {
       const batch = writeBatch(db);
       let count = 0;
@@ -403,7 +411,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
         count++;
       });
       if (count > 0) await batch.commit();
-      
+
       showToast('Messages deleted', 'success');
       setIsSelectMode(false);
       setSelectedMessages(new Set());
@@ -417,7 +425,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
       .filter(m => selectedMessages.has(m.id) && m.text)
       .map(m => m.text)
       .join('\n\n');
-    
+
     if (textsToCopy) {
       navigator.clipboard.writeText(textsToCopy);
       showToast('Messages copied to clipboard', 'success');
@@ -449,7 +457,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
       msgsSnap.docs.forEach(d => batch.delete(d.ref));
       batch.delete(doc(db, 'chatRooms', roomId));
       await batch.commit();
-      
+
       showToast('Chat request declined', 'info');
       navigate('/messages');
     } catch (err) {
@@ -468,8 +476,11 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
     </div>
   );
 
+  // The resolved profile URL for the other user — used in both avatar and name links
+  const otherUserProfileUrl = profileUrl(otherUser, roomData?.participants?.find(id => id !== user?.uid));
+
   return (
-    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-100 flex flex-col bg-surface-base pb-64px md:pb-0"}>
+    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-[100] flex flex-col bg-surface-base pb-64px md:pb-0"}>
       {/* Header */}
       <div className="theme-card border-b px-4 md:px-6 py-3 flex items-center justify-between z-10" style={{ borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-3">
@@ -477,7 +488,11 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             <ArrowLeft size={20} className="text-luxury-ink" />
           </button>
           <div className="flex items-center gap-3 p-2 -ml-2 rounded-xl transition-colors">
-            <Link to={`/profile/${otherUser.id || roomData?.participants?.find(id => id !== user.uid) || ''}`} className="w-10 h-10 rounded-xl bg-brand-teal/5 flex items-center justify-center overflow-hidden border border-luxury-ink/5 shrink-0 hover:opacity-80 transition-opacity">
+            {/* Avatar — links to the other user's profile */}
+            <Link
+              to={otherUserProfileUrl}
+              className="w-10 h-10 rounded-xl bg-brand-teal/5 flex items-center justify-center overflow-hidden border border-luxury-ink/5 shrink-0 hover:opacity-80 transition-opacity"
+            >
               {otherUser.profilePicture ? (
                 <img src={getOptimizedImageUrl(otherUser.profilePicture)} alt={otherUser.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
@@ -485,31 +500,35 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
               )}
             </Link>
             <div>
-              <Link to={`/profile/${otherUser.id || roomData?.participants?.find(id => id !== user.uid) || ''}`} className="font-bold text-luxury-ink flex items-center gap-1.5 leading-none mb-0.5 text-sm hover:text-brand-teal transition-colors">
+              {/* Name — links to the other user's profile */}
+              <Link
+                to={otherUserProfileUrl}
+                className="font-bold text-luxury-ink flex items-center gap-1.5 leading-none mb-0.5 text-sm hover:text-brand-teal transition-colors"
+              >
                 {otherUser.name}
                 {otherUser.verified && <ShieldCheck size={14} className="text-brand-teal" />}
               </Link>
               <div className="flex flex-col gap-0.5">
-              {roomData?.productTitle && roomData?.productId && (
-                <Link to={`/product/${roomData.productId}`} className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 hover:text-brand-pink transition-colors flex items-center gap-1">
-                  <Package size={10} /> {roomData.productTitle}
-                </Link>
-              )}
-              <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  otherPresence.status === 'online' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' :
-                  otherPresence.status === 'recent' ? 'bg-amber-400' : 'bg-luxury-ink/20'
-                }`} />
-                <span className={
-                  otherPresence.status === 'online' ? 'text-emerald-500' :
-                  otherPresence.status === 'recent' ? 'text-amber-500' : 'text-luxury-ink/30'
-                }>
-                  {otherPresence.lastSeen || otherPresence.status !== 'offline' 
-                    ? otherPresence.label 
-                    : 'Direct Message'}
+                {roomData?.productTitle && roomData?.productId && (
+                  <Link to={`/product/${roomData.productId}`} className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 hover:text-brand-pink transition-colors flex items-center gap-1">
+                    <Package size={10} /> {roomData.productTitle}
+                  </Link>
+                )}
+                <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    otherPresence.status === 'online' ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' :
+                    otherPresence.status === 'recent' ? 'bg-amber-400' : 'bg-luxury-ink/20'
+                  }`} />
+                  <span className={
+                    otherPresence.status === 'online' ? 'text-emerald-500' :
+                    otherPresence.status === 'recent' ? 'text-amber-500' : 'text-luxury-ink/30'
+                  }>
+                    {otherPresence.lastSeen || otherPresence.status !== 'offline'
+                      ? otherPresence.label
+                      : 'Direct Message'}
+                  </span>
                 </span>
-              </span>
-            </div>
+              </div>
             </div>
           </div>
         </div>
@@ -607,11 +626,11 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                   setSelectedMessageId(selectedMessageId === msg.id ? null : msg.id);
                 }}
                 className={`max-w-[75%] px-5 py-3.5 rounded-2xl text-sm font-medium cursor-pointer relative shadow-sm ${
-                  isMe 
-                    ? 'bubble-mine rounded-tr-sm' 
+                  isMe
+                    ? 'bubble-mine rounded-tr-sm'
                     : 'bubble-theirs rounded-tl-sm'
                 }`} style={!isMe ? { borderColor: 'var(--color-border)' } : undefined}>
-                
+
                 {!isDeleted && msg.replyToText && (
                   <div className={`text-xs mb-2 p-2 rounded-lg border-l-2 ${isMe ? 'bg-surface-base/20 border-surface-base/40' : 'bg-surface-soft border-brand-teal'}`}>
                     <p className="opacity-70 line-clamp-2">{msg.replyToText}</p>
@@ -626,9 +645,9 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                   <>
                     {msg.image && (
                       <div className="mb-2 rounded-lg overflow-hidden border border-luxury-ink/5 bg-surface-base">
-                        <img 
-                          src={getOptimizedImageUrl(msg.image)} 
-                          alt="Shared" 
+                        <img
+                          src={getOptimizedImageUrl(msg.image)}
+                          alt="Shared"
                           className="max-w-full max-h-300px object-contain hover:opacity-90 transition-opacity"
                           onClick={(e) => { e.stopPropagation(); setViewingImage(getOptimizedImageUrl(msg.image)); }}
                           referrerPolicy="no-referrer"
@@ -652,15 +671,13 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                         </div>
                       </Link>
                     )}
-                      {msg.text && <MessageText text={msg.text} />}
+                    {msg.text && <MessageText text={msg.text} />}
                   </>
                 )}
 
                 <div className={`text-[10px] mt-1.5 opacity-30 ${isMe ? 'text-right' : 'text-left'}`}>
                   {msg.createdAt?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '...'}
                 </div>
-
-                
               </div>
 
               {isSelectMode && isMe && (
@@ -673,7 +690,8 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
         })}
         <div ref={messagesEndRef} />
       </div>
-        {/* Message Options Menu - Fixed */}
+
+      {/* Message Options Menu - Fixed */}
       {selectedMessageId && menuPosition && (() => {
         const msg = messages.find(m => m.id === selectedMessageId);
         if (!msg) return null;
@@ -710,6 +728,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
           </div>
         );
       })()}
+
       {/* Quick Replies */}
       {showQuickReplies && !isBlocked && (
         <div className="px-3 pb-1 chat-bg">
@@ -767,7 +786,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                 <p className="text-xs font-bold text-amber-700">Waiting for {otherUser?.name} to accept your request.</p>
               </div>
             )}
-            
+
             {replyingTo && (
               <div className="mb-2 bg-surface-card border rounded-2xl px-4 py-3 flex items-start justify-between shadow-md" style={{ borderColor: 'var(--color-border)' }}>
                 <div className="flex-1 overflow-hidden">
@@ -783,7 +802,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             <form onSubmit={handleSendMessage} className="flex items-center gap-2">
               <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
 
-              {/* Camera button — outside pill */}
+              {/* Camera button */}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -843,7 +862,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                 />
               </div>
 
-              {/* Send button — outside pill */}
+              {/* Send button */}
               <button
                 type="submit"
                 disabled={!newMessage.trim() || isUploading || hasSentPendingMessage}
@@ -855,6 +874,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
           </div>
         )}
       </div>
+
       {/* Image Viewer */}
       <AnimatePresence>
         {viewingImage && (
@@ -871,7 +891,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             >
               <X size={24} className="text-white" />
             </button>
-             <button
+            <button
               onClick={async (e) => {
                 e.stopPropagation();
                 try {
@@ -906,6 +926,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
           </motion.div>
         )}
       </AnimatePresence>
+
       {/* Delete For Me Modal */}
       <AnimatePresence>
         {deleteConfirmMsgId && (
@@ -925,20 +946,9 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             >
               <h3 className="text-xl font-bold text-luxury-ink mb-2">Delete Message</h3>
               <p className="text-luxury-ink/60 text-sm mb-6">Are you sure you want to delete this message for yourself? Other chat members will still be able to see it.</p>
-              
               <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setDeleteConfirmMsgId(null)}
-                  className="px-5 py-2.5 rounded-full text-sm font-bold text-luxury-ink/60 hover:bg-surface-soft transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDeleteForMe(deleteConfirmMsgId!)}
-                  className="px-5 py-2.5 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 transition-colors shadow-lg"
-                >
-                  Delete for me
-                </button>
+                <button onClick={() => setDeleteConfirmMsgId(null)} className="px-5 py-2.5 rounded-full text-sm font-bold text-luxury-ink/60 hover:bg-surface-soft transition-colors">Cancel</button>
+                <button onClick={() => handleDeleteForMe(deleteConfirmMsgId!)} className="px-5 py-2.5 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 transition-colors shadow-lg">Delete for me</button>
               </div>
             </motion.div>
           </motion.div>
@@ -964,20 +974,9 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             >
               <h3 className="text-xl font-bold text-red-500 mb-2">Delete for Everyone</h3>
               <p className="text-luxury-ink/60 text-sm mb-6">This message will be permanently deleted for all members in this chat. They will see that a message was deleted.</p>
-              
               <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setDeleteEveryoneConfirmMsgId(null)}
-                  className="px-5 py-2.5 rounded-full text-sm font-bold text-luxury-ink/60 hover:bg-surface-soft transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDeleteForEveryone(deleteEveryoneConfirmMsgId!)}
-                  className="px-5 py-2.5 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 transition-colors shadow-lg"
-                >
-                  Delete for everyone
-                </button>
+                <button onClick={() => setDeleteEveryoneConfirmMsgId(null)} className="px-5 py-2.5 rounded-full text-sm font-bold text-luxury-ink/60 hover:bg-surface-soft transition-colors">Cancel</button>
+                <button onClick={() => handleDeleteForEveryone(deleteEveryoneConfirmMsgId!)} className="px-5 py-2.5 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 transition-colors shadow-lg">Delete for everyone</button>
               </div>
             </motion.div>
           </motion.div>

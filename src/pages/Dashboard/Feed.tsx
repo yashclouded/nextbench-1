@@ -229,7 +229,7 @@ function PostDetailModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-100 flex items-center justify-center p-0 sm:p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 backdrop-blur-md"
       style={{ background: 'var(--color-overlay-heavy)' }}
       onClick={onClose}
     >
@@ -1507,7 +1507,7 @@ export default function Feed() {
                 setPendingFiles([]);
               }
             }}
-            className="fixed inset-0 z-100 flex items-center justify-center p-0 sm:p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-luxury-ink/20 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1559,7 +1559,7 @@ export default function Feed() {
                 )}
               </AnimatePresence>
 
-              <div className="p-6 md:p-8 overflow-y-auto flex-1 flex flex-col min-h-0">
+              <div className="p-6 pb-24 md:p-8 overflow-y-auto flex-1 flex flex-col min-h-0">
                 <form id="create-post-form" onSubmit={handleCreatePost} className="flex flex-col h-full relative flex-1">
                   <input type="hidden" name="type" value={selectedPostType} />
                   <input type="hidden" name="privacy" value={privacy} />

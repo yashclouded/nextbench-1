@@ -47,8 +47,17 @@ export default function RightSidebarDrawer() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              drag="x"
+              dragDirectionLock
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={{ left: 0, right: 0.5 }}
+              onDragEnd={(e, { offset, velocity }) => {
+                if (offset.x > 100 || velocity.x > 300) {
+                  setOpen(false);
+                }
+              }}
               className="fixed top-0 right-0 bottom-0 z-50 w-300px lg:hidden overflow-y-auto no-scrollbar"
-              style={{ background: 'var(--color-surface-card)', borderLeft: '1px solid var(--color-border)' }}
+              style={{ background: 'var(--color-surface-card)', borderLeft: '1px solid var(--color-border)', touchAction: 'pan-y' }}
             >
               {/* Header */}
               <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b"

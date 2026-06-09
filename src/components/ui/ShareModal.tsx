@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Search, Send, Link as LinkIcon, CheckCircle2, ShieldCheck, User } from 'lucide-react';
+import { X, Search, Send, Link as LinkIcon, CheckCircle2, ShieldCheck, User, Share2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, limit } from 'firebase/firestore';
@@ -209,6 +209,24 @@ export default function ShareModal({ isOpen, onClose, postUrl, postTitle, shared
                 </div>
               </button>
             </div>
+            
+            {navigator.share && (
+              <div className="p-4 border-b border-luxury-ink/5 bg-surface-base">
+                <button 
+                  onClick={() => {
+                    navigator.share({
+                      title: postTitle,
+                      text: `Check out this on Nextbench!`,
+                      url: postUrl
+                    }).catch(console.error);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 p-3 bg-brand-teal text-white rounded-xl hover:bg-brand-teal/90 transition-colors shadow-lg shadow-brand-teal/20"
+                >
+                  <Share2 size={18} />
+                  <span className="text-sm font-bold">Share via App</span>
+                </button>
+              </div>
+            )}
 
             {/* Search and Send via Message */}
             <div className="p-4 border-b border-luxury-ink/5">
