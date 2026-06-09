@@ -347,7 +347,7 @@ export default function MessagesLayout() {
                   title={sidebarCollapsed ? club.name : undefined}
                 >
                   <div className="relative shrink-0">
-                    <div className={`rounded-xl bg-gradient-to-br from-brand-teal/15 to-brand-pink/15 flex items-center justify-center overflow-hidden border border-luxury-ink/5 ${
+                    <div className={`rounded-xl bg-linear-to-br from-brand-teal/15 to-brand-pink/15 flex items-center justify-center overflow-hidden border border-luxury-ink/5 ${
                       sidebarCollapsed ? 'w-10 h-10' : 'w-11 h-11'
                     }`}>
                       {club.avatar ? (
@@ -473,7 +473,7 @@ export default function MessagesLayout() {
           className={`
             flex flex-col border-r border-luxury-ink/5
             transition-all duration-300 ease-in-out shrink-0
-            ${sidebarCollapsed ? 'w-[72px]' : 'w-full md:w-[320px] lg:w-[360px]'}
+            ${sidebarCollapsed ? 'w-18' : 'w-full md:w-[320px] lg:w-90'}
             ${activeRoomId ? 'hidden md:flex' : 'flex'}
           `}
         >
@@ -508,7 +508,7 @@ export default function MessagesLayout() {
         {showNewDM && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => { setShowNewDM(false); setSearchUsers(''); }}
           >
             <motion.div
@@ -577,7 +577,7 @@ export default function MessagesLayout() {
         {showCreateClub && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => setShowCreateClub(false)}
           >
             <motion.div

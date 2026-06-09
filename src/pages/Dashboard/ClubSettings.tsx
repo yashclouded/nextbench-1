@@ -303,7 +303,7 @@ export default function ClubSettings() {
         {/* Club Info Card */}
         <div className="theme-card rounded-3xl p-6 border border-luxury-ink/5 text-center">
           <div className="relative w-20 h-20 mx-auto mb-4">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-pink/20 flex items-center justify-center overflow-hidden border-2 border-luxury-ink/5">
+            <div className="w-20 h-20 rounded-2xl bg-linear-to-br from-brand-teal/20 to-brand-pink/20 flex items-center justify-center overflow-hidden border-2 border-luxury-ink/5">
               {club.avatar ? (
                 <img src={getOptimizedImageUrl(club.avatar)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : (
@@ -389,7 +389,7 @@ export default function ClubSettings() {
               <div className="w-6 h-6 border-2 border-brand-teal border-t-transparent rounded-full animate-spin mx-auto" />
             </div>
           ) : (
-            <div className="space-y-1 max-h-[400px] overflow-y-auto">
+            <div className="space-y-1 max-h-100 overflow-y-auto">
               {filteredMembers.map((m) => (
                 <div key={m.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-soft transition-colors relative">
                   <Link to={`/profile/${m.id}`} className="w-10 h-10 rounded-full bg-brand-teal/10 flex items-center justify-center overflow-hidden shrink-0 border border-luxury-ink/5">
@@ -571,7 +571,7 @@ export default function ClubSettings() {
       <AnimatePresence>
         {showAddMember && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => { setShowAddMember(false); setSearchUsers(''); }}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="theme-card rounded-3xl w-full max-w-md shadow-2xl border border-luxury-ink/5 max-h-[70vh] flex flex-col overflow-hidden"
@@ -629,7 +629,7 @@ export default function ClubSettings() {
       <AnimatePresence>
         {showLeaveConfirm && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => setShowLeaveConfirm(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               className="theme-card w-full max-w-sm rounded-3xl p-6 shadow-2xl border" style={{ borderColor: 'var(--color-border)' }}
@@ -649,7 +649,7 @@ export default function ClubSettings() {
       <AnimatePresence>
         {showDeleteConfirm && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => setShowDeleteConfirm(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               className="theme-card w-full max-w-sm rounded-3xl p-6 shadow-2xl border" style={{ borderColor: 'var(--color-border)' }}
@@ -669,7 +669,7 @@ export default function ClubSettings() {
       <AnimatePresence>
         {showTransferModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-luxury-ink/20 backdrop-blur-sm"
             onClick={() => setShowTransferModal(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               className="theme-card w-full max-w-md rounded-3xl shadow-2xl border border-luxury-ink/5 max-h-[60vh] flex flex-col overflow-hidden"

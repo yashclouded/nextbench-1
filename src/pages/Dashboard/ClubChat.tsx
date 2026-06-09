@@ -337,7 +337,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
   };
 
   return (
-    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-[100] flex flex-col bg-surface-base pb-64px md:pb-0"}>
+    <div className={panelMode ? "flex flex-col h-full bg-surface-base overflow-hidden" : "fixed inset-0 z-100 flex flex-col bg-surface-base pb-64px md:pb-0"}>
       {/* Header */}
       <div className="theme-card border-b px-4 md:px-6 py-3 flex items-center justify-between z-10 shrink-0" style={{ borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-3 min-w-0">
