@@ -384,13 +384,13 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const handleDM = async () => {
     if (!user || !targetUserId || !userData) return;
     if (!userData.verified) {
-      showToast('Only verified students can send direct messages.', 'warning');
+      showToast('Only verified students can send direct messages.', 'warning'); 
       return;
     }
     setIsDMing(true);
     try {
       const roomId = await getOrCreateDMRoom(user.uid, targetUserId);
-      navigate(`/chat/${roomId}`, { state: { otherUser: profileUser } });
+      navigate(`/messages/${roomId}`, { state: { otherUser: { ...profileUser, id: targetUserId } } });
     } catch (err) {
       showToast('Failed to start conversation', 'error');
     } finally {

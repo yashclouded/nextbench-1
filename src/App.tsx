@@ -127,6 +127,7 @@ export default function App() {
               <Route path="/notifications" element={<ProtectedRoute requireAuth requireVerified><Notifications /></ProtectedRoute>} />
               <Route path="/messages"   element={<ProtectedRoute requireAuth requireVerified><MessagesLayout /></ProtectedRoute>} />
               <Route path="/messages/:roomId" element={<ProtectedRoute requireAuth requireVerified><MessagesLayout /></ProtectedRoute>} />
+              <Route path="/chat/:roomId" element={<ProtectedRoute requireAuth requireVerified><ChatRoomPage /></ProtectedRoute>} />
               <Route path="/admin"      element={<ProtectedRoute requireAuth requireAdmin><AdminPanel /></ProtectedRoute>} />
               <Route path="/club/join/:inviteCode" element={<ProtectedRoute requireAuth requireVerified><ClubJoin /></ProtectedRoute>} />
               <Route path="/club/:clubId"          element={<ProtectedRoute requireAuth requireVerified><ClubChat /></ProtectedRoute>} />
