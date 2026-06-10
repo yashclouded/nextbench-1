@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Copy, Check, Users, Gift, Loader2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
-import { doc, getDoc, collection, getCountFromServer, updateDoc, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, getCountFromServer, updateDoc, query, where, getDocs, limit, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '../../lib/ToastContext';
 
 export default function Invite() {
@@ -71,7 +71,10 @@ export default function Invite() {
         }
       }
       
-      await updateDoc(doc(db, 'users', user.uid), { referralCode: uniqueCode });
+      await updateDoc(doc(db, 'users', user.uid), { 
+        referralCode: uniqueCode,
+        updatedAt: serverTimestamp()
+      });
       setReferralCode(uniqueCode);
       showToast('Referral code generated successfully!', 'success');
     } catch (err: any) {

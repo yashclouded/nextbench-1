@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Moon, Sun, ShieldAlert, Edit2, LogOut, Loader2, LifeBuoy, Bookmark, User, Settings, ExternalLink, Trash2, Lock } from 'lucide-react';
 import { collection, query, where, getDocs, deleteDoc, doc, getDoc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { auth, db, messaging } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
+import { getToken } from 'firebase/messaging';
 import { useAuth } from '../../lib/AuthContext';
 import { useTheme } from '../../lib/ThemeContext';
 import { useToast } from '../../lib/ToastContext';
@@ -23,6 +24,7 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<'general' | 'blocked' | 'account' | 'support' | 'saved'>('general');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
   const [savedPosts, setSavedPosts] = useState<any[]>([]);
@@ -53,6 +55,67 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
     } catch (err) {
       console.error(err);
       showToast('Failed to update privacy settings', 'error');
+    }
+  };
+
+  useEffect(() => {
+    if (Notification.permission === 'granted' && userData?.fcmTokens && userData.fcmTokens.length > 0) {
+      setNotificationsEnabled(true);
+    } else {
+      setNotificationsEnabled(false);
+    }
+  }, [userData]);
+
+  const toggleNotifications = async () => {
+    if (!user) return;
+    
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          fcmTokens: []
+        });
+        showToast('Push notifications disabled', 'info');
+      } catch(err) {
+        console.error(err);
+      }
+      return;
+    }
+
+    try {
+      if (!messaging) {
+        showToast('Push notifications not supported on this browser', 'error');
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+        if (!vapidKey) {
+          showToast('VAPID key not configured for push notifications.', 'error');
+          return;
+        }
+
+        const token = await getToken(messaging, { vapidKey });
+        
+        if (token) {
+          const currentTokens = userData?.fcmTokens || [];
+          if (!currentTokens.includes(token)) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              fcmTokens: [...currentTokens, token]
+            });
+          }
+          setNotificationsEnabled(true);
+          showToast('Push notifications enabled!', 'success');
+        } else {
+          showToast('Failed to generate notification token', 'error');
+        }
+      } else {
+        showToast('Notification permission denied', 'error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast('Error enabling notifications', 'error');
     }
   };
 
@@ -318,6 +381,27 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
                         className={`w-12 h-6 rounded-full transition-all relative ${isFollowersOnlyDM ? 'bg-brand-teal' : 'bg-luxury-ink/20'}`}
                       >
                         <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${isFollowersOnlyDM ? 'translate-x-6' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-luxury-ink mb-4 uppercase tracking-widest">Notifications</h3>
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-surface-soft/50 border" style={{ borderColor: 'var(--color-border)' }}>
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-brand-teal/10 rounded-lg text-brand-teal">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                        </div>
+                        <div>
+                          <p className="font-bold text-luxury-ink text-sm">Push Notifications</p>
+                          <p className="text-[10px] text-luxury-ink/50 uppercase tracking-widest">Get notified when app is closed</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={toggleNotifications}
+                        className={`w-12 h-6 rounded-full transition-all relative ${notificationsEnabled ? 'bg-brand-teal' : 'bg-luxury-ink/20'}`}
+                      >
+                        <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
                       </button>
                     </div>
                   </div>
