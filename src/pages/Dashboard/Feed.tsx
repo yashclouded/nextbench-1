@@ -81,16 +81,82 @@ export const POST_TYPES = [
   { id: 'others', label: 'Others' },
 ];
 
+// ─── Post Card Skeleton ────────────────────────────────────
+function PostCardSkeleton() {
+  return (
+    <div className="p-4 sm:p-6 md:p-8 flex flex-col w-full border-b animate-pulse" style={{ borderColor: 'var(--color-border)' }}>
+      {/* Avatar + meta row */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-full bg-luxury-ink/8 shrink-0" />
+        <div className="flex gap-2 flex-1">
+          <div className="h-3 w-24 rounded-full bg-luxury-ink/8" />
+          <div className="h-3 w-10 rounded-full bg-luxury-ink/6" />
+        </div>
+        <div className="h-5 w-14 rounded bg-luxury-ink/6" />
+      </div>
+      {/* Title */}
+      <div className="h-4 w-2/3 rounded-full bg-luxury-ink/10 mb-3" />
+      {/* Content lines */}
+      <div className="space-y-2 mb-5">
+        <div className="h-3 w-full rounded-full bg-luxury-ink/7" />
+        <div className="h-3 w-5/6 rounded-full bg-luxury-ink/7" />
+        <div className="h-3 w-4/6 rounded-full bg-luxury-ink/6" />
+      </div>
+      {/* Action bar */}
+      <div className="flex items-center gap-6 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="h-3 w-10 rounded-full bg-luxury-ink/8" />
+        <div className="h-3 w-10 rounded-full bg-luxury-ink/8" />
+        <div className="h-3 w-10 rounded-full bg-luxury-ink/8" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Infinite Scroll Sentinel ──────────────────────────────
+function InfiniteScrollSentinel({ onVisible }: { onVisible: () => void }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) onVisible(); },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onVisible]);
+
+  return (
+    <div ref={ref} className="flex flex-col w-full min-w-0">
+      {Array.from({ length: 3 }).map((_, i) => <PostCardSkeleton key={i} />)}
+    </div>
+  );
+}
+
 function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, replyUpvotedIds, isAdmin, user, level = 0 }: any) {
   const children = repliesMap[reply.id] || [];
   const hasUpvoted = replyUpvotedIds.has(reply.id);
+
+  // Show stored pic immediately; fall back to live Firestore fetch if missing
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(reply.authorProfilePicture);
+  useEffect(() => {
+    if (reply.authorProfilePicture || !reply.authorId) return;
+    getDoc(doc(db, 'users', reply.authorId)).then(snap => {
+      if (snap.exists()) {
+        const pic = snap.data()?.profilePicture;
+        if (pic) setAvatarUrl(pic);
+      }
+    }).catch(() => {});
+  }, [reply.authorId, reply.authorProfilePicture]);
   return (
     <div className={`mt-4 ${level > 0 ? 'ml-4 md:ml-6 border-l-2 border-brand-teal/20 pl-4 md:pl-6' : ''}`}>
       <div className="bg-surface-soft/30 p-4 rounded-2xl border border-luxury-ink/5">
         <div className="flex items-center gap-3 mb-2">
           <Link to={`/profile/${reply.authorId}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="w-6 h-6 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-[10px] shrink-0">
-              {reply.authorName[0]?.toUpperCase()}
+            <div className="w-6 h-6 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-[10px] shrink-0 overflow-hidden">
+              {avatarUrl ? (
+                <img src={getOptimizedImageUrl(avatarUrl)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : reply.authorName[0]?.toUpperCase()}
             </div>
             <div>
               <p className="text-[11px] font-bold text-luxury-ink">{reply.authorName}</p>
@@ -476,6 +542,7 @@ export default function Feed() {
   const [wishlistMap, setWishlistMap] = useState<Record<string, string>>({});
 
   const [rawPosts, setRawPosts] = useState<Post[]>([]);
+  const [visibleCount, setVisibleCount] = useState(6); // Show 6 items initially, load more on scroll
 
   const [searchParams, setSearchParams] = useSearchParams();
   const postIdFromUrl = searchParams.get('postId');
@@ -1187,6 +1254,7 @@ export default function Feed() {
         authorId: user.uid,
         authorName: userData?.name || user.email?.split('@')[0] || 'Anonymous',
         authorSchool: userData?.school || 'Unknown School',
+        authorProfilePicture: userData?.profilePicture || null,
         createdAt: serverTimestamp(),
         ...(replyingTo && { parentId: replyingTo.id })
       };
@@ -1377,19 +1445,19 @@ export default function Feed() {
       {/* Sticky Header Tabs */}
       <div className="sticky top-0 z-40 nav-glass border-b flex items-center px-4 sm:px-6 gap-1" style={{ borderColor: 'var(--color-border)' }}>
         <button
-          onClick={() => setContentType('all')}
+          onClick={() => { setContentType('all'); setVisibleCount(6); }}
           className={`py-3.5 px-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${contentType === 'all' ? 'border-luxury-ink text-luxury-ink' : 'border-transparent text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           For you
         </button>
         <button
-          onClick={() => setContentType('posts')}
+          onClick={() => { setContentType('posts'); setVisibleCount(6); }}
           className={`py-3.5 px-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${contentType === 'posts' ? 'border-luxury-ink text-luxury-ink' : 'border-transparent text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           Posts
         </button>
         <button
-          onClick={() => setContentType('marketplace')}
+          onClick={() => { setContentType('marketplace'); setVisibleCount(6); }}
           className={`py-3.5 px-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${contentType === 'marketplace' ? 'border-luxury-ink text-luxury-ink' : 'border-transparent text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           Marketplace
@@ -1428,15 +1496,14 @@ export default function Feed() {
 
       {/* Feed */}
       {loading ? (
-        <div className="py-20 text-center">
-          <div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-luxury-ink/30 text-sm">Loading...</p>
+        <div className="flex flex-col w-full min-w-0">
+          {Array.from({ length: 5 }).map((_, i) => <PostCardSkeleton key={i} />)}
         </div>
       ) : (
         <>
           <div className="flex flex-col w-full min-w-0">
             <AnimatePresence>
-              {combinedFeed.map((item, index) => {
+              {combinedFeed.slice(0, visibleCount).map((item, index) => {
                 const isProduct = item._kind === 'product';
                 
                 const card = isProduct ? (
@@ -1475,6 +1542,11 @@ export default function Feed() {
                 return card;
               })}
             </AnimatePresence>
+
+            {/* Load-more skeletons shown while more items exist */}
+            {visibleCount < combinedFeed.length && (
+              <InfiniteScrollSentinel onVisible={() => setVisibleCount(v => v + 6)} />
+            )}
           </div>
 
           {!loading && combinedFeed.length === 0 && (

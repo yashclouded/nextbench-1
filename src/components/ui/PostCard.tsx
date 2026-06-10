@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PollDisplay from './PollDisplay';
 import { useNavigate } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame } from 'lucide-react';
@@ -8,6 +8,8 @@ import { POST_TYPES } from '../../pages/Dashboard/Feed';
 import { getPersonaDisplay } from '../../lib/confessions';
 import ReportModal from './ReportModal';
 import { useToast } from '../../lib/ToastContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface Post {
   id: string;
@@ -65,6 +67,25 @@ function timeAgo(date: any): string {
 
 export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onClick, onUpvote, onDownvote, onShare, onSave }: PostCardProps) {
   const { showToast } = useToast();
+
+  // Fetch live profile picture from Firestore — covers cases where pic was set after posting
+  const [liveProfilePicture, setLiveProfilePicture] = useState<string | undefined>(
+    post.authorProfilePicture
+  );
+  useEffect(() => {
+    if (!post.authorId || post.isAnonymous || post.authorProfilePicture) return;
+    const fetchProfilePic = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', post.authorId));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          if (data?.profilePicture) setLiveProfilePicture(data.profilePicture);
+        }
+      } catch {}
+    };
+    fetchProfilePic();
+  }, [post.authorId, post.authorProfilePicture, post.isAnonymous]);
+
   const postImageUrls = post.imageUrls && post.imageUrls.length > 0
     ? post.imageUrls
     : (post.imageUrl ? [post.imageUrl] : []);
@@ -101,8 +122,8 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
           <div className="flex items-center gap-2 min-w-0">
             {/* Avatar */}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold overflow-hidden shrink-0 ${displayInfo.isAnonymous ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
-              {!displayInfo.isAnonymous && post.authorProfilePicture ? (
-                <img src={getOptimizedImageUrl(post.authorProfilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              {!displayInfo.isAnonymous && liveProfilePicture ? (
+                <img src={getOptimizedImageUrl(liveProfilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               ) : displayInfo.name[0]?.toUpperCase()}
             </div>
             

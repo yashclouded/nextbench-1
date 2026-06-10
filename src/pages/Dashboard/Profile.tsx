@@ -962,7 +962,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       {/* ─── Edit Profile Modal ───────────────────────────── */}
       <AnimatePresence>
         {isEditing && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm" style={{ background: 'var(--color-overlay)' }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-100 flex items-center justify-center p-4 backdrop-blur-sm" style={{ background: 'var(--color-overlay)' }}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="rounded-2xl w-full max-w-md p-8 relative shadow-2xl" style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border)' }}>
               <button onClick={() => setIsEditing(false)} className="absolute top-4 right-4 p-2 text-luxury-ink/40 hover:text-luxury-ink"><X size={20} /></button>
               <h3 className="text-xl font-bold text-luxury-ink mb-2">Edit Profile</h3>
@@ -1016,7 +1016,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-100 flex items-center justify-center p-4 backdrop-blur-sm"
             style={{ background: 'var(--color-overlay)' }}
             onClick={() => { setShowFollowersModal(false); setShowFollowingModal(false); }}
           >
@@ -1123,7 +1123,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-100 flex items-center justify-center p-4 backdrop-blur-sm"
             style={{ background: 'var(--color-overlay)' }}
             onClick={() => { if (!isUploadingPic) setShowPfpUploadModal(false); }}
           >
