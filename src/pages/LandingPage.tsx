@@ -92,35 +92,43 @@ export default function LandingPage() {
       {/* How it Works Section */}
       <section id="how-it-works" className="bg-surface-card py-32 px-6 border-y" style={{ borderColor: 'var(--color-border)' }}>
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-8">
-            <div className="max-w-2xl">
-              <h2 className="text-5xl font-serif font-bold text-luxury-ink mb-6">Intentionally Designed for the Modern Student.</h2>
-              <p className="text-lg text-luxury-ink/50">Nextbench replaces chaotic school groups and shady marketplaces with a premium, trusted ecosystem.</p>
+          <div className="flex flex-col mb-20">
+            <div className="max-w-4xl">
+              <h2 className="text-5xl md:text-6xl font-serif font-bold text-luxury-ink mb-6 leading-[1.1]">
+                Intentionally Designed for&nbsp;the <br className="hidden md:block" />Modern Student.
+              </h2>
+              <p className="text-lg text-luxury-ink/60 leading-relaxed">
+                Nextbench replaces chaotic school groups and shady marketplaces <br className="hidden md:block" />
+                with a premium, trusted ecosystem.
+              </p>
             </div>
-            <Link to="/dashboard" className="inline-flex items-center gap-2 text-brand-pink font-bold border-b-2 border-brand-pink/20 hover:border-brand-pink transition-all pb-1">
-              View All Features <ArrowRight size={18} />
-            </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { icon: ShieldCheck, color: "text-brand-teal", bg: "bg-brand-teal/5", title: "Verified Accounts", desc: "Every user must verify with a valid school ID card and selfie." },
-              { icon: MapPin, color: "text-brand-pink", bg: "bg-brand-pink/5", title: "School Meetup", desc: "Safe, public meetup points designated at authorized school gates." },
-              { icon: Truck, color: "text-brand-teal", bg: "bg-brand-teal/5", title: "Local Delivery", desc: "Optional instant delivery through partners like Porter and Swiggy." },
-              { icon: PackageCheck, color: "text-brand-pink", bg: "bg-brand-pink/5", title: "Secure Escrow", desc: "Payments are held securely until item is verified at meetup." },
-              { icon: GraduationCap, color: "text-brand-teal", bg: "bg-brand-teal/5", title: "Graduation Mode", desc: "Special features for seniors to pass on value to their juniors." },
-              { icon: RefreshCcw, color: "text-brand-pink", bg: "bg-brand-pink/5", title: "Sustainable Reuse", desc: "Promoting circular economy and reducing campus waste." }
+              { number: "01", icon: ShieldCheck, color: "text-brand-teal", bg: "bg-brand-teal/10", title: "Verified Accounts", desc: "Every user is verified with a valid school ID card and selfie for a safer experience." },
+              { number: "02", icon: MapPin, color: "text-brand-pink", bg: "bg-brand-pink/10", title: "School Meetup", desc: "Safe, public meetup points at authorized school gates for peace of mind." },
+              { number: "03", icon: Truck, color: "text-brand-teal", bg: "bg-brand-teal/10", title: "Local Delivery", desc: "Optional instant delivery through trusted partners like Porter and Swiggy." },
+              { number: "04", icon: PackageCheck, color: "text-brand-pink", bg: "bg-brand-pink/10", title: "Secure Escrow", desc: "Payments are securely held until the item is verified at meetup." },
+              { number: "05", icon: GraduationCap, color: "text-brand-teal", bg: "bg-brand-teal/10", title: "Graduation Mode", desc: "Exclusive features for seniors to help them pass on value to their juniors." },
+              { number: "06", icon: RefreshCcw, color: "text-brand-pink", bg: "bg-brand-pink/10", title: "Sustainable Reuse", desc: "Promoting circular economy by extending the life of student goods." }
             ].map((feature, idx) => (
               <motion.div 
                 key={idx}
-                whileHover={{ y: -8 }}
-                className="p-10 theme-card rounded-2xl luxury-shadow flex flex-col items-start transition-all"
+                whileHover={{ y: -4 }}
+                className="p-8 theme-card rounded-3xl flex flex-col items-start transition-all border shadow-sm hover:shadow-md"
+                style={{ borderColor: 'var(--color-border)' }}
               >
-                <div className={`${feature.bg} p-4 rounded-sm mb-8`}>
-                  <feature.icon className={feature.color} size={28} />
+                <div className="w-full flex justify-between items-start mb-8">
+                  <div className={`${feature.bg} p-4 rounded-2xl`}>
+                    <feature.icon className={feature.color} size={28} strokeWidth={1.5} />
+                  </div>
+                  <div className="w-10 h-10 rounded-full border flex items-center justify-center shrink-0" style={{ borderColor: 'var(--color-border)' }}>
+                    <span className="text-xs font-bold text-luxury-ink/50">{feature.number}</span>
+                  </div>
                 </div>
-                <h3 className="text-[13px] font-bold uppercase tracking-widest text-luxury-ink mb-4">{feature.title}</h3>
-                <p className="text-brand-teal/60 text-[13px] leading-relaxed">{feature.desc}</p>
+                <h3 className="text-[14px] font-bold uppercase tracking-[0.15em] text-luxury-ink mb-4">{feature.title}</h3>
+                <p className="text-luxury-ink/60 text-[14px] leading-relaxed">{feature.desc}</p>
               </motion.div>
             ))}
           </div>
