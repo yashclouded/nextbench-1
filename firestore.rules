@@ -222,6 +222,8 @@ service cloud.firestore {
              ||
              (incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image']) 
               && request.auth.uid == existing().senderId)
+              ||
+                incoming().diff(existing()).affectedKeys().hasOnly(['reactions'])
           );
 
         allow delete: if isVerified() 

@@ -9,6 +9,8 @@ import { ShieldAlert } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import RightSidebarDrawer from './RightSidebarDrawer'; 
 
+import { useBiDirectionalSticky } from '../../hooks/useBiDirectionalSticky';
+
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { userData } = useAuth();
   const location = useLocation();
@@ -16,6 +18,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const isClubPage = location.pathname.startsWith('/club');
   const isMessagesPage = location.pathname.startsWith('/messages');
   const isCollapsedLeftNav = isClubPage || isMessagesPage;
+  const rightSidebarRef = useBiDirectionalSticky();
 
   return (
     <div className={`${isMessagesPage ? 'h-[100dvh] overflow-hidden flex flex-col' : 'min-h-screen'} bg-surface-base font-sans text-luxury-ink relative`}>
@@ -51,7 +54,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
           {/* Right Sidebar (hidden on mobile and tablet) */}
           {!isMessagesPage && (
-            <div className="hidden lg:block w-[320px] xl:w-[380px] shrink-0">
+            <div ref={rightSidebarRef} className="hidden lg:block w-[320px] xl:w-[380px] shrink-0">
               <SuggestedUsers />
             </div>
           )}

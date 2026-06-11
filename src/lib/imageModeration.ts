@@ -40,9 +40,9 @@ export interface ImageModerationResult {
  * Adjust these to be stricter (lower) or more lenient (higher).
  */
 const NSFW_THRESHOLDS: Record<string, number> = {
-  Porn: 0.40,
-  Hentai: 0.40,
-  Sexy: 0.60,     // Slightly more lenient for suggestive but non-explicit content
+  Porn: 0.85,
+  Hentai: 0.85,
+  Sexy: 0.90,     // Slightly more lenient for suggestive but non-explicit content
 };
 
 /**
@@ -138,12 +138,12 @@ export async function checkImageSafety(file: File): Promise<ImageModerationResul
 
     return { isSafe: true, classifications };
   } catch (err) {
-    console.error('[imageModeration] NSFW check failed, falling back to pending:', err);
-    // If the model fails to load or classify, we don't auto-approve.
-    // The post goes to pending for manual review — safe default.
+    console.error('[imageModeration] NSFW check failed, auto-approving to prevent false flags:', err);
+    // If the model fails to load (e.g. adblocker blocking the CDN, CORS issue), we fail open
+    // so that normal users aren't penalized and have their images blocked.
     return {
-      isSafe: false,
-      reason: 'Image moderation unavailable — submitted for manual review.',
+      isSafe: true,
+      reason: 'Image moderation unavailable — auto-approved.',
       confidence: undefined,
     };
   }

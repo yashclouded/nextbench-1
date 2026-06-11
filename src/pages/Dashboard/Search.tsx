@@ -96,7 +96,7 @@ export default function Search() {
               .sort((a: any, b: any) => b._score - a._score)
               .slice(0, 15);
             const fetchedPosts = postsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
-            const fetchedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((p: any) => p.status !== 'sold');
+            const fetchedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((p: any) => p.status === 'available');
             const fetchedClubs = clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
             
             setSuggestedUsers(fetchedUsers);
@@ -176,7 +176,7 @@ export default function Search() {
           (!appliedSchool || p.school === appliedSchool)
         ));
         setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any))
-          .filter((p: any) => p.status !== 'sold')
+          .filter((p: any) => p.status === 'available')
           .filter(p => 
             !lowerQ || 
             (p.title && p.title.toLowerCase().includes(lowerQ)) || 
@@ -514,7 +514,7 @@ export default function Search() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-luxury-ink/20 backdrop-blur-sm"
+            className="fixed inset-0 z-100 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-luxury-ink/20 backdrop-blur-sm"
           >
             <motion.div
               initial={{ y: '100%' }}
@@ -587,7 +587,7 @@ export default function Search() {
                     setShowFilters(false);
                     if (activeTab !== 'users') setActiveTab('users'); // Auto-switch to users to show results
                   }}
-                  className="flex-[2] py-4 bg-brand-teal text-white text-xs font-bold uppercase tracking-[0.1em] rounded-xl shadow-lg shadow-brand-teal/20 hover:bg-brand-teal/90 transition-all active:scale-[0.98]"
+                  className="flex-2 py-4 bg-brand-teal text-white text-xs font-bold uppercase tracking-widest rounded-xl shadow-lg shadow-brand-teal/20 hover:bg-brand-teal/90 transition-all active:scale-[0.98]"
                 >
                   Done
                 </button>
