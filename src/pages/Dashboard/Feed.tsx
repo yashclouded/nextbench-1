@@ -188,7 +188,9 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
             )}
           </div>
         </div>
-        <p className="text-sm text-luxury-ink/80 leading-relaxed">{reply.content}</p>
+        {reply.content?.trim() && (
+          <p className="text-sm text-luxury-ink/80 leading-relaxed">{reply.content}</p>
+        )}
         {reply.imageUrl && (
           <img
             src={getOptimizedImageUrl(reply.imageUrl)}
@@ -438,7 +440,18 @@ function PostDetailModal({
                 <button type="button" onClick={clearReplyingTo} className="hover:text-luxury-ink transition-colors"><X size={14} /></button>
               </div>
             )}
-            <form onSubmit={onSubmitReply} className="mt-4">
+            <form 
+              onSubmit={onSubmitReply} 
+              className="mt-4"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (file && file.type.startsWith('image/')) {
+                  setReplyImageFile(file);
+                }
+              }}
+            >
               {replyImageFile && (
                 <div className="relative inline-block mb-3">
                   <div className="w-20 h-20 rounded-xl overflow-hidden border border-luxury-ink/10">
@@ -887,6 +900,27 @@ export default function Feed() {
     return () => window.removeEventListener('paste', handlePaste);
   }, [isModalOpen]);
 
+  // ─── Paste to add image to reply ───────────────────────────────
+  useEffect(() => {
+    if (!selectedPost) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            setReplyImageFile(file);
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [selectedPost]);
+
   // ─── Image Crop Flow ──────────────────────────────────
 
   const handleFilesSelected = (files: FileList) => {
@@ -1309,7 +1343,7 @@ export default function Feed() {
 
       const replyData = {
         postId: selectedPost.id,
-        content: replyContent.trim(),
+        content: replyContent.trim() || ' ',
         authorId: user.uid,
         authorName: userData?.name || user.email?.split('@')[0] || 'Anonymous',
         authorSchool: userData?.school || 'Unknown School',
