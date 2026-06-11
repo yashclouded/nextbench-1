@@ -14,6 +14,7 @@ import { followUser, unfollowUser, useFollowStatus, useFollowCounts } from '../.
 import { getOrCreateDMRoom } from '../../lib/dm';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useBlockStatus, blockUser, unblockUser } from '../../lib/blocks';
+import { useUserPresence } from '../../lib/presence';
 import UsernameSetup from '../../components/ui/UsernameSetup';
 import ReportModal from '../../components/ui/ReportModal';
 import ProfileSettings from '../../components/ui/ProfileSettings';
@@ -84,6 +85,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const { isFollowing, isFollowedBy, isFriend } = useFollowStatus(targetUserId);
   const { followersCount, followingCount } = useFollowCounts(targetUserId);
   const { isBlocked, isBlockedBy } = useBlockStatus(targetUserId);
+  const presence = useUserPresence(!isOwnProfile ? targetUserId : undefined);
 
   // Close menus on outside click
   useEffect(() => {
@@ -758,6 +760,18 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             <MapPin size={14} className="text-brand-teal/70" />
             {profileUser.accountType === 'organization' ? (profileUser.city || profileUser.school) : profileUser.school}
           </p>
+
+          {/* Last active — visible only for mutual follows (friends) */}
+          {!isOwnProfile && isFriend && presence.label && (
+            <p className={`flex items-center gap-1.5 text-xs font-semibold mt-1.5 ${
+              presence.status === 'online' ? 'text-emerald-500' : presence.status === 'recent' ? 'text-amber-500' : 'text-luxury-ink/35'
+            }`}>
+              <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+                presence.status === 'online' ? 'bg-emerald-400 animate-pulse' : presence.status === 'recent' ? 'bg-amber-400' : 'bg-luxury-ink/20'
+              }`} />
+              {presence.label}
+            </p>
+          )}
 
           {profileUser.accountType === 'organization' && profileUser.orgType && (
             <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-brand-pink/10 text-brand-pink rounded-full text-[10px] font-bold uppercase tracking-widest">
