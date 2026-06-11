@@ -83,7 +83,6 @@ export default function SidebarNav() {
     { name: 'Sell', path: '/sell', icon: PlusCircle },
     { name: 'Messages', path: '/messages', icon: MessageSquare },
     { name: 'Notifications', path: '/notifications', icon: Bell },
-    { name: 'Invite', path: '/invite', icon: UserPlus },
     { name: 'Profile', path: user ? (userData?.username ? `/u/${userData.username}` : `/profile/${user.uid}`) : '/login', icon: User },
     ...(userData?.isAdmin ? [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : []),
   ];

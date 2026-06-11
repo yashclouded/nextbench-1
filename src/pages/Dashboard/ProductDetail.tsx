@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, ChevronLeft, ChevronRight, Star, MessageSquare, Heart, Share2, X, Send, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs, addDoc, onSnapshot, deleteDoc, arrayUnion } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
+import LinkifiedText from '../../components/ui/LinkifiedText';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
@@ -487,7 +488,7 @@ export default function ProductDetail() {
                     </div>
                   </div>
                 </div>
-                {r.comment && <p className="text-luxury-ink/60 text-sm leading-relaxed">{r.comment}</p>}
+                {r.comment && <LinkifiedText text={r.comment} className="text-luxury-ink/60 text-sm leading-relaxed block" />}
               </div>
             ))}
           </div>

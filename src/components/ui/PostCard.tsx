@@ -7,6 +7,7 @@ import { getOptimizedImageUrl } from '../../lib/utils';
 import { POST_TYPES } from '../../pages/Dashboard/Feed';
 import { getPersonaDisplay } from '../../lib/confessions';
 import ReportModal from './ReportModal';
+import LinkifiedText from './LinkifiedText';
 import { useToast } from '../../lib/ToastContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -157,9 +158,10 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
 
         {/* Content Preview */}
         <div className="mb-5">
-          <p className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-4 wrap-break-word overflow-wrap-anywhere">
-            {post.content}
-          </p>
+          <LinkifiedText 
+            text={post.content} 
+            className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-4 wrap-break-word overflow-wrap-anywhere block" 
+          />
         </div>
 
         {/* Poll */}

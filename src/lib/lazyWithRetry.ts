@@ -30,9 +30,26 @@ async function retryImport<T extends React.ComponentType<any>>(
 
     // All retries exhausted — this is likely a stale chunk from a new deployment.
     // Force a full page reload, but only once per session to avoid infinite loops.
-    const hasRefreshed = sessionStorage.getItem(SESSION_KEY);
-    if (!hasRefreshed) {
-      sessionStorage.setItem(SESSION_KEY, 'true');
+    let hasRefreshed = false;
+    try {
+      hasRefreshed = sessionStorage.getItem(SESSION_KEY) === 'true';
+    } catch (e) {
+      // Ignore sessionStorage errors (e.g., Safari Private Mode)
+    }
+
+    const hasQueryParam = window.location.search.includes('chunk_retry=1');
+
+    if (!hasRefreshed && !hasQueryParam) {
+      try {
+        sessionStorage.setItem(SESSION_KEY, 'true');
+      } catch (e) {
+        // Fallback to query param if sessionStorage fails
+        const url = new URL(window.location.href);
+        url.searchParams.set('chunk_retry', '1');
+        window.location.replace(url.toString());
+        return new Promise(() => {});
+      }
+      
       window.location.reload();
       // Return a never-resolving promise while the page reloads
       return new Promise(() => {});

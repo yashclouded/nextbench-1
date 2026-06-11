@@ -48,14 +48,14 @@ export default function RightSidebarDrawer() {
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               drag="x"
-              dragConstraints={{ left: 0, right: 300 }}
+              dragConstraints={{ left: 0, right: 400 }}
               dragElastic={{ left: 0, right: 1 }}
               onDragEnd={(e, { offset, velocity }) => {
                 if (offset.x > 50 || velocity.x > 100) {
                   setOpen(false);
                 }
               }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-300px lg:hidden overflow-y-auto no-scrollbar"
+              className="fixed top-0 right-0 bottom-0 z-50 w-[70vw] sm:w-[340px] lg:hidden overflow-y-auto no-scrollbar shadow-2xl"
               style={{ background: 'var(--color-surface-card)', borderLeft: '1px solid var(--color-border)', touchAction: 'pan-y' }}
             >
               {/* Header */}
