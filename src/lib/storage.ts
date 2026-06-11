@@ -93,3 +93,11 @@ export async function uploadClubAvatar(file: File, clubId: string): Promise<stri
 export async function uploadCoverPhoto(file: File, userId: string): Promise<string> {
   return uploadToCloudinary(file, `nextbench/covers/${userId}`);
 }
+
+/**
+ * Uploads an image attached to a post reply/comment.
+ */
+export async function uploadReplyImage(file: File): Promise<string> {
+  const randomId = Math.random().toString(36).substring(2, 15);
+  return uploadToCloudinary(file, `nextbench/replies/${randomId}`);
+}

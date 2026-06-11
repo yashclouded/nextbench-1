@@ -7,11 +7,11 @@ import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import SEO from '../../components/seo/SEO';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
-import { uploadPostImage } from '../../lib/storage';
+import { uploadPostImage, uploadReplyImage } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useFollowingIds } from '../../lib/follows';
 import { isTextSafe } from '../../lib/moderation';
-import { checkAllImagesSafety, preloadModerationModel } from '../../lib/imageModeration';
+import { checkAllImagesSafety, checkImageSafety, preloadModerationModel } from '../../lib/imageModeration';
 import { createNotification } from '../../lib/notifications';
 import ShareModal from '../../components/ui/ShareModal';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -189,6 +189,14 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
           </div>
         </div>
         <p className="text-sm text-luxury-ink/80 leading-relaxed">{reply.content}</p>
+        {reply.imageUrl && (
+          <img
+            src={getOptimizedImageUrl(reply.imageUrl)}
+            alt=""
+            className="mt-3 max-h-60 rounded-xl object-cover"
+            referrerPolicy="no-referrer"
+          />
+        )}
       </div>
       {children.length > 0 && (
         <div className="mt-2">
@@ -234,7 +242,10 @@ function PostDetailModal({
   replyContent, 
   setReplyContent, 
   onSubmitReply, 
-  isSubmitting 
+  isSubmitting,
+  replyImageFile,
+  setReplyImageFile,
+  isUploadingReplyImage
 }: {
   post: Post;
   onClose: () => void;
@@ -256,6 +267,9 @@ function PostDetailModal({
   setReplyContent: (v: string) => void;
   onSubmitReply: (e: React.FormEvent) => void;
   isSubmitting: boolean;
+  replyImageFile: File | null;
+  setReplyImageFile: (f: File | null) => void;
+  isUploadingReplyImage: boolean;
 }) {
   const postImageUrls = post.imageUrls && post.imageUrls.length > 0
     ? post.imageUrls
@@ -424,22 +438,51 @@ function PostDetailModal({
                 <button type="button" onClick={clearReplyingTo} className="hover:text-luxury-ink transition-colors"><X size={14} /></button>
               </div>
             )}
-            <form onSubmit={onSubmitReply} className="flex gap-3 mt-4">
-              <input
-                id="reply-input"
-                type="text"
-                value={replyContent}
-                onChange={(e) => setReplyContent(e.target.value)}
-                placeholder="Write a reply..."
-                className="flex-1 bg-surface-base border border-luxury-ink/5 rounded-xl py-3 px-4 focus:outline-none focus:border-brand-teal text-sm font-medium"
-              />
-              <button
-                type="submit"
-                disabled={!replyContent.trim() || isSubmitting}
-                className="bg-brand-teal text-white px-5 py-3 rounded-xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-brand-teal/20 hover:bg-brand-pink transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-              >
-                Send
-              </button>
+            <form onSubmit={onSubmitReply} className="mt-4">
+              {replyImageFile && (
+                <div className="relative inline-block mb-3">
+                  <div className="w-20 h-20 rounded-xl overflow-hidden border border-luxury-ink/10">
+                    <img src={URL.createObjectURL(replyImageFile)} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyImageFile(null)}
+                    className="absolute -top-1.5 -right-1.5 bg-luxury-ink text-white p-1 rounded-full"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-3 items-end">
+                <input
+                  id="reply-input"
+                  type="text"
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                  placeholder="Write a reply..."
+                  className="flex-1 bg-surface-base border border-luxury-ink/5 rounded-xl py-3 px-4 focus:outline-none focus:border-brand-teal text-sm font-medium"
+                />
+                <label className="p-3 rounded-xl border border-luxury-ink/5 text-luxury-ink/40 hover:text-brand-teal hover:border-brand-teal/30 cursor-pointer transition-colors shrink-0">
+                  <ImageIcon size={18} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setReplyImageFile(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={(!replyContent.trim() && !replyImageFile) || isSubmitting}
+                  className="bg-brand-teal text-white px-5 py-3 rounded-xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-brand-teal/20 hover:bg-brand-pink transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                >
+                  {isUploadingReplyImage ? '...' : 'Send'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -531,6 +574,8 @@ export default function Feed() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [replies, setReplies] = useState<any[]>([]);
   const [replyContent, setReplyContent] = useState('');
+  const [replyImageFile, setReplyImageFile] = useState<File | null>(null);
+  const [isUploadingReplyImage, setIsUploadingReplyImage] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{id: string, name: string} | null>(null);
   const [replyUpvotedIds, setReplyUpvotedIds] = useState<Set<string>>(new Set());
   const [replyUpvoteMap, setReplyUpvoteMap] = useState<Record<string, string>>({});
@@ -1244,10 +1289,24 @@ export default function Feed() {
       showToast('You must be verified to reply.', 'error');
       return;
     }
-    if (!selectedPost || !replyContent.trim() || isSubmitting) return;
+    if (!selectedPost || (!replyContent.trim() && !replyImageFile) || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
+      let imageUrl: string | null = null;
+      if (replyImageFile) {
+        setIsUploadingReplyImage(true);
+        const safety = await checkImageSafety(replyImageFile);
+        if (!safety.isSafe) {
+          showToast('Image flagged by safety check. Please choose a different image.', 'error');
+          setIsUploadingReplyImage(false);
+          setIsSubmitting(false);
+          return;
+        }
+        imageUrl = await uploadReplyImage(replyImageFile);
+        setIsUploadingReplyImage(false);
+      }
+
       const replyData = {
         postId: selectedPost.id,
         content: replyContent.trim(),
@@ -1256,6 +1315,7 @@ export default function Feed() {
         authorSchool: userData?.school || 'Unknown School',
         authorProfilePicture: userData?.profilePicture || null,
         createdAt: serverTimestamp(),
+        ...(imageUrl && { imageUrl }),
         ...(replyingTo && { parentId: replyingTo.id })
       };
 
@@ -1302,6 +1362,7 @@ export default function Feed() {
       }
 
       setReplyContent('');
+      setReplyImageFile(null);
       setReplyingTo(null);
       showToast('Reply posted!', 'success');
     } catch (error) {
@@ -1309,6 +1370,7 @@ export default function Feed() {
       showToast('Failed to post reply', 'error');
     } finally {
       setIsSubmitting(false);
+      setIsUploadingReplyImage(false);
     }
   };
 
@@ -1590,6 +1652,9 @@ export default function Feed() {
             setReplyContent={setReplyContent}
             onSubmitReply={handleSubmitReply}
             isSubmitting={isSubmitting}
+            replyImageFile={replyImageFile}
+            setReplyImageFile={setReplyImageFile}
+            isUploadingReplyImage={isUploadingReplyImage}
           />
         )}
       </AnimatePresence>
