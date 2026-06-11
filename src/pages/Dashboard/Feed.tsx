@@ -20,6 +20,7 @@ import ImageCropper from '../../components/ui/ImageCropper';
 import ProductCard from '../../components/ui/ProductCard';
 import PostCard from '../../components/ui/PostCard';
 import PollDisplay from '../../components/ui/PollDisplay';
+import LinkifiedText from '../../components/ui/LinkifiedText';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import { getPersonaDisplay } from '../../lib/confessions';
@@ -188,7 +189,7 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
             )}
           </div>
         </div>
-        <p className="text-sm text-luxury-ink/80 leading-relaxed">{reply.content}</p>
+        <LinkifiedText text={reply.content} className="text-sm text-luxury-ink/80 leading-relaxed block" />
       </div>
       {children.length > 0 && (
         <div className="mt-2">

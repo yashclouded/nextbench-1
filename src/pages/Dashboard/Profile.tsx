@@ -575,7 +575,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       <div className="px-6 -mt-16 md:-mt-20 relative z-10">
 
         {/* Top row: avatar + action buttons */}
-        <div className="flex items-end justify-between mb-4">
+        <div className="flex items-start justify-between mb-4">
           {/* Avatar */}
           <div className="relative shrink-0 group ring-4 ring-surface-base rounded-full">
             <div
@@ -649,7 +649,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
           </div>
 
           {/* Action buttons — top right, vertically centered with avatar bottom */}
-          <div className="flex items-center gap-3 flex-wrap pb-1">
+          <div className="flex items-center justify-end gap-3 flex-wrap pb-1 mt-16 md:mt-20">
             {isOwnProfile ? (
               <>
                 <button
@@ -781,10 +781,6 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             <span className="text-sm font-bold text-luxury-ink group-hover:text-brand-teal transition-colors">{followingCount}</span>
             <span className="text-sm text-luxury-ink/50 group-hover:text-brand-teal/70 transition-colors">Following</span>
           </button>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-luxury-ink">{soldListings.length}</span>
-            <span className="text-sm text-luxury-ink/50">Deals</span>
-          </div>
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-bold text-luxury-ink">{profileUser.reputation?.toFixed(1) || '5.0'}</span>
             <span className="text-sm text-luxury-ink/50 flex items-center gap-0.5">Reputation <Star size={11} className="text-brand-teal" /></span>

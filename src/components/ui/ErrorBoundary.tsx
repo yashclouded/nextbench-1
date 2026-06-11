@@ -38,7 +38,10 @@ export default class ErrorBoundary extends React.Component<Props, State> {
       msg.includes('Failed to fetch dynamically imported module') ||
       msg.includes('Loading chunk') ||
       msg.includes('Loading CSS chunk') ||
-      msg.includes('ChunkLoadError')
+      msg.includes('ChunkLoadError') ||
+      msg.includes('Load failed') || // Safari
+      msg.includes('Importing a module script failed') || // Safari
+      msg.includes('error loading dynamically imported module') // Safari/older iOS
     );
   }
 
