@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe, Eye } from 'lucide-react';
+import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe, Eye, Gift, UserPlus } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import React, { useState, useEffect, useRef } from 'react';
@@ -74,6 +74,11 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const [showPfpUploadModal, setShowPfpUploadModal] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const pfpMenuRef = useRef<HTMLDivElement>(null);
+
+  // Invite / Referral
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   useScrollLock(isEditing || showFollowersModal || showFollowingModal || !!selectedPost || showUsernameSetup || showReportModal || showSettingsModal || showPfpLightbox || showPfpUploadModal);
 
@@ -160,6 +165,22 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     fetchUser();
   }, [effectiveUserId, isOwnProfile, userData]);
 
+  // Fetch referral code for own profile
+  useEffect(() => {
+    if (!isOwnProfile || !user) return;
+    const fetchReferral = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'users', user.uid));
+        if (docSnap.exists() && docSnap.data().referralCode) {
+          setReferralCode(docSnap.data().referralCode);
+        }
+      } catch {
+        // Non-critical — referral code is optional
+      }
+    };
+    fetchReferral();
+  }, [isOwnProfile, user]);
+
   // Auto-redirect to username URL if available and not already on it
   useEffect(() => {
     if (!usernameResolvedUserId && profileUser?.username) {
@@ -210,6 +231,60 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') setDeferredPrompt(null);
+  };
+
+  const generateReferralCode = async () => {
+    if (!user) return;
+    setIsGeneratingCode(true);
+    try {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let uniqueCode = '';
+      let isUnique = false;
+      while (!isUnique) {
+        let code = '';
+        for (let i = 0; i < 8; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        const q = query(collection(db, 'users'), where('referralCode', '==', code));
+        const snap = await getDocs(q);
+        if (snap.empty) { uniqueCode = code; isUnique = true; }
+      }
+      await updateDoc(doc(db, 'users', user.uid), {
+        referralCode: uniqueCode,
+        updatedAt: serverTimestamp()
+      });
+      setReferralCode(uniqueCode);
+      showToast('Referral code generated!', 'success');
+    } catch {
+      showToast('Failed to generate referral code', 'error');
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
+  const copyInviteLink = async () => {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = link;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopiedInvite(true);
+      showToast('Invite link copied!', 'success');
+      setTimeout(() => setCopiedInvite(false), 2000);
+    } catch {
+      showToast('Failed to copy invite link', 'error');
+    }
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -824,7 +899,78 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             <span className="text-sm text-luxury-ink/50 flex items-center gap-0.5">Reputation <Star size={11} className="text-brand-teal" /></span>
           </div>
         </div>
+        </div>
       </div>
+
+      {/* ─── Invite Friends Card (own profile only) ───────── */}
+      {isOwnProfile && (
+        <div className="px-6 mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative overflow-hidden rounded-2xl p-5 md:p-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(0,212,178,0.12) 0%, rgba(233,68,117,0.10) 50%, rgba(168,85,247,0.10) 100%)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            {/* Decorative elements */}
+            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-brand-teal/8 blur-2xl" />
+            <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full bg-brand-pink/8 blur-2xl" />
+            
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-brand-teal/15 flex items-center justify-center shrink-0">
+                  <Gift className="text-brand-teal" size={24} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-luxury-ink mb-0.5">Invite Friends</h3>
+                  <p className="text-xs text-luxury-ink/50">Share Nextbench with your campus network</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {referralCode ? (
+                  <>
+                    <div className="flex-1 sm:flex-initial bg-surface-base/80 border rounded-xl px-4 py-2.5 flex items-center gap-3" style={{ borderColor: 'var(--color-border)' }}>
+                      <UserPlus size={14} className="text-brand-teal shrink-0" />
+                      <span className="text-xs font-bold text-luxury-ink tracking-wide truncate">{referralCode}</span>
+                    </div>
+                    <button
+                      onClick={copyInviteLink}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shrink-0 ${
+                        copiedInvite
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-luxury-ink text-surface-base hover:bg-brand-teal'
+                      }`}
+                      style={!copiedInvite ? { color: 'var(--color-surface-base)' } : undefined}
+                    >
+                      {copiedInvite ? (
+                        <span className="flex items-center gap-1.5"><Check size={14} /> Copied</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5"><Copy size={14} /> Copy</span>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={generateReferralCode}
+                    disabled={isGeneratingCode}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-luxury-ink text-surface-base rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-teal transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    style={{ color: 'var(--color-surface-base)' }}
+                  >
+                    {isGeneratingCode ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <><UserPlus size={14} /> Generate Invite Link</>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* ─── Content Area ─────────────────────────────────── */}
       <div className="px-6">
