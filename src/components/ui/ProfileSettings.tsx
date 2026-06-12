@@ -59,7 +59,8 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
   };
 
   useEffect(() => {
-    if (Notification.permission === 'granted' && userData?.fcmTokens && userData.fcmTokens.length > 0) {
+    const hasNotificationAPI = typeof window !== 'undefined' && 'Notification' in window;
+    if (hasNotificationAPI && Notification.permission === 'granted' && userData?.fcmTokens && userData.fcmTokens.length > 0) {
       setNotificationsEnabled(true);
     } else {
       setNotificationsEnabled(false);
@@ -85,6 +86,12 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
     try {
       if (!messaging) {
         showToast('Push notifications not supported on this browser', 'error');
+        return;
+      }
+
+      const hasNotificationAPI = typeof window !== 'undefined' && 'Notification' in window;
+      if (!hasNotificationAPI) {
+        showToast('Push notifications are not supported on this device', 'error');
         return;
       }
 
