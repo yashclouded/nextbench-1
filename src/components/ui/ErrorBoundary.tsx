@@ -16,14 +16,11 @@ interface State {
  * friendly recovery UI instead of a black screen.
  */
 export default class ErrorBoundary extends React.Component<Props, State> {
-  private handleUnhandledRejection: (event: PromiseRejectionEvent) => void;
-
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
     this.handleReload = this.handleReload.bind(this);
     this.handleRetry = this.handleRetry.bind(this);
-    this.handleUnhandledRejection = () => {};
   }
 
   static getDerivedStateFromError(error: Error): State {
@@ -31,17 +28,14 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidMount() {
-    this.handleUnhandledRejection = this.handleUnhandledRejection.bind(this);
-    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+    window.addEventListener('unhandledrejection', this.onUnhandledRejection);
   }
 
   componentWillUnmount() {
-    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
+    window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
   }
 
-  handleUnhandledRejection(event: PromiseRejectionEvent) {
-    // Prevent the default browser error logging for handled rejections
-    event.preventDefault();
+  private onUnhandledRejection = (event: PromiseRejectionEvent) => {
     const error = event.reason instanceof Error
       ? event.reason
       : new Error(String(event.reason || 'Unhandled promise rejection'));
@@ -49,9 +43,12 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     // Only show error UI for chunk/import failures — other async errors
     // are typically non-fatal and shouldn't crash the whole UI
     if (this.isChunkError(error)) {
+      // Prevent the default browser error logging only for errors we handle
+      event.preventDefault();
       this.setState({ hasError: true, error });
     }
-  }
+    // Non-chunk errors: let them propagate normally so they appear in console
+  };
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary] Caught:', error, info);
