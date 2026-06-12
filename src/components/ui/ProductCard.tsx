@@ -42,7 +42,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
 
   const allImages = (product.images && product.images.length > 0)
     ? product.images
-    : [product.image];
+    : (product.image ? [product.image] : []);
   const hasMultiple = allImages.length > 1;
 
   const prevImage = (e: React.MouseEvent) => {
@@ -147,49 +147,69 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
 
           {/* Image Slider */}
           <div
-            className="aspect-4/3 overflow-hidden relative mb-4 rounded-xl group/img"
+            className="aspect-4/3 overflow-hidden relative mb-4 rounded-xl group/carousel"
             style={{ background: 'linear-gradient(135deg, var(--color-surface-soft) 0%, rgba(var(--color-brand-teal-rgb), 0.05) 100%)' }}
           >
-            <img
-              src={getOptimizedImageUrl(allImages[imgIndex])}
-              alt={product.title}
-              className={`w-full h-full object-contain transition-all duration-500 ${
-                product.status === 'sold'
-                  ? 'grayscale-[0.6]'
-                  : 'group-hover:scale-105 grayscale-[0.2] group-hover:grayscale-0'
-              }`}
-              referrerPolicy="no-referrer"
-            />
+            <motion.div
+              className="flex w-full h-full"
+              drag={hasMultiple ? "x" : false}
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.2}
+              onDragEnd={(e, { offset }) => {
+                const swipe = offset.x;
+                if (swipe < -50 && imgIndex < allImages.length - 1) {
+                  setImgIndex(prev => prev + 1);
+                } else if (swipe > 50 && imgIndex > 0) {
+                  setImgIndex(prev => prev - 1);
+                }
+              }}
+              animate={{ x: `-${imgIndex * 100}%` }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            >
+              {allImages.map((url, idx) => (
+                <div key={idx} className="w-full h-full shrink-0">
+                  <img
+                    src={getOptimizedImageUrl(url)}
+                    alt={product.title}
+                    className={`w-full h-full object-contain transition-transform duration-700 pointer-events-none ${
+                      product.status === 'sold'
+                        ? 'grayscale-[0.6]'
+                        : 'group-hover:scale-105 grayscale-[0.2] group-hover:grayscale-0'
+                    }`}
+                    referrerPolicy="no-referrer"
+                    draggable={false}
+                  />
+                </div>
+              ))}
+            </motion.div>
 
-            {/* Prev / Next */}
             {hasMultiple && (
               <>
                 <button
                   onClick={prevImage}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-luxury-ink/50 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-luxury-ink/80 z-10"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full opacity-0 group-hover/carousel:opacity-100 transition-opacity z-20"
                 >
-                  <ChevronLeft size={14} strokeWidth={2.5} />
+                  <ChevronLeft size={18} strokeWidth={2.5} />
                 </button>
                 <button
                   onClick={nextImage}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-luxury-ink/50 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-luxury-ink/80 z-10"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full opacity-0 group-hover/carousel:opacity-100 transition-opacity z-20"
                 >
-                  <ChevronRight size={14} strokeWidth={2.5} />
+                  <ChevronRight size={18} strokeWidth={2.5} />
                 </button>
 
-                {/* Dot indicators */}
-                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-1 bg-luxury-ink/30 backdrop-blur-sm px-2 py-1 rounded-full z-10">
+                {/* Bottom dots indicator */}
+                <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
                   {allImages.map((_, i) => (
-                    <button
+                    <div
                       key={i}
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setImgIndex(i); }}
-                      className={`rounded-full transition-all h-1.5 ${i === imgIndex ? 'bg-white w-3' : 'bg-white/50 w-1.5'}`}
+                      className={`h-1.5 rounded-full transition-all ${i === imgIndex ? 'w-4 bg-white shadow-sm' : 'w-1.5 bg-white/60'}`}
                     />
                   ))}
                 </div>
 
                 {/* Count badge */}
-                <div className="absolute top-3 right-3 bg-luxury-ink/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-md text-[10px] font-bold z-10">
+                <div className="absolute top-3 right-3 bg-luxury-ink/60 backdrop-blur-md text-white px-2.5 py-1 rounded-md text-[10px] font-bold tracking-widest z-10 pointer-events-none">
                   {imgIndex + 1}/{allImages.length}
                 </div>
               </>
@@ -199,7 +219,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
             <div className="absolute top-3 left-3 bg-surface-card/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-semibold text-luxury-ink/70 z-10">
               {product.condition}
             </div>
-            <div className="absolute bottom-3 left-3 bg-luxury-ink/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold z-10">
+            <div className={`absolute left-3 bg-luxury-ink/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold z-10 ${hasMultiple ? 'bottom-6' : 'bottom-3'}`}>
               {product.category}
             </div>
 
@@ -217,7 +237,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
             {product.status !== 'sold' && (
               <button
                 onClick={toggleWishlist}
-                className={`absolute right-2 p-2.5 rounded-full bg-surface-card/80 backdrop-blur-sm shadow-sm hover:scale-110 transition-all z-10 ${
+                className={`absolute right-2 p-2.5 rounded-full bg-surface-card/80 backdrop-blur-sm shadow-sm hover:scale-110 transition-all z-20 ${
                   hasMultiple ? 'bottom-9' : 'top-3'
                 }`}
               >

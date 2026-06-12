@@ -91,6 +91,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
     : (post.imageUrl ? [post.imageUrl] : []);
   const hasImage = postImageUrls.length > 0;
   const [showReport, setShowReport] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
 
   const displayInfo = getPersonaDisplay(post, false);

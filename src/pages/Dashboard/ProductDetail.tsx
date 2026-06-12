@@ -302,19 +302,34 @@ export default function ProductDetail() {
             )}
             
             <div className="w-full h-full relative overflow-hidden rounded-xl bg-luxury-ink/5">
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={activeImgIdx}
-                  src={productImages[activeImgIdx]}
-                  alt={`${product.title} - Image ${activeImgIdx + 1}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="w-full h-full object-cover rounded-xl"
-                  referrerPolicy="no-referrer"
-                />
-              </AnimatePresence>
+              <motion.div
+                className="flex w-full h-full"
+                drag={productImages.length > 1 ? "x" : false}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(e, { offset }) => {
+                  const swipe = offset.x;
+                  if (swipe < -50 && activeImgIdx < productImages.length - 1) {
+                    setActiveImgIdx(prev => prev + 1);
+                  } else if (swipe > 50 && activeImgIdx > 0) {
+                    setActiveImgIdx(prev => prev - 1);
+                  }
+                }}
+                animate={{ x: `-${activeImgIdx * 100}%` }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              >
+                {productImages.map((img, idx) => (
+                  <div key={idx} className="w-full h-full shrink-0">
+                    <img 
+                      src={img} 
+                      alt={`${product.title} - Image ${idx + 1}`}
+                      className="w-full h-full object-cover rounded-xl pointer-events-none"
+                      referrerPolicy="no-referrer"
+                      draggable={false}
+                    />
+                  </div>
+                ))}
+              </motion.div>
 
               {productImages.length > 1 && (
                 <>
