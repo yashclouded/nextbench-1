@@ -6,7 +6,7 @@
  */
 
 import {
-  collection, query, where, getDocs, addDoc, serverTimestamp, getDoc, doc, limit
+  collection, query, where, getDocs, addDoc, serverTimestamp, getDoc, doc, limit, updateDoc, arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -14,6 +14,48 @@ import { db } from './firebase';
  * Find an existing DM room between two users, or create a new one.
  * Returns the room ID.
  */
+
+export interface SharedPostPayload {
+  id: string;
+  title: string;
+  description: string;
+  image?: string;
+  authorName: string;
+}
+/**
+ * Send a shared post/listing as a message into a DM room.
+ * Creates the room if it doesn't exist yet.
+ */
+export async function sendSharedPostToUser(
+  currentUserId: string,
+  otherUserId: string,
+  sharedPost: SharedPostPayload
+): Promise<string> {
+  const roomId = await getOrCreateDMRoom(currentUserId, otherUserId);
+
+  await addDoc(collection(db, 'chatRooms', roomId, 'messages'), {
+    senderId: currentUserId,
+    sharedPost,
+    createdAt: serverTimestamp(),
+  });
+
+  const roomSnap = await getDoc(doc(db, 'chatRooms', roomId));
+  const roomData = roomSnap.data();
+
+  const updateData: any = {
+    lastMessage: `Shared: ${sharedPost.title}`,
+    lastSenderId: currentUserId,
+    updatedAt: serverTimestamp(),
+  };
+  if (roomData?.participants) {
+    const recipientId = roomData.participants.find((id: string) => id !== currentUserId);
+    if (recipientId) updateData.unreadBy = arrayUnion(recipientId);
+  }
+
+  await updateDoc(doc(db, 'chatRooms', roomId), updateData);
+
+  return roomId;
+}
 export async function getOrCreateDMRoom(
   currentUserId: string,
   otherUserId: string

@@ -450,7 +450,7 @@ export default function AdminPanel() {
                       <select 
                         value={selectedSchoolName} 
                         onChange={e => setSelectedSchoolName(e.target.value)}
-                        className="bg-surface-card border border-brand-teal/20 rounded px-2 py-1 text-xs text-luxury-ink focus:outline-none focus:border-brand-teal max-w-[200px]"
+                        className="bg-surface-card border border-brand-teal/20 rounded px-2 py-1 text-xs text-luxury-ink focus:outline-none focus:border-brand-teal max-w-50"
                       >
                         <option disabled value="">Select School</option>
                         {schools.map(s => <option key={s.name} value={s.name}>{s.name} ({s.city})</option>)}

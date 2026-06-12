@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, MapPin, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, MapPin, Tag, ChevronLeft, ChevronRight, Share2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { db } from '../../lib/firebase';
@@ -30,9 +30,11 @@ interface ProductCardProps {
   product: Product;
   isWishlisted: boolean;
   wishlistDocId?: string;
+  onShare?: (product: Product) => void;
 }
 
-export default function ProductCard({ product, isWishlisted, wishlistDocId }: ProductCardProps) {
+export default function ProductCard({ product, isWishlisted, wishlistDocId, onShare }: ProductCardProps) {
+
   const { user, userData } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -54,7 +56,11 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
     e.stopPropagation();
     setImgIndex(i => (i + 1) % allImages.length);
   };
-
+  const handleShare = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onShare?.(product);
+  };
   const toggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -244,18 +250,25 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId }: Pr
               </button>
             )}
           </div>
-
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs text-luxury-ink/40">
               <MapPin size={14} /> {product.city || 'Lucknow'}
             </div>
-            <button className={`px-4 py-2 text-white text-xs font-semibold shadow-sm transition-colors rounded-lg ${
-              product.status === 'sold'
-                ? 'bg-luxury-ink/30 cursor-not-allowed shadow-none'
-                : 'bg-brand-teal hover:bg-brand-teal/90'
-            }`}>
-              {product.status === 'sold' ? 'Sold' : 'View'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleShare}
+                className="p-2 text-luxury-ink/40 hover:text-brand-teal transition-colors rounded-lg hover:bg-surface-soft"
+              >
+                <Share2 size={16} />
+              </button>
+              <button className={`px-4 py-2 text-white text-xs font-semibold shadow-sm transition-colors rounded-lg ${
+                product.status === 'sold'
+                  ? 'bg-luxury-ink/30 cursor-not-allowed shadow-none'
+                  : 'bg-brand-teal hover:bg-brand-teal/90'
+              }`}>
+                {product.status === 'sold' ? 'Sold' : 'View'}
+              </button>
+            </div>
           </div>
 
         </div>

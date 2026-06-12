@@ -51,9 +51,7 @@ export async function unfollowUser(currentUserId: string, targetUserId: string) 
     where('followingId', '==', targetUserId)
   );
   const snap = await getDocs(q);
-  snap.forEach(async (d) => {
-    await deleteDoc(d.ref);
-  });
+  await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
 }
 
 // ─── Hook: Follow Status ─────────────────────────────────

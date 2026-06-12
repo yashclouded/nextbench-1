@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe, Eye } from 'lucide-react';
+import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe, Eye, Gift, UserPlus } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import React, { useState, useEffect, useRef } from 'react';
-import { doc, updateDoc, serverTimestamp, collection, query, where, onSnapshot, deleteDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection, query, where, onSnapshot, deleteDoc, getDoc, getDocs, writeBatch, getCountFromServer } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useToast } from '../../lib/ToastContext';
@@ -14,6 +14,7 @@ import { followUser, unfollowUser, useFollowStatus, useFollowCounts } from '../.
 import { getOrCreateDMRoom } from '../../lib/dm';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useBlockStatus, blockUser, unblockUser } from '../../lib/blocks';
+import { useUserPresence } from '../../lib/presence';
 import UsernameSetup from '../../components/ui/UsernameSetup';
 import ReportModal from '../../components/ui/ReportModal';
 import ProfileSettings from '../../components/ui/ProfileSettings';
@@ -74,6 +75,12 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const pfpMenuRef = useRef<HTMLDivElement>(null);
 
+  // Invite / Referral
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [referralCount, setReferralCount] = useState<number>(0);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
+
   useScrollLock(isEditing || showFollowersModal || showFollowingModal || !!selectedPost || showUsernameSetup || showReportModal || showSettingsModal || showPfpLightbox || showPfpUploadModal);
 
   // Determine the actual userId to display
@@ -84,6 +91,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const { isFollowing, isFollowedBy, isFriend } = useFollowStatus(targetUserId);
   const { followersCount, followingCount } = useFollowCounts(targetUserId);
   const { isBlocked, isBlockedBy } = useBlockStatus(targetUserId);
+  const presence = useUserPresence(!isOwnProfile ? targetUserId : undefined);
 
   // Close menus on outside click
   useEffect(() => {
@@ -158,6 +166,26 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     fetchUser();
   }, [effectiveUserId, isOwnProfile, userData]);
 
+  // Fetch referral code for own profile
+  useEffect(() => {
+    if (!isOwnProfile || !user) return;
+    const fetchReferral = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'users', user.uid));
+        if (docSnap.exists() && docSnap.data().referralCode) {
+          setReferralCode(docSnap.data().referralCode);
+        }
+        
+        const coll = collection(db, 'users', user.uid, 'referrals');
+        const countSnap = await getCountFromServer(coll);
+        setReferralCount(countSnap.data().count);
+      } catch {
+        // Non-critical — referral code is optional
+      }
+    };
+    fetchReferral();
+  }, [isOwnProfile, user]);
+
   // Auto-redirect to username URL if available and not already on it
   useEffect(() => {
     if (!usernameResolvedUserId && profileUser?.username) {
@@ -208,6 +236,60 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') setDeferredPrompt(null);
+  };
+
+  const generateReferralCode = async () => {
+    if (!user) return;
+    setIsGeneratingCode(true);
+    try {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let uniqueCode = '';
+      let isUnique = false;
+      while (!isUnique) {
+        let code = '';
+        for (let i = 0; i < 8; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        const q = query(collection(db, 'users'), where('referralCode', '==', code));
+        const snap = await getDocs(q);
+        if (snap.empty) { uniqueCode = code; isUnique = true; }
+      }
+      await updateDoc(doc(db, 'users', user.uid), {
+        referralCode: uniqueCode,
+        updatedAt: serverTimestamp()
+      });
+      setReferralCode(uniqueCode);
+      showToast('Referral code generated!', 'success');
+    } catch {
+      showToast('Failed to generate referral code', 'error');
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
+  const copyInviteLink = async () => {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = link;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopiedInvite(true);
+      showToast('Invite link copied!', 'success');
+      setTimeout(() => setCopiedInvite(false), 2000);
+    } catch {
+      showToast('Failed to copy invite link', 'error');
+    }
   };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -425,13 +507,32 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     }
   };
 
-  const handleCopyUsername = () => {
+  const handleCopyUsername = async () => {
     const un = profileUser?.username;
     if (!un) return;
-    navigator.clipboard.writeText(`nextbench.in/u/${un}`);
-    setCopiedUsername(true);
-    showToast('Profile link copied!', 'success');
-    setTimeout(() => setCopiedUsername(false), 2000);
+    const link = `nextbench.in/u/${un}`;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(link);
+      } else {
+        // Fallback for iOS in-app browsers (Instagram, etc.)
+        const textArea = document.createElement('textarea');
+        textArea.value = link;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopiedUsername(true);
+      showToast('Profile link copied!', 'success');
+      setTimeout(() => setCopiedUsername(false), 2000);
+    } catch {
+      showToast('Failed to copy link', 'error');
+    }
   };
 
   // ─── Follow List Modal ─────────────────────────────────
@@ -505,9 +606,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
   if (!user || !profileUser) return <div className="pt-32 text-center text-xs font-bold uppercase tracking-widest text-luxury-ink/30">Loading profile...</div>;
 
-  const userName = profileUser.name || 'Unknown User';
-  const [firstName, ...lastNameParts] = userName.split(' ');
-  const lastName = lastNameParts.join(' ');
+  const userName = (profileUser.name && typeof profileUser.name === 'string') ? profileUser.name : 'Unknown User';
+  const nameParts = userName.split(' ');
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ');
 
   const activeListings = myListings.filter(p => p.status === 'available');
   const pendingListings = myListings.filter(p => p.status === 'pending');
@@ -739,6 +841,18 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             {profileUser.accountType === 'organization' ? (profileUser.city || profileUser.school) : profileUser.school}
           </p>
 
+          {/* Last active — visible only for mutual follows (friends) */}
+          {!isOwnProfile && isFriend && presence.label && (
+            <p className={`flex items-center gap-1.5 text-xs font-semibold mt-1.5 ${
+              presence.status === 'online' ? 'text-emerald-500' : presence.status === 'recent' ? 'text-amber-500' : 'text-luxury-ink/35'
+            }`}>
+              <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+                presence.status === 'online' ? 'bg-emerald-400 animate-pulse' : presence.status === 'recent' ? 'bg-amber-400' : 'bg-luxury-ink/20'
+              }`} />
+              {presence.label}
+            </p>
+          )}
+
           {profileUser.accountType === 'organization' && profileUser.orgType && (
             <span className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 bg-brand-pink/10 text-brand-pink rounded-full text-[10px] font-bold uppercase tracking-widest">
               <Building2 size={12} />
@@ -787,6 +901,80 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
           </div>
         </div>
       </div>
+
+
+      {/* ─── Invite Friends Card (own profile only) ───────── */}
+      {isOwnProfile && (
+        <div className="px-6 mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative overflow-hidden rounded-2xl p-5 md:p-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(0,212,178,0.12) 0%, rgba(233,68,117,0.10) 50%, rgba(168,85,247,0.10) 100%)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            {/* Decorative elements */}
+            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-brand-teal/8 blur-2xl" />
+            <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full bg-brand-pink/8 blur-2xl" />
+            
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-brand-teal/15 flex items-center justify-center shrink-0">
+                  <Gift className="text-brand-teal" size={24} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-luxury-ink mb-0.5">Invite Friends</h3>
+                  <p className="text-xs text-luxury-ink/50">Share Nextbench with your campus network</p>
+                  <p className={`text-xs font-semibold mt-1 ${referralCount > 0 ? 'text-brand-teal' : 'text-luxury-ink/40'}`}>
+                    {referralCount} {referralCount === 1 ? 'person' : 'people'} joined using your link
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {referralCode ? (
+                  <>
+                    <div className="flex-1 sm:flex-initial bg-surface-base/80 border rounded-xl px-4 py-2.5 flex items-center gap-3" style={{ borderColor: 'var(--color-border)' }}>
+                      <UserPlus size={14} className="text-brand-teal shrink-0" />
+                      <span className="text-xs font-bold text-luxury-ink tracking-wide truncate">{referralCode}</span>
+                    </div>
+                    <button
+                      onClick={copyInviteLink}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shrink-0 ${
+                        copiedInvite
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-luxury-ink text-surface-base hover:bg-brand-teal'
+                      }`}
+                      style={!copiedInvite ? { color: 'var(--color-surface-base)' } : undefined}
+                    >
+                      {copiedInvite ? (
+                        <span className="flex items-center gap-1.5"><Check size={14} /> Copied</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5"><Copy size={14} /> Copy</span>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={generateReferralCode}
+                    disabled={isGeneratingCode}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-luxury-ink text-surface-base rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-teal transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    style={{ color: 'var(--color-surface-base)' }}
+                  >
+                    {isGeneratingCode ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <><UserPlus size={14} /> Generate Invite Link</>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* ─── Content Area ─────────────────────────────────── */}
       <div className="px-6">

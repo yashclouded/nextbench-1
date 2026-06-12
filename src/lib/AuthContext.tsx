@@ -37,6 +37,8 @@ export interface UserData {
   orgDocumentUrl?: string | null;
   orgWebsite?: string | null;
   orgDescription?: string | null;
+  // FCM push notification tokens
+  fcmTokens?: string[];
 }
 
 interface AuthContextType {

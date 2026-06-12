@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, PlusCircle, MessageSquare, User, LogOut, ShieldCheck, Bell, UserPlus } from 'lucide-react';
+import { Home, Search, PlusCircle, MessageSquare, User, LogOut, ShieldCheck, Bell } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { auth } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';

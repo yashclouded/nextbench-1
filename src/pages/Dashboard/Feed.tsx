@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3 } from 'lucide-react';
+import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -395,24 +395,50 @@ function PostDetailModal({
 
           {/* Image Section Moved Here */}
           {postImageUrls.length > 0 && (
-            <div className="relative bg-luxury-ink/5 rounded-2xl overflow-hidden mb-6 border border-luxury-ink/5 shrink-0">
+            <div className="relative bg-luxury-ink/5 rounded-2xl overflow-hidden mb-6 border border-luxury-ink/5 shrink-0 group">
               <img
                 src={getOptimizedImageUrl(postImageUrls[currentImageIndex])}
                 alt={post.title}
                 className="post-detail-image rounded-2xl"
                 referrerPolicy="no-referrer"
               />
-              {/* Image indicators */}
+
               {postImageUrls.length > 1 && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 bg-luxury-ink/40 backdrop-blur-md px-3 py-1.5 rounded-full">
-                  {postImageUrls.map((_, i) => (
+                <>
+                  {currentImageIndex > 0 && (
                     <button
-                      key={i}
-                      onClick={() => setCurrentImageIndex(i)}
-                      className={`w-2 h-2 rounded-full transition-all ${i === currentImageIndex ? 'bg-white w-4' : 'bg-white/50 hover:bg-white/80'}`}
-                    />
-                  ))}
-                </div>
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(i => i - 1);
+                      }}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full backdrop-blur-sm transition-all"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                  )}
+
+                  {currentImageIndex < postImageUrls.length - 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(i => i + 1);
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full backdrop-blur-sm transition-all"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  )}
+
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 bg-luxury-ink/40 backdrop-blur-md px-3 py-1.5 rounded-full">
+                    {postImageUrls.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentImageIndex(i)}
+                        className={`w-2 h-2 rounded-full transition-all ${i === currentImageIndex ? 'bg-white w-4' : 'bg-white/50 hover:bg-white/80'}`}
+                      />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1454,7 +1480,25 @@ export default function Feed() {
         title: post.title,
         description: post.content || '',
         image: post.imageUrls?.[0] || post.imageUrl || undefined,
-        authorName: post.authorName || 'Unknown User'
+        authorName: post.authorName || 'Unknown User',
+        kind: 'post',
+      }
+    });
+  };
+
+  const handleShareProduct = (product: Product) => {
+    const url = window.location.origin + '/product/' + product.id;
+    setShareModalData({
+      isOpen: true,
+      url,
+      title: product.title,
+      sharedPost: {
+        id: product.id,
+        title: product.title,
+        description: typeof product.price === 'number' ? `₹${product.price}` : '',
+        image: product.images?.[0] || product.image || undefined,
+        authorName: product.sellerName || 'Unknown User',
+        kind: 'product',
       }
     });
   };
@@ -1646,6 +1690,7 @@ export default function Feed() {
                     product={item as Product} 
                     isWishlisted={wishlisted.has(item.id)} 
                     wishlistDocId={wishlistMap[item.id]} 
+                    onShare={handleShareProduct}
                   />
                 ) : (
                   <PostCard 

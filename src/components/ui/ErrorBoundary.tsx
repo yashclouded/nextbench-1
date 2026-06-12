@@ -16,15 +16,41 @@ interface State {
  * friendly recovery UI instead of a black screen.
  */
 export default class ErrorBoundary extends React.Component<Props, State> {
+  private handleUnhandledRejection: (event: PromiseRejectionEvent) => void;
+
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
     this.handleReload = this.handleReload.bind(this);
     this.handleRetry = this.handleRetry.bind(this);
+    this.handleUnhandledRejection = () => {};
   }
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
+  }
+
+  componentDidMount() {
+    this.handleUnhandledRejection = this.handleUnhandledRejection.bind(this);
+    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  handleUnhandledRejection(event: PromiseRejectionEvent) {
+    // Prevent the default browser error logging for handled rejections
+    event.preventDefault();
+    const error = event.reason instanceof Error
+      ? event.reason
+      : new Error(String(event.reason || 'Unhandled promise rejection'));
+    console.error('[ErrorBoundary] Unhandled rejection:', error);
+    // Only show error UI for chunk/import failures — other async errors
+    // are typically non-fatal and shouldn't crash the whole UI
+    if (this.isChunkError(error)) {
+      this.setState({ hasError: true, error });
+    }
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {

@@ -53,3 +53,5 @@ firebase-applet-config.json
 agents.md
 .gemini/
 scratch/
+android/
+capacitor.config.ts
