@@ -8,6 +8,9 @@ import ProtectedRoute from './components/ui/ProtectedRoute';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import { useAuth } from './lib/AuthContext';
 import { lazyWithRetry } from './lib/lazyWithRetry';
+import { onMessage } from 'firebase/messaging';
+import { messaging } from './lib/firebase';
+import { useToast } from './lib/ToastContext';
 
 const LandingPage   = lazyWithRetry(() => import('./pages/LandingPage'));
 const Login         = lazyWithRetry(() => import('./pages/Auth/Login'));
@@ -92,13 +95,33 @@ function DashLayout() {
 }
 
 export default function App() {
+  const { showToast } = useToast();
+
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref');
     if (refCode) {
       localStorage.setItem('pendingReferral', refCode);
     }
-  }, []);
+
+    // Handle push notifications when the app is in the foreground
+    if (messaging) {
+      const unsubscribe = onMessage(messaging, (payload) => {
+        const title = payload.notification?.title || 'New Notification';
+        const body = payload.notification?.body || '';
+        showToast(`${title}: ${body}`, 'info');
+        
+        // Also show a system notification if permitted
+        if (Notification.permission === 'granted') {
+          new Notification(title, {
+            body,
+            icon: '/logo.png'
+          });
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [showToast]);
 
   return (
     <ErrorBoundary>

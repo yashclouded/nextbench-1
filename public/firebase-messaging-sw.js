@@ -16,7 +16,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'Nextbench Notification';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new message.',
-    icon: '/apple-touch-icon.png'
+    icon: '/logo.png'
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

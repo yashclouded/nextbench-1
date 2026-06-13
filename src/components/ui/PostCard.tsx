@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import PollDisplay from './PollDisplay';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame, ChevronLeft, ChevronRight } from 'lucide-react';import { motion } from 'motion/react';
+import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame, ChevronLeft, ChevronRight } from 'lucide-react';
+import { motion } from 'motion/react';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { POST_TYPES } from '../../pages/Dashboard/Feed';
 import { getPersonaDisplay } from '../../lib/confessions';
@@ -67,7 +68,7 @@ function timeAgo(date: any): string {
 
 export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onClick, onUpvote, onDownvote, onShare, onSave }: PostCardProps) {
   const { showToast } = useToast();
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
   // Fetch live profile picture from Firestore — covers cases where pic was set after posting
   const [liveProfilePicture, setLiveProfilePicture] = useState<string | undefined>(
     post.authorProfilePicture
@@ -107,6 +108,38 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
     }
   };
 
+  const prevImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!scrollRef.current) return;
+    const newIndex = (currentImageIndex - 1 + postImageUrls.length) % postImageUrls.length;
+    const width = scrollRef.current.clientWidth;
+    scrollRef.current.scrollTo({ left: newIndex * width, behavior: 'smooth' });
+    setCurrentImageIndex(newIndex);
+  };
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!scrollRef.current) return;
+    const newIndex = (currentImageIndex + 1) % postImageUrls.length;
+    const width = scrollRef.current.clientWidth;
+    scrollRef.current.scrollTo({ left: newIndex * width, behavior: 'smooth' });
+    setCurrentImageIndex(newIndex);
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!scrollRef.current) return;
+    const scrollLeft = e.currentTarget.scrollLeft;
+    const width = e.currentTarget.clientWidth;
+    if (width > 0) {
+      const newIndex = Math.round(scrollLeft / width);
+      if (newIndex !== currentImageIndex) {
+        setCurrentImageIndex(newIndex);
+      }
+    }
+  };
+
   return (
     <>
       <motion.article
@@ -114,8 +147,8 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0 }}
-        className={`post-card-clean cursor-pointer p-4 sm:p-6 md:p-8 flex flex-col w-full min-w-0 overflow-x-hidden ${post.type === 'confession' ? 'is-confession' : ''}`}
-        onClick={onClick}
+        className={`post-card-clean p-4 sm:p-6 md:p-8 flex flex-col w-full min-w-0 overflow-x-hidden ${post.type === 'confession' ? 'is-confession' : ''}`}
+        onDoubleClick={(e) => { e.preventDefault(); onUpvote?.(post); }}
       >
         {/* Metadata Row */}
         <div className="mb-3" onClick={handleProfileClick}>
@@ -170,57 +203,55 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
 
         {/* Image */}
         {hasImage && (
-          <div className="relative mt-2 mb-6 w-full rounded-[20px] overflow-hidden group">
-            <img
-              src={getOptimizedImageUrl(postImageUrls[currentImageIndex])}
-              alt={post.title}
-              className="w-full h-auto"
-              referrerPolicy="no-referrer"
-            />
+          <div className="relative mt-2 mb-6 w-full rounded-[20px] overflow-hidden group bg-black/5">
+            <div 
+              ref={scrollRef}
+              onScroll={handleScroll}
+              className="flex w-full items-start overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            >
+              {postImageUrls.map((url, idx) => (
+                <div key={idx} className="w-full shrink-0 snap-center">
+                  <img
+                    src={getOptimizedImageUrl(url)}
+                    alt={post.title || "Post image"}
+                    className="w-full h-auto pointer-events-none"
+                    referrerPolicy="no-referrer"
+                    draggable={false}
+                  />
+                </div>
+              ))}
+            </div>
 
             {postImageUrls.length > 1 && (
               <>
-                {/* Prev arrow */}
-                {currentImageIndex > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCurrentImageIndex(i => i - 1);
-                    }}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                )}
-
-                {/* Next arrow */}
-                {currentImageIndex < postImageUrls.length - 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCurrentImageIndex(i => i + 1);
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                )}
-
-                {/* Counter badge */}
-                <div className="absolute top-3 right-3 bg-luxury-ink/60 backdrop-blur-md text-white px-2.5 py-1 rounded-md text-[11px] font-bold tracking-widest">
+                <div className="absolute top-3 right-3 bg-luxury-ink/60 backdrop-blur-md text-white px-2.5 py-1 rounded-md text-[11px] font-bold tracking-widest z-10 pointer-events-none">
                   {currentImageIndex + 1}/{postImageUrls.length}
                 </div>
-
-                {/* Dots */}
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-luxury-ink/40 backdrop-blur-md px-2.5 py-1.5 rounded-full">
-                  {postImageUrls.map((_, i) => (
+                
+                {/* Navigation arrows */}
+                {postImageUrls.length > 1 && (
+                  <>
                     <button
-                      key={i}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentImageIndex(i);
-                      }}
-                      className={`h-1.5 rounded-full transition-all ${i === currentImageIndex ? 'bg-white w-4' : 'bg-white/50 w-1.5 hover:bg-white/80'}`}
+                      onClick={prevImage}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <button
+                      onClick={nextImage}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </>
+                )}
+
+                {/* Bottom dots indicator */}
+                <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
+                  {postImageUrls.map((_, idx) => (
+                    <div
+                      key={idx}
+                      className={`h-1.5 rounded-full transition-all ${idx === currentImageIndex ? 'w-4 bg-white shadow-sm' : 'w-1.5 bg-white/60'}`}
                     />
                   ))}
                 </div>

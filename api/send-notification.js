@@ -46,6 +46,12 @@ export default async function handler(req, res) {
       notification: { title, body },
       data: { link: link || '/' },
       tokens: tokens, // Array of FCM tokens
+      webpush: {
+        notification: {
+          icon: '/logo.png',
+          requireInteraction: true,
+        }
+      }
     };
 
     const response = await admin.messaging().sendEachForMulticast(message);

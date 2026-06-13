@@ -39,6 +39,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [imgIndex, setImgIndex] = useState(0);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const allImages = (product.images && product.images.length > 0)
     ? product.images
@@ -48,13 +49,33 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
   const prevImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setImgIndex(i => (i - 1 + allImages.length) % allImages.length);
+    if (!scrollRef.current) return;
+    const newIndex = (imgIndex - 1 + allImages.length) % allImages.length;
+    const width = scrollRef.current.clientWidth;
+    scrollRef.current.scrollTo({ left: newIndex * width, behavior: 'smooth' });
+    setImgIndex(newIndex);
   };
 
   const nextImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setImgIndex(i => (i + 1) % allImages.length);
+    if (!scrollRef.current) return;
+    const newIndex = (imgIndex + 1) % allImages.length;
+    const width = scrollRef.current.clientWidth;
+    scrollRef.current.scrollTo({ left: newIndex * width, behavior: 'smooth' });
+    setImgIndex(newIndex);
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!scrollRef.current) return;
+    const scrollLeft = e.currentTarget.scrollLeft;
+    const width = e.currentTarget.clientWidth;
+    if (width > 0) {
+      const newIndex = Math.round(scrollLeft / width);
+      if (newIndex !== imgIndex) {
+        setImgIndex(newIndex);
+      }
+    }
   };
   const handleShare = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -145,29 +166,17 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
 
           <h3 className="text-[15px] font-semibold text-luxury-ink mb-3 truncate">{product.title}</h3>
 
-          {/* Image Slider */}
           <div
             className="aspect-4/3 overflow-hidden relative mb-4 rounded-xl group/carousel"
             style={{ background: 'linear-gradient(135deg, var(--color-surface-soft) 0%, rgba(var(--color-brand-teal-rgb), 0.05) 100%)' }}
           >
-            <motion.div
-              className="flex w-full h-full"
-              drag={hasMultiple ? "x" : false}
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(e, { offset }) => {
-                const swipe = offset.x;
-                if (swipe < -50 && imgIndex < allImages.length - 1) {
-                  setImgIndex(prev => prev + 1);
-                } else if (swipe > 50 && imgIndex > 0) {
-                  setImgIndex(prev => prev - 1);
-                }
-              }}
-              animate={{ x: `-${imgIndex * 100}%` }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            <div
+              ref={scrollRef}
+              onScroll={handleScroll}
+              className="flex w-full h-full overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             >
               {allImages.map((url, idx) => (
-                <div key={idx} className="w-full h-full shrink-0">
+                <div key={idx} className="w-full h-full shrink-0 snap-center relative">
                   <img
                     src={getOptimizedImageUrl(url)}
                     alt={product.title}
@@ -181,7 +190,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
                   />
                 </div>
               ))}
-            </motion.div>
+            </div>
 
             {hasMultiple && (
               <>
