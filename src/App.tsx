@@ -40,6 +40,7 @@ const CareersPage   = lazyWithRetry(() => import('./pages/Legal/CareersPage'));
 const UsernameProfile = lazyWithRetry(() => import('./pages/Dashboard/UsernameProfile'));
 const Invite        = lazyWithRetry(() => import('./pages/Dashboard/Invite'));
 const NotFound      = lazyWithRetry(() => import('./pages/NotFound'));
+const Marketplace = lazyWithRetry(() => import('./pages/Marketplace'));
 
 function PageLoader() {
   return (
@@ -141,6 +142,7 @@ export default function App() {
               <Route path="/login"        element={<Login />} />
               <Route path="/signup"       element={<Signup />} />
               <Route path="/org-signup"   element={<OrgSignup />} />
+              <Route path="/marketplace" element={<Marketplace />} />
               <Route path="/verification" element={<VerificationGuard><Verification /></VerificationGuard>} />
               <Route path="/post/:postId" element={<PostView />} />
             </Route>

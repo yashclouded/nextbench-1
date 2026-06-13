@@ -208,6 +208,8 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       const prods: UserProduct[] = [];
       snap.forEach(d => prods.push({ id: d.id, ...d.data() } as UserProduct));
       setMyListings(prods);
+    }, (err) => {
+      console.warn('Profile: listings listener error (ignored):', err);
     });
     return () => unsub();
   }, [effectiveUserId, isOwnProfile, user]);
@@ -227,6 +229,8 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       });
       posts.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       setMyPosts(posts);
+    }, (err) => {
+      console.warn('Profile: posts listener error (ignored):', err);
     });
     return () => unsub();
   }, [effectiveUserId, isOwnProfile, user]);

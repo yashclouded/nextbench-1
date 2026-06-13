@@ -105,7 +105,7 @@ export default function ClubJoin() {
         className="theme-card rounded-3xl overflow-hidden border border-luxury-ink/5 shadow-xl"
       >
         {/* Club banner */}
-        <div className="h-32 bg-gradient-to-br from-brand-teal/20 via-brand-pink/10 to-brand-teal/5 flex items-end justify-center pb-0 relative">
+        <div className="h-32 bg-linear-to-br from-brand-teal/20 via-brand-pink/10 to-brand-teal/5 flex items-end justify-center pb-0 relative">
           <div className="w-20 h-20 rounded-2xl bg-surface-card border-4 border-surface-card flex items-center justify-center overflow-hidden shadow-lg translate-y-10">
             {club.avatar ? (
               <img src={getOptimizedImageUrl(club.avatar)} alt={club.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />

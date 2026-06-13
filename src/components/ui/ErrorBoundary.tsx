@@ -106,6 +106,25 @@ export default class ErrorBoundary extends React.Component<Props, State> {
               : 'An unexpected error occurred. You can try again or refresh the page.'}
           </p>
 
+          {/* Show error details for debugging */}
+          {this.state.error && (
+            <details className="mb-6 text-left">
+              <summary className="text-xs text-luxury-ink/40 cursor-pointer hover:text-luxury-ink/60 uppercase tracking-widest font-bold">
+                Error Details
+              </summary>
+              <div className="mt-2 p-3 rounded-lg bg-red-500/5 border border-red-500/10 overflow-auto max-h-40">
+                <p className="text-xs text-red-500 font-mono break-all whitespace-pre-wrap">
+                  {this.state.error.message}
+                </p>
+                {this.state.error.stack && (
+                  <p className="text-[10px] text-red-400/60 font-mono mt-2 break-all whitespace-pre-wrap">
+                    {this.state.error.stack}
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
+
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               onClick={this.handleReload}

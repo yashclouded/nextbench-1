@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Flag, Camera, X, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2, Download } from 'lucide-react';
+import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Flag, Camera, X, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2, Download, SmilePlus ,Zap } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, getDocs, where, writeBatch, arrayUnion, arrayRemove, limit, deleteField } from 'firebase/firestore';
@@ -531,7 +531,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                     className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-surface-soft text-luxury-ink/30 hover:text-brand-teal transition-all shrink-0"
                     title="React"
                   >
-                    <span className="text-base leading-none">😊</span>
+                    <SmilePlus size={16} />
                   </button>
                 )}
 
@@ -557,7 +557,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                     setSelectedMessageId(null);
                     setMenuPosition(null);
                   }}
-                  className={`max-w-[75%] px-5 py-3.5 rounded-2xl text-sm font-medium cursor-pointer relative shadow-sm ${isMe ? 'bubble-mine rounded-tr-sm' : 'bubble-theirs rounded-tl-sm'}`}
+                  className={`max-w-[75%] px-5 py-3.5 rounded-3xl text-sm font-medium cursor-pointer relative shadow-sm overflow-hidden ${isMe ? 'bubble-mine rounded-tr-md' : 'bubble-theirs rounded-tl-md'}`}
                   style={!isMe ? { borderColor: 'var(--color-border)' } : undefined}
                 >
                   {!isDeleted && msg.replyToText && (
@@ -573,21 +573,29 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                   ) : (
                     <>
                       {msg.image && (
-                        <div className="mb-2 rounded-lg overflow-hidden border border-luxury-ink/5 bg-surface-base">
+                          <div className={`relative overflow-hidden bg-surface-base -mx-5 -mt-3.5 rounded-t-2xl ${msg.text ? 'mb-2' : '-mb-3.5'}`}>
                           <img
                             src={getOptimizedImageUrl(msg.image)}
                             alt="Shared"
-                            className="max-w-full max-h-300px object-contain hover:opacity-90 transition-opacity"
+                            className="w-full max-h-300px object-contain hover:opacity-90 transition-opacity"
                             onClick={(e) => { e.stopPropagation(); setViewingImage(getOptimizedImageUrl(msg.image!)); }}
                             referrerPolicy="no-referrer"
                             onLoad={scrollToBottom}
                           />
+                          {!msg.text && (
+                            <div className="absolute bottom-1.5 right-2 text-[10px] text-white/80 bg-black/30 px-1.5 py-0.5 rounded-md backdrop-blur-sm">
+                              {msg.createdAt?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '...'}
+                            </div>
+                          )}
                         </div>
                       )}
                       {msg.sharedPost && (
-                        <Link to={msg.sharedPost.kind === 'product' ? `/product/${msg.sharedPost.id}` : `/post/${msg.sharedPost.id}`} className="block mb-2 rounded-xl overflow-hidden border border-luxury-ink/10 bg-surface-base hover:opacity-90 transition-opacity">
+                        <Link
+                          to={msg.sharedPost.kind === 'product' ? `/product/${msg.sharedPost.id}` : `/post/${msg.sharedPost.id}`}
+                          className={`relative block border border-luxury-ink/10 bg-surface-base hover:opacity-90 transition-opacity -mx-5 -mt-3.5 rounded-t-2xl ${msg.text ? 'mb-2' : '-mb-3.5'}`}
+                        >
                           {msg.sharedPost.image && (
-                            <div className="w-full h-32 bg-luxury-ink/5">
+                            <div className="w-full h-40 bg-luxury-ink/5">
                               <img src={getOptimizedImageUrl(msg.sharedPost.image)} alt="Shared" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             </div>
                           )}
@@ -602,15 +610,21 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                               </p>
                             )}
                           </div>
+                          {!msg.text && (
+                            <div className="absolute bottom-1.5 right-2 text-[10px] text-luxury-ink/40 bg-surface-card/80 px-1.5 py-0.5 rounded-md backdrop-blur-sm">
+                              {msg.createdAt?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '...'}
+                            </div>
+                          )}
                         </Link>
                       )}
                       {msg.text && <MessageText text={msg.text} />}
                     </>
                   )}
-
+                 {(msg.text || isDeleted) && (
                   <div className={`text-[10px] mt-1.5 opacity-30 ${isMe ? 'text-right' : 'text-left'}`}>
                     {msg.createdAt?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '...'}
                   </div>
+                  )}
                 </div>
 
                 {/* React button — right of my bubble */}
@@ -625,7 +639,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                     className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-surface-soft text-luxury-ink/30 hover:text-brand-teal transition-all shrink-0"
                     title="React"
                   >
-                    <span className="text-base leading-none">😊</span>
+                    <SmilePlus size={16} />
                   </button>
                 )}
 
@@ -801,7 +815,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                   className={`p-2 rounded-full transition-all shrink-0 text-base ${showQuickReplies ? 'text-brand-teal' : 'text-luxury-ink/40 hover:text-brand-teal'}`}
                   title="Quick replies"
                 >
-                  ⚡
+                  <Zap size={16} fill={showQuickReplies ? 'currentColor' : 'none'} />
                 </button>
 
                 <input

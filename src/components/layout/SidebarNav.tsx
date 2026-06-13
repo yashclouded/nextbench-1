@@ -73,6 +73,8 @@ export default function SidebarNav() {
         });
       }
       initialLoad.current = false;
+    }, (err) => {
+      console.warn('SidebarNav: notifications listener error (ignored):', err);
     });
     return () => unsubscribe();
   }, [user, showToast]);

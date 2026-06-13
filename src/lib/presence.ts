@@ -207,6 +207,8 @@ export function useOnlineCount(currentUid?: string | null): number {
         if (msSince < ONLINE_THRESHOLD_MS) total++;
       });
       setCount(total);
+    }, (err) => {
+      console.warn('presence: online count listener error (ignored):', err);
     });
 
     return unsub;

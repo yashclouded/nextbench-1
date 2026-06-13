@@ -26,6 +26,8 @@ export default function MobileHeader() {
         if (!isChatMessageNotification(d.data())) others++;
       });
       setUnreadCount(others);
+    }, (err) => {
+      console.warn('MobileHeader: notifications listener error (ignored):', err);
     });
     return () => unsubscribe();
   }, [user]);
