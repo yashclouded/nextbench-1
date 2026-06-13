@@ -12,10 +12,10 @@ export default function Footer() {
           <div className="flex-1">
             <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-brand-teal mb-4">Featured Selection</div>
             <div className="flex flex-wrap gap-6">
-              <Link to="/dashboard?cat=books" className="text-xs font-bold hover:text-brand-pink tracking-wide">Textbooks</Link>
-              <Link to="/dashboard?cat=electronics" className="text-xs font-bold hover:text-brand-pink tracking-wide">Electronics</Link>
-              <Link to="/dashboard?cat=notes" className="text-xs font-bold hover:text-brand-pink tracking-wide">Premium Notes</Link>
-              <Link to="/dashboard?cat=uniforms" className="text-xs font-bold hover:text-brand-pink tracking-wide">Uniforms</Link>
+              <Link to="/marketplace" className="text-xs font-bold hover:text-brand-pink tracking-wide">Textbooks</Link>
+              <Link to="/marketplace" className="text-xs font-bold hover:text-brand-pink tracking-wide">Electronics</Link>
+              <Link to="/marketplace" className="text-xs font-bold hover:text-brand-pink tracking-wide">Premium Notes</Link>
+              <Link to="/marketplace" className="text-xs font-bold hover:text-brand-pink tracking-wide">Uniforms</Link>
             </div>
           </div>
           

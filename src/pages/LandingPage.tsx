@@ -1,15 +1,16 @@
 import { motion } from 'motion/react';
-import { ArrowRight, ShieldCheck, Truck, RefreshCcw, GraduationCap, PackageCheck, MapPin, Building2 } from 'lucide-react';
+import type { Variants } from 'motion/react';
+import { ArrowRight, ShieldCheck, Truck, RefreshCcw, GraduationCap, PackageCheck, MapPin, Building2, PackageOpen, CalendarDays, Briefcase, Handshake } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/seo/SEO';
 
 export default function LandingPage() {
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } }
   };
@@ -56,7 +57,7 @@ export default function LandingPage() {
               className="flex flex-wrap items-center gap-6"
             >
               <Link 
-                to="/dashboard" 
+                to="/marketplace" 
                 className="px-8 py-4 border-2 border-brand-teal text-brand-teal font-bold uppercase tracking-widest text-xs hover:bg-brand-teal hover:text-white transition-all duration-300"
               >
                 Explore Marketplace
@@ -81,7 +82,7 @@ export default function LandingPage() {
               <img 
                 src="https://images.unsplash.com/photo-1543269664-76bc3997d9ea?q=80&w=2070&auto=format&fit=crop" 
                 alt="Nextbench Platform Preview" 
-                className="w-full rounded-2xl grayscale-[0.2] hover:grayscale-0 transition-all duration-700 aspect-[4/5] object-cover"
+                className="w-full rounded-2xl grayscale-[0.2] hover:grayscale-0 transition-all duration-700 aspect-4/5 object-cover"
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -152,7 +153,7 @@ export default function LandingPage() {
             </p>
             <Link 
               to="/signup?mode=graduation" 
-              className="bg-brand-pink text-white px-10 py-5 rounded-full font-bold hover:bg-luxury-ink transition-all inline-block"
+              className="bg-brand-pink text-white px-10 py-5 rounded-full font-bold hover:bg-brand-teal transition-all inline-block"
             >
               Activate Graduation Mode
             </Link>
@@ -184,7 +185,7 @@ export default function LandingPage() {
               </p>
               <Link
                 to="/org-signup"
-                className="inline-flex items-center gap-3 bg-brand-pink text-white px-8 py-4 rounded-full font-bold hover:bg-luxury-ink transition-all text-sm"
+                className="inline-flex items-center gap-3 bg-brand-pink text-white px-8 py-4 rounded-full font-bold hover:bg-brand-teal transition-all text-sm"
               >
                 <Building2 size={18} />
                 Register Your Organization
@@ -192,13 +193,13 @@ export default function LandingPage() {
             </div>
             <div className="hidden md:grid grid-cols-2 gap-4 max-w-xs">
               {[
-                { emoji: '📦', label: 'Bulk Listings', desc: 'Sell to thousands of students at once' },
-                { emoji: '📅', label: 'Events', desc: 'Promote workshops, fests & competitions' },
-                { emoji: '🎓', label: 'Hiring', desc: 'Reach students for internships & jobs' },
-                { emoji: '🤝', label: 'Trust', desc: 'Verified badge builds credibility' },
+                { icon: PackageOpen, label: 'Bulk Listings', desc: 'Sell to thousands of students at once' },
+                { icon: CalendarDays, label: 'Events', desc: 'Promote workshops, fests & competitions' },
+                { icon: Briefcase, label: 'Hiring', desc: 'Reach students for internships & jobs' },
+                { icon: Handshake, label: 'Trust', desc: 'Verified badge builds credibility' },
               ].map((item, idx) => (
                 <div key={idx} className="p-5 rounded-2xl bg-surface-soft border border-luxury-ink/5">
-                  <p className="text-2xl mb-2">{item.emoji}</p>
+                  <item.icon className="text-brand-teal mb-2" size={24} strokeWidth={1.5} />
                   <p className="text-xs font-bold text-luxury-ink mb-1">{item.label}</p>
                   <p className="text-[10px] text-luxury-ink/40">{item.desc}</p>
                 </div>
@@ -214,8 +215,8 @@ export default function LandingPage() {
           <h2 className="text-5xl md:text-7xl font-serif font-bold text-luxury-ink mb-12 leading-tight">
             Elevate Your Student Economy.
           </h2>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-6 mb-16">
-            <Link to="/signup" className="w-full md:w-auto bg-luxury-ink text-surface-base px-12 py-6 rounded-full text-lg font-bold luxury-shadow hover:scale-105 transition-all">
+          <div className="flex flex-col items-center justify-center gap-4 mb-16">
+            <Link to="/signup" className="w-full md:w-auto bg-luxury-ink text-surface-base px-12 py-6 rounded-full text-lg font-bold luxury-shadow hover:opacity-90 hover:scale-105 transition-all">
               Join Nextbench Today
             </Link>
             <p className="text-luxury-ink/40 text-sm font-medium">No spam. Only verified student deals.</p>
