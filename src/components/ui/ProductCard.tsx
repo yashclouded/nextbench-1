@@ -39,7 +39,6 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [imgIndex, setImgIndex] = useState(0);
-  const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const allImages = (product.images && product.images.length > 0)
     ? product.images
@@ -49,39 +48,21 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
   const prevImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!scrollRef.current) return;
-    const newIndex = (imgIndex - 1 + allImages.length) % allImages.length;
-    const width = scrollRef.current.clientWidth;
-    scrollRef.current.scrollTo({ left: newIndex * width, behavior: 'smooth' });
-    setImgIndex(newIndex);
+    setImgIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
   };
 
   const nextImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!scrollRef.current) return;
-    const newIndex = (imgIndex + 1) % allImages.length;
-    const width = scrollRef.current.clientWidth;
-    scrollRef.current.scrollTo({ left: newIndex * width, behavior: 'smooth' });
-    setImgIndex(newIndex);
+    setImgIndex((prev) => (prev + 1) % allImages.length);
   };
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!scrollRef.current) return;
-    const scrollLeft = e.currentTarget.scrollLeft;
-    const width = e.currentTarget.clientWidth;
-    if (width > 0) {
-      const newIndex = Math.round(scrollLeft / width);
-      if (newIndex !== imgIndex) {
-        setImgIndex(newIndex);
-      }
-    }
-  };
   const handleShare = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onShare?.(product);
   };
+
   const toggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -170,27 +151,18 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
             className="aspect-4/3 overflow-hidden relative mb-4 rounded-xl group/carousel"
             style={{ background: 'linear-gradient(135deg, var(--color-surface-soft) 0%, rgba(var(--color-brand-teal-rgb), 0.05) 100%)' }}
           >
-            <div
-              ref={scrollRef}
-              onScroll={handleScroll}
-              className="flex w-full h-full overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-            >
-              {allImages.map((url, idx) => (
-                <div key={idx} className="w-full h-full shrink-0 snap-center relative">
-                  <img
-                    src={getOptimizedImageUrl(url)}
-                    alt={product.title}
-                    className={`w-full h-full object-contain transition-transform duration-700 pointer-events-none ${
-                      product.status === 'sold'
-                        ? 'grayscale-[0.6]'
-                        : 'group-hover:scale-105 grayscale-[0.2] group-hover:grayscale-0'
-                    }`}
-                    referrerPolicy="no-referrer"
-                    draggable={false}
-                  />
-                </div>
-              ))}
-            </div>
+            {/* Single visible image — no scroll container */}
+            <img
+              src={getOptimizedImageUrl(allImages[imgIndex])}
+              alt={product.title}
+              className={`w-full h-full object-contain transition-transform duration-700 pointer-events-none ${
+                product.status === 'sold'
+                  ? 'grayscale-[0.6]'
+                  : 'group-hover:scale-105 grayscale-[0.2] group-hover:grayscale-0'
+              }`}
+              referrerPolicy="no-referrer"
+              draggable={false}
+            />
 
             {hasMultiple && (
               <>
@@ -242,7 +214,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
               </div>
             )}
 
-            {/* Wishlist button — shifts up when dots are visible to avoid overlap */}
+            {/* Wishlist button */}
             {product.status !== 'sold' && (
               <button
                 onClick={toggleWishlist}
@@ -259,6 +231,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
               </button>
             )}
           </div>
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs text-luxury-ink/40">
               <MapPin size={14} /> {product.city || 'Lucknow'}

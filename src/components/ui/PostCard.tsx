@@ -93,7 +93,6 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
   const hasImage = postImageUrls.length > 0;
   const [showReport, setShowReport] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const scrollRef = React.useRef<HTMLDivElement>(null);           
   const navigate = useNavigate();
 
   const displayInfo = getPersonaDisplay(post, false);
@@ -113,33 +112,13 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
   const prevImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!scrollRef.current) return;
-    const newIndex = (currentImageIndex - 1 + postImageUrls.length) % postImageUrls.length;
-    const width = scrollRef.current.clientWidth;
-    scrollRef.current.scrollTo({ left: newIndex * width, behavior: 'smooth' });
-    setCurrentImageIndex(newIndex);
+    setCurrentImageIndex((prev) => (prev - 1 + postImageUrls.length) % postImageUrls.length);
   };
 
   const nextImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!scrollRef.current) return;
-    const newIndex = (currentImageIndex + 1) % postImageUrls.length;
-    const width = scrollRef.current.clientWidth;
-    scrollRef.current.scrollTo({ left: newIndex * width, behavior: 'smooth' });
-    setCurrentImageIndex(newIndex);
-  };
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!scrollRef.current) return;
-    const scrollLeft = e.currentTarget.scrollLeft;
-    const width = e.currentTarget.clientWidth;
-    if (width > 0) {
-      const newIndex = Math.round(scrollLeft / width);
-      if (newIndex !== currentImageIndex) {
-        setCurrentImageIndex(newIndex);
-      }
-    }
+    setCurrentImageIndex((prev) => (prev + 1) % postImageUrls.length);
   };
 
   return (
@@ -206,47 +185,35 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         {/* Image */}
         {hasImage && (
           <div className="relative mt-2 mb-6 w-full rounded-[20px] overflow-hidden group bg-black/5">
-            <div 
-              ref={scrollRef}
-              onScroll={handleScroll}
-              className="flex w-full items-start overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-            >
-              {postImageUrls.map((url, idx) => (
-                <div key={idx} className="w-full shrink-0 snap-center">
-                  <img
-                    src={getOptimizedImageUrl(url)}
-                    alt={post.title || "Post image"}
-                    className="w-full h-auto pointer-events-none"
-                    referrerPolicy="no-referrer"
-                    draggable={false}
-                  />
-                </div>
-              ))}
-            </div>
+            {/* Single visible image — no scroll container */}
+            <img
+              src={getOptimizedImageUrl(postImageUrls[currentImageIndex])}
+              alt={post.title || "Post image"}
+              className="w-full h-auto pointer-events-none"
+              referrerPolicy="no-referrer"
+              draggable={false}
+            />
 
             {postImageUrls.length > 1 && (
               <>
+                {/* Counter badge */}
                 <div className="absolute top-3 right-3 bg-luxury-ink/60 backdrop-blur-md text-white px-2.5 py-1 rounded-md text-[11px] font-bold tracking-widest z-10 pointer-events-none">
                   {currentImageIndex + 1}/{postImageUrls.length}
                 </div>
-                
+
                 {/* Navigation arrows */}
-                {postImageUrls.length > 1 && (
-                  <>
-                    <button
-                      onClick={prevImage}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-                    <button
-                      onClick={nextImage}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={prevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  onClick={nextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-black/40 hover:bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                >
+                  <ChevronRight size={18} />
+                </button>
 
                 {/* Bottom dots indicator */}
                 <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
