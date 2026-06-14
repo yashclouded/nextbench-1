@@ -6,6 +6,7 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import { getOptimizedImageUrl } from '../../lib/utils';
+import { Link } from 'react-router-dom';
 
 interface PollData {
   choices: string[];
@@ -19,12 +20,16 @@ interface PollDisplayProps {
   compact?: boolean;
 }
 
+function voterProfileUrl(voter: { userId: string; username?: string }): string {
+  return voter.username ? `/u/${voter.username}` : `/profile/${voter.userId}`;
+}
+
 export default function PollDisplay({ postId, poll, compact = false }: PollDisplayProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [voting, setVoting] = useState(false);
   const [showVoters, setShowVoters] = useState(false);
-  const [voterProfiles, setVoterProfiles] = useState<Record<string, { name: string; profilePicture?: string }>>({});
+  const [voterProfiles, setVoterProfiles] = useState<Record<string, { name: string; username?: string; profilePicture?: string }>>({});
   const [loadingVoters, setLoadingVoters] = useState(false);
   const [localVotes, setLocalVotes] = useState<Record<string, number>>(poll.votes || {});
 
@@ -53,6 +58,7 @@ export default function PollDisplay({ postId, poll, compact = false }: PollDispl
                 const data = userDoc.data();
                 newProfiles[uid] = {
                   name: data.name || 'Anonymous User',
+                  username: data.username || undefined,
                   profilePicture: data.profilePicture || undefined
                 };
               } else {
@@ -237,8 +243,10 @@ export default function PollDisplay({ postId, poll, compact = false }: PollDispl
                       {votersForOption.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5 pt-1 pb-2">
                           {votersForOption.map((voter) => (
-                            <div
+                            <Link
                               key={voter.userId}
+                              to={voterProfileUrl(voter)}
+                              onClick={(e) => e.stopPropagation()}
                               className="relative group cursor-pointer"
                             >
                               {voter.profilePicture ? (
@@ -246,6 +254,7 @@ export default function PollDisplay({ postId, poll, compact = false }: PollDispl
                                   src={voter.profilePicture}
                                   alt={voter.name || 'User'}
                                   className="w-7 h-7 rounded-full object-cover border-2 border-surface-base shadow-sm transition-transform group-hover:scale-110"
+                                  referrerPolicy="no-referrer"
                                 />
                               ) : (
                                 <div className="w-7 h-7 rounded-full bg-brand-teal/10 text-brand-teal flex items-center justify-center text-[11px] font-bold border-2 border-surface-base shadow-sm transition-transform group-hover:scale-110">
@@ -257,7 +266,7 @@ export default function PollDisplay({ postId, poll, compact = false }: PollDispl
                                 {voter.name || 'Loading...'}
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-luxury-ink"></div>
                               </div>
-                            </div>
+                            </Link>
                           ))}
                         </div>
                       ) : (
