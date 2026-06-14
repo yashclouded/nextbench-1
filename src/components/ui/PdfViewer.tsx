@@ -309,3 +309,55 @@ export default function PdfViewer({ isOpen, onClose, pdfUrl, totalPages, title }
     document.body
   );
 }
+
+// ─── PDF Preview with Full Viewer ───────────────────────
+export function PdfPreview({ pdfUrl, totalPages, title }: { pdfUrl: string; totalPages: number; title?: string }) {
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const previewUrl = pdfUrl.replace('/upload/', '/upload/pg_1,w_600,f_jpg,q_auto/');
+
+  return (
+    <>
+      <div 
+        className="mt-2 mb-6 w-full rounded-2xl overflow-hidden border border-luxury-ink/10 bg-surface-base cursor-pointer group relative"
+        onClick={(e) => { e.stopPropagation(); setIsViewerOpen(true); }}
+      >
+        {/* Preview image of page 1 */}
+        <div className="relative">
+          <img
+            src={previewUrl}
+            alt="PDF preview"
+            className="w-full h-auto max-h-[400px] object-contain bg-white"
+            draggable={false}
+          />
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          
+          {/* Open viewer overlay */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="bg-white/95 backdrop-blur-sm text-luxury-ink px-5 py-3 rounded-xl shadow-xl flex items-center gap-2.5 font-semibold text-sm">
+              <FileText size={18} className="text-brand-teal" />
+              View PDF
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="flex items-center gap-2 px-4 py-2.5 border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <FileText size={14} className="text-brand-teal shrink-0" />
+          <span className="text-xs font-semibold text-luxury-ink/60 truncate">
+            {totalPages} {totalPages === 1 ? 'page' : 'pages'}
+          </span>
+          <span className="ml-auto text-[11px] font-bold text-brand-teal">TAP TO VIEW</span>
+        </div>
+      </div>
+
+      <PdfViewer
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        pdfUrl={pdfUrl}
+        totalPages={totalPages}
+        title={title}
+      />
+    </>
+  );
+}

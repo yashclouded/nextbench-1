@@ -19,6 +19,7 @@ import UsernameSetup from '../../components/ui/UsernameSetup';
 import ReportModal from '../../components/ui/ReportModal';
 import ProfileSettings from '../../components/ui/ProfileSettings';
 import SEO from '../../components/seo/SEO';
+import { PdfPreview } from '../../components/ui/PdfViewer';
 
 
 interface UserProduct {
@@ -1084,7 +1085,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
               return (
                 <div key={post.id} onClick={() => navigate(`/community?postId=${post.id}`)} className="theme-card rounded-2xl overflow-hidden transition-all hover:scale-[1.005] cursor-pointer group">
-                  {hasImage && (
+                  {hasImage && !post.pdfUrl && (
                     <div className="relative w-full aspect-video overflow-hidden bg-surface-soft">
                       <img
                         src={getOptimizedImageUrl(postImageUrls[0])}
@@ -1092,6 +1093,11 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         referrerPolicy="no-referrer"
                       />
+                    </div>
+                  )}
+                  {post.pdfUrl && (
+                    <div className="px-5 pt-5 md:px-6 md:pt-6 pb-0">
+                      <PdfPreview pdfUrl={post.pdfUrl} totalPages={post.pdfPages || 1} title={post.title} />
                     </div>
                   )}
                   <div className="p-5 md:p-6">
