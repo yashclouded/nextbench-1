@@ -20,7 +20,7 @@ export async function uploadToCloudinary(file: File, folder: string): Promise<st
   formData.append('upload_preset', UPLOAD_PRESET);
   formData.append('folder', folder);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
     method: 'POST',
     body: formData,
   });
@@ -70,6 +70,36 @@ export async function uploadSchoolIdCard(file: File): Promise<string> {
 export async function uploadPostImage(file: File): Promise<string> {
   const randomId = Math.random().toString(36).substring(2, 15);
   return uploadToCloudinary(file, `nextbench/posts/${randomId}`);
+}
+
+/**
+ * Uploads a PDF for a community post via Cloudinary's image pipeline.
+ * Returns { url, pages } so we can render each page as an image using
+ * Cloudinary's pg_N transformation — no external PDF viewer needed.
+ */
+export async function uploadPostPdf(file: File): Promise<{ url: string; pages: number }> {
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error('Cloudinary environment variables are missing.');
+  }
+
+  const randomId = Math.random().toString(36).substring(2, 15);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('folder', `nextbench/posts/pdf_${randomId}`);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error?.message || 'Failed to upload PDF.');
+  }
+
+  const data = await response.json();
+  return { url: data.secure_url, pages: data.pages || 1 };
 }
 
 /**

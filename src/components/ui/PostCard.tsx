@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import PollDisplay from './PollDisplay';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import PdfViewer, { PdfPreview } from './PdfViewer';
 import { motion } from 'motion/react';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { POST_TYPES } from '../../pages/Dashboard/Feed';
@@ -28,6 +29,8 @@ interface Post {
   status: string;
   imageUrl?: string;
   imageUrls?: string[];
+  pdfUrl?: string;
+  pdfPages?: number;
   upvotesCount: number;
   downvotesCount?: number;
   repliesCount: number;
@@ -227,6 +230,11 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
               </>
             )}
           </div>
+        )}
+
+        {/* PDF Preview + Full Viewer */}
+        {post.pdfUrl && (
+          <PdfPreview pdfUrl={post.pdfUrl} totalPages={post.pdfPages || 1} title={post.title} />
         )}
 
         {/* Action Bar */}

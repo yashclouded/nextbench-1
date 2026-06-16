@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import SEO from '../../components/seo/SEO';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
-import { uploadPostImage, uploadReplyImage } from '../../lib/storage';
+import { uploadPostImage, uploadReplyImage, uploadPostPdf } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useFollowingIds } from '../../lib/follows';
 import { isTextSafe } from '../../lib/moderation';
@@ -623,7 +623,9 @@ export default function Feed() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [submittingStatus, setSubmittingStatus] = useState('Posting...');
   const [contentType, setContentType] = useState<'all' | 'posts' | 'marketplace'>('all');
   const [shareModalData, setShareModalData] = useState<{isOpen: boolean, url: string, title: string, sharedPost?: any}>({isOpen: false, url: '', title: ''});
@@ -938,23 +940,30 @@ export default function Feed() {
     return () => unsubscribe();
   }, [user]);
 
-  // ─── Paste to add image ───────────────────────────────
+  // ─── Paste to add image/pdf ───────────────────────────────
   useEffect(() => {
     if (!isModalOpen) return;
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
       const pastedImages: File[] = [];
+      const pastedPdfs: File[] = [];
       for (const item of Array.from(items)) {
         if (item.type.startsWith('image/')) {
           const file = item.getAsFile();
           if (file) pastedImages.push(file);
+        } else if (item.type === 'application/pdf') {
+          const file = item.getAsFile();
+          if (file) pastedPdfs.push(file);
         }
       }
       if (pastedImages.length > 0) {
         const dt = new DataTransfer();
         pastedImages.forEach(f => dt.items.add(f));
         handleFilesSelected(dt.files);
+      }
+      if (pastedPdfs.length > 0) {
+        setPdfFile(pastedPdfs[0]);
       }
     };
     window.addEventListener('paste', handlePaste);
@@ -1021,6 +1030,35 @@ export default function Feed() {
     }
   };
 
+  // ─── Drag and Drop Flow ───────────────────────────────
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      const images = files.filter(f => f.type.startsWith('image/'));
+      const pdfs = files.filter(f => f.type === 'application/pdf');
+      
+      if (images.length > 0) {
+        const dt = new DataTransfer();
+        images.forEach(f => dt.items.add(f));
+        handleFilesSelected(dt.files);
+      }
+      if (pdfs.length > 0) {
+        setPdfFile(pdfs[0]);
+      }
+    }
+  };
+
   // ─── Handlers ─────────────────────────────────────────
 
   const handleCreatePost = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1067,6 +1105,16 @@ export default function Feed() {
 
     try {
       let imageUrls: string[] = [];
+      let pdfUrl: string | undefined = undefined;
+      let pdfPages: number = 0;
+
+      if (pdfFile) {
+        setSubmittingStatus('Uploading PDF...');
+        const pdfResult = await uploadPostPdf(pdfFile);
+        pdfUrl = pdfResult.url;
+        pdfPages = pdfResult.pages;
+      }
+
       if (imageFiles.length > 0) {
         setSubmittingStatus('Uploading images...');
         imageUrls = await Promise.all(imageFiles.map(file => uploadPostImage(file)));
@@ -1104,6 +1152,7 @@ export default function Feed() {
         status: initialStatus,
         privacy,
         imageUrls,
+        ...(pdfUrl ? { pdfUrl, pdfPages } : {}),
         upvotesCount: 0,
         repliesCount: 0,
         ...(showPollCreator && pollChoices.filter(c => c.trim()).length >= 2 ? {
@@ -1148,6 +1197,7 @@ export default function Feed() {
 
       setIsModalOpen(false);
       setImageFiles([]);
+      setPdfFile(null);
       setPendingFiles([]);
       setIsAnonymous(false);
       setSelectedPostType('info');
@@ -1788,15 +1838,17 @@ export default function Feed() {
               const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
               const title = titleNode?.value || '';
               const content = contentNode?.value || '';
-              if (title.trim() || content.trim() || imageFiles.length > 0) {
+              if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
                 if (window.confirm('Discard your post?')) {
                   setIsModalOpen(false);
                   setImageFiles([]);
+                  setPdfFile(null);
                   setPendingFiles([]);
                 }
               } else {
                 setIsModalOpen(false);
                 setImageFiles([]);
+                setPdfFile(null);
                 setPendingFiles([]);
               }
             }}
@@ -1807,8 +1859,19 @@ export default function Feed() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-surface-card w-full h-full sm:h-auto sm:rounded-3xl sm:max-w-2xl relative shadow-2xl overflow-hidden sm:max-h-[90vh] flex flex-col"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`bg-surface-card w-full h-full sm:h-auto sm:rounded-3xl sm:max-w-2xl relative shadow-2xl overflow-hidden sm:max-h-[90vh] flex flex-col transition-colors ${isDragging ? 'border-2 border-brand-teal bg-surface-soft/50' : ''}`}
             >
+              {isDragging && (
+                <div className="absolute inset-0 z-50 bg-brand-teal/10 backdrop-blur-sm border-2 border-dashed border-brand-teal rounded-3xl flex items-center justify-center pointer-events-none">
+                  <div className="bg-surface-card px-6 py-4 rounded-2xl shadow-xl flex items-center gap-3">
+                    <Paperclip size={24} className="text-brand-teal" />
+                    <span className="font-bold text-luxury-ink">Drop media to attach</span>
+                  </div>
+                </div>
+              )}
               {/* Close Button */}
               <button
                 type="button"
@@ -1819,15 +1882,17 @@ export default function Feed() {
                   const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
                   const title = titleNode?.value || '';
                   const content = contentNode?.value || '';
-                  if (title.trim() || content.trim() || imageFiles.length > 0) {
+                  if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
                     if (window.confirm('Discard your post?')) {
                       setIsModalOpen(false);
                       setImageFiles([]);
+                      setPdfFile(null);
                       setPendingFiles([]);
                     }
                   } else {
                     setIsModalOpen(false);
                     setImageFiles([]);
+                    setPdfFile(null);
                     setPendingFiles([]);
                   }
                 }}
@@ -1975,6 +2040,17 @@ export default function Feed() {
                       </div>
                     )}
 
+                    {/* PDF Preview */}
+                    {pdfFile && (
+                      <div className="mt-4 flex items-center gap-3 p-3 rounded-xl border border-luxury-ink/10 bg-surface-soft shrink-0">
+                        <FileText size={24} className="text-brand-teal" />
+                        <span className="flex-1 text-sm font-medium text-luxury-ink truncate">{pdfFile.name}</span>
+                        <button type="button" onClick={() => setPdfFile(null)} className="p-1 rounded-full text-luxury-ink/40 hover:text-red-500 hover:bg-red-50">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Image Previews */}
                     {imageFiles.length > 0 && (
                       <div className="mt-4 flex gap-2 overflow-x-auto pb-2 no-scrollbar shrink-0">
@@ -2000,19 +2076,29 @@ export default function Feed() {
                   <div className="mt-4 pt-4 border-t border-luxury-ink/5 flex flex-wrap items-center justify-between gap-y-3 relative px-1 bottom-0 bg-surface-card pb-2">
                     <div className="flex items-center gap-1 relative">
                       <label className="p-2.5 rounded-full hover:bg-surface-soft text-luxury-ink/50 hover:text-brand-teal transition-colors cursor-pointer group relative">
-                        <ImageIcon size={22} />
+                        <Paperclip size={22} />
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/*,application/pdf"
                           multiple
                           onChange={(e) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                              handleFilesSelected(e.target.files);
+                            if (!e.target.files) return;
+                            const files = Array.from(e.target.files);
+                            const images = files.filter(f => f.type.startsWith('image/'));
+                            const pdfs = files.filter(f => f.type === 'application/pdf');
+                            
+                            if (images.length > 0) {
+                              const dt = new DataTransfer();
+                              images.forEach(f => dt.items.add(f));
+                              handleFilesSelected(dt.files);
+                            }
+                            if (pdfs.length > 0) {
+                              setPdfFile(pdfs[0]); // Take the first PDF
                             }
                           }}
                           className="hidden"
                         />
-                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Add Image</span>
+                        <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-gray-100 text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Add Media</span>
                       </label>
                       <button
                         type="button"
@@ -2095,15 +2181,17 @@ export default function Feed() {
                           const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
                           const title = titleNode?.value || '';
                           const content = contentNode?.value || '';
-                          if (title.trim() || content.trim() || imageFiles.length > 0) {
+                          if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
                             if (window.confirm('Discard your post?')) {
                               setIsModalOpen(false);
                               setImageFiles([]);
+                              setPdfFile(null);
                               setPendingFiles([]);
                             }
                           } else {
                             setIsModalOpen(false);
                             setImageFiles([]);
+                            setPdfFile(null);
                             setPendingFiles([]);
                           }
                         }}

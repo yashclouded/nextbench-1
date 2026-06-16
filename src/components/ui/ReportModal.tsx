@@ -45,7 +45,7 @@ export default function ReportModal({ isOpen, onClose, contentType, contentId }:
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[110] flex items-center justify-center p-4 backdrop-blur-sm"
+        className="fixed inset-0 z-110 flex items-center justify-center p-4 backdrop-blur-sm"
         style={{ background: 'var(--color-overlay)' }}
         onClick={onClose}
       >
@@ -58,7 +58,7 @@ export default function ReportModal({ isOpen, onClose, contentType, contentId }:
           onClick={(e) => e.stopPropagation()}
         >
           {/* Warning header */}
-          <div className="h-2 w-full bg-gradient-to-r from-amber-400 via-red-400 to-amber-400 shrink-0" />
+          <div className="h-2 w-full bg-linear-to-r from-amber-400 via-red-400 to-amber-400 shrink-0" />
           
           <div className="p-8 overflow-y-auto">
             <button onClick={onClose} className="absolute top-6 right-6 p-2 text-luxury-ink/40 hover:text-luxury-ink transition-colors z-10 bg-surface-card rounded-full">
@@ -71,7 +71,7 @@ export default function ReportModal({ isOpen, onClose, contentType, contentId }:
               </div>
               <h3 className="text-xl font-bold text-luxury-ink">Report Content</h3>
             </div>
-            <p className="text-xs font-bold uppercase tracking-widest text-luxury-ink/40 mb-6 ml-[52px]">
+            <p className="text-xs font-bold uppercase tracking-widest text-luxury-ink/40 mb-6 ml-13">
               Help keep our community safe
             </p>
 
