@@ -253,7 +253,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       }
     };
     fetchReferral();
-  }, [isOwnProfile, user]);
+  }, [isOwnProfile, user?.uid]);
 
   // Auto-redirect to username URL if available and not already on it
   useEffect(() => {
