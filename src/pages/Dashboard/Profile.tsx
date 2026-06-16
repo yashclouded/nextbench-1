@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe, Eye, Gift, UserPlus } from 'lucide-react';
+import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe, Eye, Gift, UserPlus, ArrowUpDown } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import React, { useState, useEffect, useRef } from 'react';
@@ -31,6 +31,57 @@ interface ProfileProps {
   usernameResolvedUserId?: string;
 }
 
+function SortDropdown({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const current = options.find(o => o.value === value);
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold text-luxury-ink/60 hover:text-luxury-ink transition-colors whitespace-nowrap"
+        style={{ border: '1px solid var(--color-border)' }}
+      >
+        <ArrowUpDown size={13} />
+        {current?.label}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -5 }}
+            className="absolute right-0 top-full mt-2 w-48 rounded-xl shadow-xl overflow-hidden z-30 border"
+            style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-border)' }}
+          >
+            {options.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-surface-soft ${value === opt.value ? 'text-brand-teal' : 'text-luxury-ink/70'}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const { userId: routeUserId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
@@ -45,6 +96,8 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const [myPosts, setMyPosts] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'sold'>('active');
   const [viewMode, setViewMode] = useState<'listings' | 'posts'>('listings');
+  const [listingSort, setListingSort] = useState<'newest' | 'oldest' | 'price-asc' | 'price-desc'>('newest');
+  const [postSort, setPostSort] = useState<'newest' | 'oldest' | 'most-liked' | 'most-discussed'>('newest');
   const [isUploadingPic, setIsUploadingPic] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -577,6 +630,49 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     loadFollowList(ids);
   };
 
+  // ─── Derived listing/post data (must run before any early return) ─────
+
+  const activeListings = myListings.filter(p => p.status === 'available');
+  const pendingListings = myListings.filter(p => p.status === 'pending');
+  const soldListings = myListings.filter(p => p.status === 'sold');
+  const displayedListings = activeTab === 'active' ? activeListings : activeTab === 'pending' ? pendingListings : soldListings;
+
+  const sortedListings = React.useMemo(() => {
+    const arr = [...displayedListings];
+    switch (listingSort) {
+      case 'oldest':
+        arr.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+        break;
+      case 'price-asc':
+        arr.sort((a, b) => (a.price || 0) - (b.price || 0));
+        break;
+      case 'price-desc':
+        arr.sort((a, b) => (b.price || 0) - (a.price || 0));
+        break;
+      default:
+        arr.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+    }
+    return arr;
+  }, [displayedListings, listingSort]);
+
+  const sortedPosts = React.useMemo(() => {
+    const arr = myPosts.filter(post => post.privacy !== 'private' || isFriend || isOwnProfile);
+    switch (postSort) {
+      case 'oldest':
+        arr.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+        break;
+      case 'most-liked':
+        arr.sort((a, b) => (b.upvotesCount || 0) - (a.upvotesCount || 0));
+        break;
+      case 'most-discussed':
+        arr.sort((a, b) => (b.repliesCount || 0) - (a.repliesCount || 0));
+        break;
+      default:
+        arr.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+    }
+    return arr;
+  }, [myPosts, isFriend, isOwnProfile, postSort]);
+
   // ─── Blocked States ─────────────────────────────────────
 
   if (!isOwnProfile && isBlockedBy) {
@@ -615,11 +711,6 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const nameParts = userName.split(' ');
   const firstName = nameParts[0] || '';
   const lastName = nameParts.slice(1).join(' ');
-
-  const activeListings = myListings.filter(p => p.status === 'available');
-  const pendingListings = myListings.filter(p => p.status === 'pending');
-  const soldListings = myListings.filter(p => p.status === 'sold');
-  const displayedListings = activeTab === 'active' ? activeListings : activeTab === 'pending' ? pendingListings : soldListings;
 
   return (
     <div className="pb-20 max-w-7xl mx-auto relative">
@@ -1004,8 +1095,9 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
         {/* Listings Section */}
         {viewMode === 'listings' && (
           <>
-            {isOwnProfile && (
-              <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2">
+          {isOwnProfile && (
+            <div className="flex items-center justify-between gap-3 mb-6">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
                 {([['active', `Active (${activeListings.length})`], ['pending', `Pending (${pendingListings.length})`], ['sold', `Sold (${soldListings.length})`]] as const).map(([key, label]) => (
                   <button key={key} onClick={() => setActiveTab(key as any)}
                     className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
@@ -1015,10 +1107,21 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                   >{label}</button>
                 ))}
               </div>
-            )}
+              <SortDropdown
+                value={listingSort}
+                onChange={(v) => setListingSort(v as any)}
+                options={[
+                  { value: 'newest', label: 'Newest First' },
+                  { value: 'oldest', label: 'Oldest First' },
+                  { value: 'price-asc', label: 'Price: Low to High' },
+                  { value: 'price-desc', label: 'Price: High to Low' },
+                ]}
+              />
+            </div>
+          )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {displayedListings.map(product => (
+              {sortedListings.map(product => (
                 <div key={product.id} className="theme-card rounded-2xl overflow-hidden group transition-all hover:scale-[1.01] flex flex-col">
                   <div className="aspect-4/3 relative overflow-hidden bg-surface-soft shrink-0">
                     <img src={getOptimizedImageUrl(product.image)} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
@@ -1048,7 +1151,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                 </div>
               ))}
 
-              {displayedListings.length === 0 && (
+              {sortedListings.length === 0 && (
                 <div className="col-span-full rounded-2xl p-14 text-center border-2 border-dashed flex flex-col items-center" style={{ borderColor: 'var(--color-border)' }}>
                   <div className="relative mb-5">
                     <div className="w-20 h-20 rounded-2xl bg-luxury-ink/5 flex items-center justify-center">
@@ -1081,7 +1184,20 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
         {/* Posts Section */}
         {viewMode === 'posts' && (
           <div className="space-y-6 max-w-2xl mx-auto w-full">
-            {myPosts.filter(post => post.privacy !== 'private' || isFriend || isOwnProfile).map(post => {
+            <div className="flex justify-end -mt-1">
+              <SortDropdown
+                value={postSort}
+                onChange={(v) => setPostSort(v as any)}
+                options={[
+                  { value: 'newest', label: 'Newest First' },
+                  { value: 'oldest', label: 'Oldest First' },
+                  { value: 'most-liked', label: 'Most Liked' },
+                  { value: 'most-discussed', label: 'Most Discussed' },
+                ]}
+              />
+            </div>
+
+            {sortedPosts.map(post => {
               const postImageUrls = post.imageUrls && post.imageUrls.length > 0
                 ? post.imageUrls
                 : (post.imageUrl ? [post.imageUrl] : []);
@@ -1138,7 +1254,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
               );
             })}
 
-            {myPosts.filter(post => post.privacy !== 'private' || isFriend || isOwnProfile).length === 0 && (
+            {sortedPosts.length === 0 && (
             <div className="rounded-2xl p-14 text-center border-2 border-dashed flex flex-col items-center" style={{ borderColor: 'var(--color-border)' }}>
               <div className="relative mb-5">
                 <div className="w-20 h-20 rounded-2xl bg-luxury-ink/5 flex items-center justify-center">
