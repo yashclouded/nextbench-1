@@ -30,7 +30,7 @@ export default function MobileHeader() {
       console.warn('MobileHeader: notifications listener error (ignored):', err);
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.uid]);
 
   // Don't show header if we are not on main dashboard pages,
   // to avoid conflicting with modal headers or simple pages.

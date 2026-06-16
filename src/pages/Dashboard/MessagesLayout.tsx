@@ -146,7 +146,7 @@ export default function MessagesLayout() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.uid]);
 
   // Search users for new DM
   useEffect(() => {
@@ -169,7 +169,7 @@ export default function MessagesLayout() {
     }, (err) => { console.error(err); setSearchingUsers(false); });
 
     return () => unsub();
-  }, [searchUsers, showNewDM, user]);
+  }, [searchUsers, showNewDM, user?.uid]);
 
   const handleStartDM = async (otherUserId: string) => {
     if (!user || creatingDM) return;

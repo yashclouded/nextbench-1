@@ -46,7 +46,7 @@ export default function ClubJoin() {
     };
 
     fetchClub();
-  }, [inviteCode, user]);
+  }, [inviteCode, user?.uid]);
 
   const handleJoin = async () => {
     if (!user || !inviteCode || joining) return;

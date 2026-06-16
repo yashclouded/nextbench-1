@@ -51,7 +51,7 @@ export default function ShareModal({ isOpen, onClose, postUrl, postTitle, shared
       }
     };
     fetchFollowing();
-  }, [isOpen, user]);
+  }, [isOpen, user?.uid]);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {

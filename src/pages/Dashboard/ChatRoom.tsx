@@ -178,7 +178,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
     });
 
     return () => { unsubscribe(); unsubRoom(); unsubscribeNotifications(); };
-  }, [roomId, user]);
+  }, [roomId, user?.uid]);
 
   const scrollToBottom = () => {
     if (scrollContainerRef.current) {

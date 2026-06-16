@@ -134,7 +134,7 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
     if (isOpen && activeTab === 'saved' && user) {
       loadSavedPosts();
     }
-  }, [isOpen, activeTab, user]);
+  }, [isOpen, activeTab, user?.uid]);
 
   useEffect(() => {
     if (isOpen && userData?.anonymousPersonaName) {

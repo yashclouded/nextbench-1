@@ -145,7 +145,7 @@ export default function SuggestedUsers() {
     };
 
     fetchSuggestions();
-  }, [user, userData, followingIds]);
+  }, [user?.uid, userData, followingIds]);
 
   const toggleFollow = async (e: React.MouseEvent, targetId: string) => {
     e.preventDefault();

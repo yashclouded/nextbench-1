@@ -47,7 +47,7 @@ export default function Invite() {
       }
     };
     fetchReferralData();
-  }, [user]);
+  }, [user?.uid]);
 
   const generateCode = async () => {
     if (!user) return;

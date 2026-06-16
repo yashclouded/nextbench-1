@@ -77,7 +77,7 @@ export default function SidebarNav() {
       console.warn('SidebarNav: notifications listener error (ignored):', err);
     });
     return () => unsubscribe();
-  }, [user, showToast]);
+  }, [user?.uid, showToast]);
 
   const allNavLinks = [
     { name: 'Home', path: '/community', icon: Home },

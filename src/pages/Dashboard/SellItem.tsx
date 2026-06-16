@@ -97,7 +97,7 @@ export default function SellItem() {
     };
     
     fetchListing();
-  }, [id, user, navigate, userData, showToast]);
+  }, [id, user?.uid, navigate, userData, showToast]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

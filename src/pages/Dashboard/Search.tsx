@@ -55,7 +55,7 @@ export default function Search() {
       setUpvotedPostIds(ids);
     });
     return () => unsub();
-  }, [user]);
+  }, [user?.uid]);
 
   // Cache for suggestions to avoid re-fetching on empty search
   const [suggestionsFetched, setSuggestionsFetched] = useState(false);
