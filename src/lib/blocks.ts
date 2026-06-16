@@ -138,7 +138,7 @@ export function useBlockStatus(targetUserId?: string): {
       unsub1();
       unsub2();
     };
-  }, [user, targetUserId]);
+  }, [user?.uid, targetUserId]);
 
   return { isBlocked, isBlockedBy };
 }
