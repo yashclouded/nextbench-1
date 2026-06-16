@@ -136,40 +136,57 @@ export function useFollowCounts(userId: string | undefined) {
 
 export function useMutualFollowers(targetUserId: string | undefined) {
   const { user } = useAuth();
-  const [mutuals, setMutuals] = useState<{ users: any[], totalCount: number }>({ users: [], totalCount: 0 });
+  const [mutuals, setMutuals] = useState<{ users: any[], totalCount: number, mutualIds: string[] }>({ users: [], totalCount: 0, mutualIds: [] });
 
   useEffect(() => {
     if (!user || !targetUserId || user.uid === targetUserId) {
-      setMutuals({ users: [], totalCount: 0 });
+      setMutuals({ users: [], totalCount: 0, mutualIds: [] });
       return;
     }
 
     const fetchMutuals = async () => {
       try {
-        // 1. Get IDs of users the current user is following
+        // 1. Get IDs of users the current user is following OR is followed by (network)
         const myFollowingQ = query(collection(db, 'follows'), where('followerId', '==', user.uid));
-        const myFollowingSnap = await getDocs(myFollowingQ);
-        const myFollowingIds = new Set<string>();
-        myFollowingSnap.forEach(d => myFollowingIds.add(d.data().followingId));
+        const myFollowersQ = query(collection(db, 'follows'), where('followingId', '==', user.uid));
+        
+        const [myFollowingSnap, myFollowersSnap] = await Promise.all([
+          getDocs(myFollowingQ),
+          getDocs(myFollowersQ)
+        ]);
+        
+        const myNetworkIds = new Set<string>();
+        myFollowingSnap.forEach(d => myNetworkIds.add(d.data().followingId));
+        myFollowersSnap.forEach(d => myNetworkIds.add(d.data().followerId));
 
-        if (myFollowingIds.size === 0) {
-          setMutuals({ users: [], totalCount: 0 });
+        if (myNetworkIds.size === 0) {
+          setMutuals({ users: [], totalCount: 0, mutualIds: [] });
           return;
         }
 
-        // 2. Get IDs of users following the target user
+        // 2. Get IDs of users following the target user AND users the target user is following
         const targetFollowersQ = query(collection(db, 'follows'), where('followingId', '==', targetUserId));
-        const targetFollowersSnap = await getDocs(targetFollowersQ);
+        const targetFollowingQ = query(collection(db, 'follows'), where('followerId', '==', targetUserId));
+        
+        const [targetFollowersSnap, targetFollowingSnap] = await Promise.all([
+          getDocs(targetFollowersQ),
+          getDocs(targetFollowingQ)
+        ]);
+        
+        const targetNetworkIds = new Set<string>();
+        targetFollowersSnap.forEach(d => targetNetworkIds.add(d.data().followerId));
+        targetFollowingSnap.forEach(d => targetNetworkIds.add(d.data().followingId));
+
         const mutualIds: string[] = [];
         
-        targetFollowersSnap.forEach(d => {
-          if (myFollowingIds.has(d.data().followerId)) {
-            mutualIds.push(d.data().followerId);
+        targetNetworkIds.forEach(id => {
+          if (myNetworkIds.has(id)) {
+            mutualIds.push(id);
           }
         });
 
         if (mutualIds.length === 0) {
-          setMutuals({ users: [], totalCount: 0 });
+          setMutuals({ users: [], totalCount: 0, mutualIds: [] });
           return;
         }
 
@@ -178,7 +195,7 @@ export function useMutualFollowers(targetUserId: string | undefined) {
         const userDocs = await Promise.all(displayIds.map(id => getDoc(doc(db, 'users', id))));
         const mutualUsers = userDocs.map(d => ({ id: d.id, name: d.data()?.name || 'User', profilePicture: d.data()?.profilePicture }));
 
-        setMutuals({ users: mutualUsers, totalCount: mutualIds.length });
+        setMutuals({ users: mutualUsers, totalCount: mutualIds.length, mutualIds });
       } catch (err) {
         console.error('Error fetching mutual followers:', err);
       }

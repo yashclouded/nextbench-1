@@ -112,6 +112,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const [followAnimating, setFollowAnimating] = useState(false);
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [showFollowingModal, setShowFollowingModal] = useState(false);
+  const [showMutualsModal, setShowMutualsModal] = useState(false);
   const [followListUsers, setFollowListUsers] = useState<any[]>([]);
   const [loadingFollowList, setLoadingFollowList] = useState(false);
   const [isDMing, setIsDMing] = useState(false);
@@ -135,7 +136,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
-  useScrollLock(isEditing || showFollowersModal || showFollowingModal || !!selectedPost || showUsernameSetup || showReportModal || showSettingsModal || showPfpLightbox || showPfpUploadModal);
+  useScrollLock(isEditing || showFollowersModal || showFollowingModal || showMutualsModal || !!selectedPost || showUsernameSetup || showReportModal || showSettingsModal || showPfpLightbox || showPfpUploadModal);
 
   // Determine the actual userId to display
   const effectiveUserId = usernameResolvedUserId || routeUserId;
@@ -616,6 +617,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const openFollowers = async () => {
     setShowFollowersModal(true);
     setShowFollowingModal(false);
+    setShowMutualsModal(false);
     const { collection: coll, query: q, where: w, getDocs: gd } = await import('firebase/firestore');
     const snap = await gd(q(coll(db, 'follows'), w('followingId', '==', targetUserId)));
     const ids = snap.docs.map(d => d.data().followerId);
@@ -625,10 +627,18 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const openFollowing = async () => {
     setShowFollowingModal(true);
     setShowFollowersModal(false);
+    setShowMutualsModal(false);
     const { collection: coll, query: q, where: w, getDocs: gd } = await import('firebase/firestore');
     const snap = await gd(q(coll(db, 'follows'), w('followerId', '==', targetUserId)));
     const ids = snap.docs.map(d => d.data().followingId);
     loadFollowList(ids);
+  };
+
+  const openMutuals = () => {
+    setShowMutualsModal(true);
+    setShowFollowersModal(false);
+    setShowFollowingModal(false);
+    if (mutuals.mutualIds) loadFollowList(mutuals.mutualIds);
   };
 
   // ─── Derived listing/post data (must run before any early return) ─────
@@ -997,11 +1007,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             <span className="text-sm text-luxury-ink/50 flex items-center gap-0.5">Reputation <Star size={11} className="text-brand-teal" /></span>
           </div>
         </div>
-        </div>
 
         {/* ─── Mutual Followers ───────────────────────────────── */}
         {!isOwnProfile && mutuals.totalCount > 0 && (
-          <div className="flex items-center gap-3 mb-6 bg-surface-soft/50 p-3 rounded-xl w-full max-w-sm">
+          <button onClick={openMutuals} className="flex items-center gap-3 mb-6 bg-surface-soft/50 hover:bg-surface-soft p-3 rounded-xl w-full max-w-sm text-left transition-colors cursor-pointer group">
             <div className="flex -space-x-2 shrink-0">
               {mutuals.users.map((mu) => (
                 <div key={mu.id} className="w-6 h-6 rounded-full bg-brand-teal/10 border-2 border-surface-card flex items-center justify-center overflow-hidden shrink-0">
@@ -1022,7 +1031,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                 <span> and <span className="font-bold text-luxury-ink">{mutuals.totalCount - 2} {mutuals.totalCount - 2 === 1 ? 'other' : 'others'}</span></span>
               )}
             </p>
-          </div>
+          </button>
         )}
       </div>
 
@@ -1349,16 +1358,16 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
         />
       )}
 
-      {/* Followers/Following Modal */}
+      {/* Followers/Following/Mutuals Modal */}
       <AnimatePresence>
-        {(showFollowersModal || showFollowingModal) && (
+        {(showFollowersModal || showFollowingModal || showMutualsModal) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-100 flex items-center justify-center p-4 backdrop-blur-sm"
             style={{ background: 'var(--color-overlay)' }}
-            onClick={() => { setShowFollowersModal(false); setShowFollowingModal(false); }}
+            onClick={() => { setShowFollowersModal(false); setShowFollowingModal(false); setShowMutualsModal(false); }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -1370,7 +1379,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             >
               <div className="p-6 border-b flex justify-between items-center" style={{ borderColor: 'var(--color-border)' }}>
                 <h3 className="text-xl font-bold text-luxury-ink">
-                  {showFollowersModal ? 'Followers' : 'Following'}
+                  {showMutualsModal ? 'Mutual Followers' : showFollowersModal ? 'Followers' : 'Following'}
                 </h3>
                 <button
                   onClick={() => { setShowFollowersModal(false); setShowFollowingModal(false); }}
@@ -1388,7 +1397,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                 ) : followListUsers.length === 0 ? (
                   <div className="py-12 text-center">
                     <p className="text-luxury-ink/40 font-serif italic text-lg">
-                      {showFollowersModal ? 'No followers yet.' : 'Not following anyone yet.'}
+                      {showMutualsModal ? 'No mutual followers.' : showFollowersModal ? 'No followers yet.' : 'Not following anyone yet.'}
                     </p>
                   </div>
                 ) : (
@@ -1397,7 +1406,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                       <Link
                         key={u.id}
                         to={u.username ? `/u/${u.username}` : `/profile/${u.id}`}
-                        onClick={() => { setShowFollowersModal(false); setShowFollowingModal(false); }}
+                        onClick={() => { setShowFollowersModal(false); setShowFollowingModal(false); setShowMutualsModal(false); }}
                         className="flex items-center gap-4 p-3 rounded-xl hover:bg-surface-soft transition-all group"
                       >
                         <div className="w-12 h-12 rounded-full bg-brand-teal/5 flex items-center justify-center overflow-hidden shrink-0" style={{ border: '1px solid var(--color-border)' }}>

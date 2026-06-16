@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs, documentId } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useFollowingIds, followUser, unfollowUser } from '../../lib/follows';
 import { Link } from 'react-router-dom';
-import { UserCheck, UserPlus, Users, ArrowRight } from 'lucide-react';
+import { UserCheck, UserPlus, Users, ArrowRight, ShieldCheck } from 'lucide-react';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useToast } from '../../lib/ToastContext';
 import TrendingSidebar from './TrendingSidebar';
@@ -14,6 +14,9 @@ interface SuggestedUser {
   name: string;
   school: string;
   profilePicture?: string;
+  verified?: boolean;
+  mutualCount?: number;
+  mutualFriends?: { id: string; name: string }[];
 }
 
 export default function SuggestedUsers() {
@@ -31,47 +34,109 @@ export default function SuggestedUsers() {
 
     const fetchSuggestions = async () => {
       try {
-        // Try to fetch users from the same school first
-        let q = query(
-          collection(db, 'users'),
-          where('school', '==', userData.school),
-          limit(10)
-        );
-        let snapshot = await getDocs(q);
-        
         let fetchedUsers: SuggestedUser[] = [];
-        snapshot.forEach(doc => {
-          if (doc.id !== user.uid && !followingIds.has(doc.id)) {
-            const data = doc.data();
-            fetchedUsers.push({
-              id: doc.id,
-              name: data.name || 'User',
-              school: data.school || 'Unknown School',
-              profilePicture: data.profilePicture
-            });
-          }
-        });
+        const suggestedIdsSet = new Set<string>();
 
-        // If we don't have enough suggestions from the same school, fetch general users
+        // Phase 1: Instagram-style Friends-of-Friends (FoF) Algorithm
+        if (followingIds.size > 0) {
+          const followingsToQuery = Array.from(followingIds).sort(() => 0.5 - Math.random()).slice(0, 30);
+          
+          const fofQuery = query(collection(db, 'follows'), where('followerId', 'in', followingsToQuery));
+          const fofSnap = await getDocs(fofQuery);
+          
+          const fofFriends: Record<string, string[]> = {};
+          fofSnap.forEach(doc => {
+            const potentialId = doc.data().followingId;
+            const mutualFriendId = doc.data().followerId;
+            if (potentialId !== user.uid && !followingIds.has(potentialId)) {
+              if (!fofFriends[potentialId]) fofFriends[potentialId] = [];
+              fofFriends[potentialId].push(mutualFriendId);
+            }
+          });
+
+          const sortedFof = Object.entries(fofFriends)
+            .sort((a, b) => b[1].length - a[1].length)
+            .slice(0, 10)
+            .map(entry => entry[0]);
+
+          if (sortedFof.length > 0) {
+            const userDocsSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', sortedFof)));
+            
+            // Fetch names of mutual friends
+            const mutualsToFetch = new Set<string>();
+            userDocsSnap.forEach(doc => {
+              const friends = fofFriends[doc.id] || [];
+              friends.slice(0, 2).forEach(id => mutualsToFetch.add(id));
+            });
+            
+            const mutualNames: Record<string, string> = {};
+            if (mutualsToFetch.size > 0) {
+              const mutualDocsSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', Array.from(mutualsToFetch))));
+              mutualDocsSnap.forEach(doc => {
+                mutualNames[doc.id] = doc.data().name || 'User';
+              });
+            }
+
+            userDocsSnap.forEach(doc => {
+              const data = doc.data();
+              const friends = fofFriends[doc.id] || [];
+              const mutualFriends = friends.slice(0, 2).map(id => ({ id, name: mutualNames[id] || 'User' }));
+              
+              fetchedUsers.push({
+                id: doc.id,
+                name: data.name || 'User',
+                school: data.school || 'Unknown School',
+                profilePicture: data.profilePicture,
+                verified: data.verified,
+                mutualCount: friends.length,
+                mutualFriends: mutualFriends
+              });
+              suggestedIdsSet.add(doc.id);
+            });
+            fetchedUsers.sort((a, b) => (b.mutualCount || 0) - (a.mutualCount || 0));
+          }
+        }
+
+        // Phase 2: Fallback to users from the same school
         if (fetchedUsers.length < 5) {
-          const generalQ = query(collection(db, 'users'), limit(15));
-          const generalSnap = await getDocs(generalQ);
-          generalSnap.forEach(doc => {
-            if (doc.id !== user.uid && !followingIds.has(doc.id) && !fetchedUsers.find(u => u.id === doc.id)) {
+          const q = query(collection(db, 'users'), where('school', '==', userData.school), limit(15));
+          const snapshot = await getDocs(q);
+          
+          snapshot.forEach(doc => {
+            if (doc.id !== user.uid && !followingIds.has(doc.id) && !suggestedIdsSet.has(doc.id)) {
               const data = doc.data();
               fetchedUsers.push({
                 id: doc.id,
                 name: data.name || 'User',
                 school: data.school || 'Unknown School',
-                profilePicture: data.profilePicture
+                profilePicture: data.profilePicture,
+                verified: data.verified
               });
+              suggestedIdsSet.add(doc.id);
             }
           });
         }
 
-        // Shuffle and limit to 5
-        fetchedUsers = fetchedUsers.sort(() => 0.5 - Math.random()).slice(0, 5);
-        setSuggestions(fetchedUsers);
+        // Phase 3: General fallback
+        if (fetchedUsers.length < 5) {
+          const generalQ = query(collection(db, 'users'), limit(15));
+          const generalSnap = await getDocs(generalQ);
+          generalSnap.forEach(doc => {
+            if (doc.id !== user.uid && !followingIds.has(doc.id) && !suggestedIdsSet.has(doc.id)) {
+              const data = doc.data();
+              fetchedUsers.push({
+                id: doc.id,
+                name: data.name || 'User',
+                school: data.school || 'Unknown School',
+                profilePicture: data.profilePicture,
+                verified: data.verified
+              });
+              suggestedIdsSet.add(doc.id);
+            }
+          });
+        }
+
+        setSuggestions(fetchedUsers.slice(0, 5));
       } catch (error) {
         console.error("Error fetching suggestions:", error);
       } finally {
@@ -143,8 +208,23 @@ export default function SuggestedUsers() {
                     ) : suggestion.name[0]?.toUpperCase()}
                   </div>
                   <div className="min-w-0 pr-2">
-                    <p className="text-[13px] font-semibold text-luxury-ink truncate group-hover:text-brand-teal transition-colors">{suggestion.name}</p>
-                    <p className="text-[11px] text-luxury-ink/30 truncate">{suggestion.school}</p>
+                    <p className="text-[13px] font-semibold text-luxury-ink truncate group-hover:text-brand-teal transition-colors flex items-center gap-1">
+                      {suggestion.name}
+                      {suggestion.verified && <ShieldCheck size={12} className="text-brand-teal" title="Verified" />}
+                    </p>
+                    <p className="text-[11px] text-luxury-ink/40 truncate">
+                      {suggestion.mutualCount && suggestion.mutualFriends && suggestion.mutualFriends.length > 0 ? (
+                        <>
+                          Followed by <span className="font-bold text-luxury-ink/60">{suggestion.mutualFriends[0]?.name.split(' ')[0]}</span>
+                          {suggestion.mutualCount === 2 && suggestion.mutualFriends[1] && (
+                            <> and <span className="font-bold text-luxury-ink/60">{suggestion.mutualFriends[1]?.name.split(' ')[0]}</span></>
+                          )}
+                          {suggestion.mutualCount > 2 && (
+                            <> + {suggestion.mutualCount - 1} more</>
+                          )}
+                        </>
+                      ) : suggestion.school}
+                    </p>
                   </div>
                 </div>
                 <button
