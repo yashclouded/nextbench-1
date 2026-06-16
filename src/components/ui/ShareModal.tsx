@@ -99,7 +99,7 @@ export default function ShareModal({ isOpen, onClose, postUrl, postTitle, shared
     });
 
     return () => unsub();
-  }, [searchUsers, isOpen, user, followingIds]);
+  }, [searchUsers, isOpen, user?.uid]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(postUrl);
