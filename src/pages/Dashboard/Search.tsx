@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { collection, query, getDocs, limit, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { Search as SearchIcon, Users, Grid3X3, Package, ArrowRight, Globe, Filter, X } from 'lucide-react';
+import { Search as SearchIcon, Users, Grid3X3, Package, ArrowRight, Globe, Filter, X, Lock } from 'lucide-react';
 
 const SCHOOLS = [
   "Loreto Convent",
@@ -349,7 +349,8 @@ export default function Search() {
             <div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           </div>
         ) : (
-          <AnimatePresence mode="popLayout">
+          <>
+            <AnimatePresence mode="popLayout">
             
             {/* USERS */}
             {(activeTab === 'all' || activeTab === 'users') && users.length > 0 && (
@@ -528,6 +529,7 @@ export default function Search() {
               </Link>
             </div>
           )}
+          </>
         )}
       </div>
 
