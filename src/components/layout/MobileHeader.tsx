@@ -57,14 +57,16 @@ export default function MobileHeader() {
             <Moon size={20} className="theme-toggle-icon" />
           )}
         </button>
-        <Link to="/notifications" className="relative p-2 text-luxury-ink hover:bg-luxury-ink/5 rounded-full transition-colors">
-          <Bell size={24} className="stroke-[1.5px]" />
-          {unreadCount > 0 && (
-            <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-brand-pink text-white rounded-full text-[8px] font-bold flex items-center justify-center border-2" style={{ borderColor: 'var(--color-surface-base)' }}>
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </div>
-          )}
-        </Link>
+        {user && (
+          <Link to="/notifications" className="relative p-2 text-luxury-ink hover:bg-luxury-ink/5 rounded-full transition-colors">
+            <Bell size={24} className="stroke-[1.5px]" />
+            {unreadCount > 0 && (
+              <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-brand-pink text-white rounded-full text-[8px] font-bold flex items-center justify-center border-2" style={{ borderColor: 'var(--color-surface-base)' }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </div>
+            )}
+          </Link>
+        )}
       </div>
     </div>
   );

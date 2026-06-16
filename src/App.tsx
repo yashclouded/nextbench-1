@@ -150,8 +150,8 @@ export default function App() {
             {/* Dashboard 3-column layout */}
             <Route element={<DashLayout />}>
               <Route path="/dashboard"  element={<Navigate to="/" replace />} />
-              <Route path="/community"  element={<ProtectedRoute requireAuth><Feed /></ProtectedRoute>} />
-              <Route path="/search"     element={<ProtectedRoute requireAuth><Search /></ProtectedRoute>} />
+              <Route path="/community"  element={<Feed />} />
+              <Route path="/search"     element={<Search />} />
               <Route path="/product/:id" element={<ProtectedRoute requireAuth><ProductDetail /></ProtectedRoute>} />
               <Route path="/sell"       element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
               <Route path="/edit-item/:id" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />

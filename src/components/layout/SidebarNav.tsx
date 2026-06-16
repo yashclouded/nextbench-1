@@ -79,8 +79,8 @@ export default function SidebarNav() {
     return () => unsubscribe();
   }, [user, showToast]);
 
-  const navLinks = [
-    { name: 'Home', path: '/', icon: Home },
+  const allNavLinks = [
+    { name: 'Home', path: '/community', icon: Home },
     { name: 'Search', path: '/search', icon: Search },
     { name: 'Sell', path: '/sell', icon: PlusCircle },
     { name: 'Messages', path: '/messages', icon: MessageSquare },
@@ -88,6 +88,10 @@ export default function SidebarNav() {
     { name: 'Profile', path: user ? (userData?.username ? `/u/${userData.username}` : `/profile/${user.uid}`) : '/login', icon: User },
     ...(userData?.isAdmin ? [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : []),
   ];
+
+  const navLinks = user 
+    ? allNavLinks 
+    : allNavLinks.filter(link => ['Home', 'Search'].includes(link.name));
 
   return (
     <div

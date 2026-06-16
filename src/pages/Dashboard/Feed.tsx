@@ -1670,6 +1670,16 @@ export default function Feed() {
         description="Discover school info, notes, and interschool events on Nextbench Community." 
       />
 
+      {/* Unauthenticated Banner */}
+      {!user && (
+        <div className="bg-luxury-ink text-surface-base px-4 py-3 text-center text-sm font-semibold flex items-center justify-center gap-3 relative z-40 flex-wrap">
+          <span>Sign up to join the conversation, create posts, and get the full experience!</span>
+          <Link to="/signup" className="bg-brand-teal text-white px-4 py-1.5 rounded-full hover:bg-brand-teal/90 transition-colors text-xs uppercase tracking-widest font-bold shrink-0">
+            Sign Up
+          </Link>
+        </div>
+      )}
+
       {/* Sticky Header Tabs */}
       <div className="sticky top-0 z-40 nav-glass border-b flex items-center px-4 sm:px-6 gap-1" style={{ borderColor: 'var(--color-border)' }}>
         <button
