@@ -449,27 +449,6 @@ export default function Search() {
               </motion.div>
             )}
 
-            {/* POSTS */}
-            {(activeTab === 'all' || activeTab === 'posts') && posts.length > 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                {activeTab === 'all' && (
-                  <div className="flex items-center justify-between mb-4 px-2">
-                    <h3 className="text-lg font-serif font-bold italic text-luxury-ink">Community Posts</h3>
-                  </div>
-                )}
-                <div className="flex flex-col gap-6 w-full">
-                  {(activeTab === 'all' ? posts.slice(0, 3) : posts).map((p) => (
-                    <PostCard 
-                      key={`search-post-${p.id}`} 
-                      post={p as any} 
-                      hasUpvoted={upvotedPostIds.has(p.id)}
-                      onClick={() => navigate(`/community?postId=${p.id}`)}
-                    />
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
             {/* PRODUCTS */}
             {(activeTab === 'all' || activeTab === 'products') && products.length > 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -486,6 +465,26 @@ export default function Search() {
               </motion.div>
             )}
 
+            {/* POSTS */}
+            {(activeTab === 'all' || activeTab === 'posts') && posts.length > 0 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {activeTab === 'all' && (
+                  <div className="flex items-center justify-between mb-4 px-2 mt-4">
+                    <h3 className="text-lg font-serif font-bold italic text-luxury-ink">Community Posts</h3>
+                  </div>
+                )}
+                <div className="flex flex-col gap-6 w-full">
+                  {(activeTab === 'all' ? posts.slice(0, 3) : posts).map((p) => (
+                    <PostCard 
+                      key={`search-post-${p.id}`} 
+                      post={p as any} 
+                      hasUpvoted={upvotedPostIds.has(p.id)}
+                      onClick={() => navigate(`/community?postId=${p.id}`)}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
             {/* Empty States */}
             {!loading && activeTab === 'users' && users.length === 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 text-center">

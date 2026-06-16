@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip } from 'lucide-react';
+import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -1838,18 +1838,18 @@ export default function Feed() {
               const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
               const title = titleNode?.value || '';
               const content = contentNode?.value || '';
-              if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
-                if (window.confirm('Discard your post?')) {
-                  setIsModalOpen(false);
-                  setImageFiles([]);
-                  setPdfFile(null);
-                  setPendingFiles([]);
-                }
-              } else {
+              const closeModal = () => {
                 setIsModalOpen(false);
                 setImageFiles([]);
                 setPdfFile(null);
                 setPendingFiles([]);
+              };
+              if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
+                if (window.confirm('Discard your post?')) {
+                  closeModal();
+                }
+              } else {
+                closeModal();
               }
             }}
             className="fixed inset-0 z-100 flex items-center justify-center p-0 sm:p-4 bg-luxury-ink/20 backdrop-blur-sm"
@@ -1882,18 +1882,18 @@ export default function Feed() {
                   const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
                   const title = titleNode?.value || '';
                   const content = contentNode?.value || '';
-                  if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
-                    if (window.confirm('Discard your post?')) {
-                      setIsModalOpen(false);
-                      setImageFiles([]);
-                      setPdfFile(null);
-                      setPendingFiles([]);
-                    }
-                  } else {
+                  const closeModal = () => {
                     setIsModalOpen(false);
                     setImageFiles([]);
                     setPdfFile(null);
                     setPendingFiles([]);
+                  };
+                  if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
+                    if (window.confirm('Discard your post?')) {
+                      closeModal();
+                    }
+                  } else {
+                    closeModal();
                   }
                 }}
                 className="absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center rounded-full bg-luxury-ink/10 hover:bg-luxury-ink/20 text-luxury-ink/50 hover:text-luxury-ink/80 transition-all"
@@ -2093,7 +2093,7 @@ export default function Feed() {
                               handleFilesSelected(dt.files);
                             }
                             if (pdfs.length > 0) {
-                              setPdfFile(pdfs[0]); // Take the first PDF
+                              setPdfFile(pdfs[0]);
                             }
                           }}
                           className="hidden"
@@ -2181,18 +2181,18 @@ export default function Feed() {
                           const contentNode = form?.elements.namedItem('content') as HTMLTextAreaElement;
                           const title = titleNode?.value || '';
                           const content = contentNode?.value || '';
-                          if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
-                            if (window.confirm('Discard your post?')) {
-                              setIsModalOpen(false);
-                              setImageFiles([]);
-                              setPdfFile(null);
-                              setPendingFiles([]);
-                            }
-                          } else {
+                          const closeModal = () => {
                             setIsModalOpen(false);
                             setImageFiles([]);
                             setPdfFile(null);
                             setPendingFiles([]);
+                          };
+                          if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
+                            if (window.confirm('Discard your post?')) {
+                              closeModal();
+                            }
+                          } else {
+                            closeModal();
                           }
                         }}
                         className="px-4 py-2 text-[14px] font-semibold text-luxury-ink/50 hover:text-luxury-ink transition-colors"
