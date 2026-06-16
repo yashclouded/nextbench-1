@@ -109,7 +109,7 @@ export default function ProductDetail() {
       }
     });
     return () => unsub();
-  }, [user, id]);
+  }, [user?.uid, id]);
 
   const toggleWishlist = async () => {
     if (!user) { showToast('Please log in', 'warning'); return; }

@@ -34,7 +34,7 @@ export default function NotificationBell() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.uid]);
 
   return (
     <Link to="/notifications" className="relative p-2 rounded-xl hover:bg-surface-soft transition-all group">

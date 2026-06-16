@@ -73,7 +73,7 @@ export default function Wishlist() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.uid]);
 
   const handleRemove = async (wishlistId: string) => {
     try {

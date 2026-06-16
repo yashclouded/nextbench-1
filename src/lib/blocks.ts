@@ -61,7 +61,7 @@ export function useBlockedIds(): Set<string> {
     });
 
     return () => unsub();
-  }, [user]);
+  }, [user?.uid]);
 
   return blockedIds;
 }
@@ -93,7 +93,7 @@ export function useBlockedByIds(): Set<string> {
     });
 
     return () => unsub();
-  }, [user]);
+  }, [user?.uid]);
 
   return blockedByIds;
 }
@@ -138,7 +138,7 @@ export function useBlockStatus(targetUserId?: string): {
       unsub1();
       unsub2();
     };
-  }, [user, targetUserId]);
+  }, [user?.uid, targetUserId]);
 
   return { isBlocked, isBlockedBy };
 }

@@ -312,7 +312,7 @@ function PostDetailModal({
     if (user && post.type === 'confession') {
       getUserReaction(post.id, user.uid).then(r => setUserReaction(r));
     }
-  }, [post.id, user, post.type]);
+  }, [post.id, user?.uid, post.type]);
 
   const handleReactionClick = async (reaction: ReactionType) => {
     if (!user) return;
@@ -864,7 +864,7 @@ export default function Feed() {
       setUpvoteMap(map);
     });
     return () => unsub();
-  }, [user]);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user) return;
@@ -880,7 +880,7 @@ export default function Feed() {
       setDownvoteMap(map);
     });
     return () => unsub();
-  }, [user]);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user) return;
@@ -893,7 +893,7 @@ export default function Feed() {
       setSavedPostIds(ids);
     });
     return () => unsub();
-  }, [user]);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user) return;
@@ -909,7 +909,7 @@ export default function Feed() {
       setReplyUpvoteMap(map);
     });
     return () => unsub();
-  }, [user]);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!selectedPost) return;
@@ -938,7 +938,7 @@ export default function Feed() {
       setWishlistMap(map);
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.uid]);
 
   // ─── Paste to add image/pdf ───────────────────────────────
   useEffect(() => {

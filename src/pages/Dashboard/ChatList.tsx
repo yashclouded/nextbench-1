@@ -136,7 +136,7 @@ export default function ChatList() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.uid]);
 
   // Search users for new DM
   useEffect(() => {
@@ -183,7 +183,7 @@ export default function ChatList() {
     });
 
     return () => unsub();
-  }, [searchUsers, showNewDM, user]);
+  }, [searchUsers, showNewDM, user?.uid]);
 
   const handleStartDM = async (otherUserId: string) => {
     if (!user || creatingDM) return;

@@ -201,12 +201,25 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
   // Fetch profile user data
   useEffect(() => {
-    const fetchUser = async () => {
-      if (isOwnProfile) {
-        setProfileUser(userData);
-        setEditName(userData?.name || '');
-        setEditAbout(userData?.about || '');
-      } else if (effectiveUserId) {
+    if (isOwnProfile) {
+      // For own profile, use a real-time listener on our own user doc
+      // instead of depending on the `userData` object (which is a new reference
+      // on every AuthContext snapshot and causes an infinite re-render loop).
+      if (!user) return;
+      const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setProfileUser(data);
+          setEditName(data?.name || '');
+          setEditAbout(data?.about || '');
+        }
+      }, (err) => {
+        console.warn('Profile: own profile listener error (ignored):', err);
+      });
+      return () => unsub();
+    } else if (effectiveUserId) {
+      // For other profiles, fetch once
+      const fetchOtherUser = async () => {
         try {
           const docSnap = await getDoc(doc(db, 'users', effectiveUserId));
           if (docSnap.exists()) {
@@ -217,10 +230,10 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
         } catch (err) {
           handleFirestoreError(err, OperationType.GET, `users/${effectiveUserId}`);
         }
-      }
-    };
-    fetchUser();
-  }, [effectiveUserId, isOwnProfile, userData]);
+      };
+      fetchOtherUser();
+    }
+  }, [effectiveUserId, isOwnProfile, user?.uid]);
 
   // Fetch referral code for own profile
   useEffect(() => {
@@ -240,14 +253,16 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       }
     };
     fetchReferral();
-  }, [isOwnProfile, user]);
+  }, [isOwnProfile, user?.uid]);
 
   // Auto-redirect to username URL if available and not already on it
   useEffect(() => {
-    if (!usernameResolvedUserId && profileUser?.username) {
+    // Only redirect when viewing via /profile/:id (not via /u/:username)
+    // and the profile has a username set
+    if (!usernameResolvedUserId && profileUser?.username && !isOwnProfile && routeUserId) {
       navigate(`/u/${profileUser.username}`, { replace: true });
     }
-  }, [profileUser?.username, usernameResolvedUserId, navigate]);
+  }, [profileUser?.username, usernameResolvedUserId, isOwnProfile, routeUserId]);
 
   // Fetch user's listings
   useEffect(() => {
@@ -268,7 +283,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       console.warn('Profile: listings listener error (ignored):', err);
     });
     return () => unsub();
-  }, [effectiveUserId, isOwnProfile, user]);
+  }, [targetUserId, isOwnProfile]);
 
   // Fetch user's posts
   useEffect(() => {
@@ -289,7 +304,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
       console.warn('Profile: posts listener error (ignored):', err);
     });
     return () => unsub();
-  }, [effectiveUserId, isOwnProfile, user]);
+  }, [targetUserId, isOwnProfile]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;

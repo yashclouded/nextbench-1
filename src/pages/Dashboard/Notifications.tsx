@@ -100,7 +100,7 @@ export default function Notifications() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user?.uid]);
 
   const markAsRead = async (notifId: string) => {
     try {

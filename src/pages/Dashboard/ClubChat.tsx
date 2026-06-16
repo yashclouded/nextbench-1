@@ -99,7 +99,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
     });
 
     return () => unsub();
-  }, [clubId, user, isMember]);
+  }, [clubId, user?.uid, isMember]);
 
   const scrollToBottom = () => {
     if (scrollContainerRef.current) {
