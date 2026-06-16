@@ -10,7 +10,7 @@ import { useToast } from '../../lib/ToastContext';
 import { uploadProfilePicture, uploadCoverPhoto } from '../../lib/storage';
 import { isHeicFile, convertHeicToJpeg } from '../../lib/heic-converter';
 import { getOptimizedImageUrl } from '../../lib/utils';
-import { followUser, unfollowUser, useFollowStatus, useFollowCounts } from '../../lib/follows';
+import { followUser, unfollowUser, useFollowStatus, useFollowCounts, useMutualFollowers } from '../../lib/follows';
 import { getOrCreateDMRoom } from '../../lib/dm';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useBlockStatus, blockUser, unblockUser } from '../../lib/blocks';
@@ -145,6 +145,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const { isFollowing, isFollowedBy, isFriend } = useFollowStatus(targetUserId);
   const { followersCount, followingCount } = useFollowCounts(targetUserId);
   const { isBlocked, isBlockedBy } = useBlockStatus(targetUserId);
+  const mutuals = useMutualFollowers(targetUserId);
   const presence = useUserPresence(!isOwnProfile ? targetUserId : undefined);
 
   // Close menus on outside click
@@ -996,6 +997,33 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             <span className="text-sm text-luxury-ink/50 flex items-center gap-0.5">Reputation <Star size={11} className="text-brand-teal" /></span>
           </div>
         </div>
+        </div>
+
+        {/* ─── Mutual Followers ───────────────────────────────── */}
+        {!isOwnProfile && mutuals.totalCount > 0 && (
+          <div className="flex items-center gap-3 mb-6 bg-surface-soft/50 p-3 rounded-xl w-full max-w-sm">
+            <div className="flex -space-x-2 shrink-0">
+              {mutuals.users.map((mu) => (
+                <div key={mu.id} className="w-6 h-6 rounded-full bg-brand-teal/10 border-2 border-surface-card flex items-center justify-center overflow-hidden shrink-0">
+                  {mu.profilePicture ? (
+                    <img src={getOptimizedImageUrl(mu.profilePicture)} alt={mu.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-[8px] font-bold text-brand-teal uppercase">{mu.name?.[0]}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-luxury-ink/50 leading-tight">
+              Followed by <span className="font-bold text-luxury-ink">{mutuals.users[0].name}</span>
+              {mutuals.totalCount > 1 && (
+                <span>, <span className="font-bold text-luxury-ink">{mutuals.users[1]?.name || 'others'}</span></span>
+              )}
+              {mutuals.totalCount > 2 && (
+                <span> and <span className="font-bold text-luxury-ink">{mutuals.totalCount - 2} {mutuals.totalCount - 2 === 1 ? 'other' : 'others'}</span></span>
+              )}
+            </p>
+          </div>
+        )}
       </div>
 
 
