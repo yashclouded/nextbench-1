@@ -162,20 +162,20 @@ export default function Search() {
 
         const lowerQ = searchQuery.toLowerCase();
 
-        setUsers(usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(u => 
+        let fetchedUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(u => 
           !lowerQ || 
           (u.name && u.name.toLowerCase().includes(lowerQ)) || 
           (u.school && u.school.toLowerCase().includes(lowerQ)) ||
           (u.username && u.username.toLowerCase().includes(lowerQ))
-        ));
-        setPosts(postsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(p => 
+        );
+        let fetchedPosts = postsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(p => 
           (!lowerQ || 
           (p.title && p.title.toLowerCase().includes(lowerQ)) || 
           (p.content && p.content.toLowerCase().includes(lowerQ)) ||
           (p.school && p.school.toLowerCase().includes(lowerQ))) &&
           (!appliedSchool || p.school === appliedSchool)
-        ));
-        setProducts(productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+        );
+        let fetchedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any))
           .filter((p: any) => p.status === 'available')
           .filter(p => 
             !lowerQ || 
@@ -183,16 +183,27 @@ export default function Search() {
             (p.category && p.category.toLowerCase().includes(lowerQ)) ||
             (p.sellerName && p.sellerName.toLowerCase().includes(lowerQ)) ||
             (p.tags && p.tags.some((tag: string) => tag.toLowerCase().includes(lowerQ)))
-          )
-        );
-        setClubs(clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(c => 
+          );
+        let fetchedClubs = clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(c => 
           (!lowerQ || 
           (c.name && c.name.toLowerCase().includes(lowerQ)) || 
           (c.description && c.description.toLowerCase().includes(lowerQ)) ||
           (c.school && c.school.toLowerCase().includes(lowerQ)) ||
           (c.city && c.city.toLowerCase().includes(lowerQ))) &&
           (!appliedSchool || c.school === appliedSchool)
-        ));
+        );
+
+        if (!user) {
+          fetchedUsers = fetchedUsers.slice(0, 5);
+          fetchedPosts = fetchedPosts.slice(0, 5);
+          fetchedProducts = fetchedProducts.slice(0, 5);
+          fetchedClubs = fetchedClubs.slice(0, 5);
+        }
+
+        setUsers(fetchedUsers);
+        setPosts(fetchedPosts);
+        setProducts(fetchedProducts);
+        setClubs(fetchedClubs);
       } catch (err) {
         console.error('Search error:', err);
       } finally {
@@ -503,6 +514,20 @@ export default function Search() {
             )}
 
           </AnimatePresence>
+
+          {/* Guest Block */}
+          {!user && !loading && (users.length > 0 || posts.length > 0 || products.length > 0 || clubs.length > 0) && (
+            <div className="mt-8 py-12 px-6 flex flex-col items-center justify-center text-center bg-surface-card border rounded-3xl" style={{ borderColor: 'var(--color-border)' }}>
+              <Lock className="w-12 h-12 text-luxury-ink/20 mb-4" />
+              <h3 className="text-xl font-bold text-luxury-ink mb-2">Register to see more results</h3>
+              <p className="text-luxury-ink/50 text-sm max-w-sm mb-6">
+                Sign up for free to explore the full community directory, endless posts, and marketplace items.
+              </p>
+              <Link to="/signup" className="bg-brand-teal text-white px-8 py-3 rounded-xl font-bold hover:bg-brand-teal/90 transition-all hover:scale-105 shadow-xl shadow-brand-teal/20">
+                Register Now
+              </Link>
+            </div>
+          )}
         )}
       </div>
 

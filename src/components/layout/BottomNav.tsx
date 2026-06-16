@@ -7,14 +7,22 @@ export default function BottomNav() {
   const { user, userData } = useAuth();
   const location = useLocation();
 
-  const navLinks = [
-    { name: 'Home', path: '/', icon: Home },
+  const allNavLinks = [
+    { name: 'Home', path: '/community', icon: Home },
     { name: 'Search', path: '/search', icon: Search },
     { name: 'Sell', path: '/sell', icon: PlusCircle },
     { name: 'Messages', path: '/messages', icon: MessageSquare },
     { name: 'Profile', path: user ? (userData?.username ? `/u/${userData.username}` : `/profile/${user.uid}`) : '/login', icon: User },
     ...(userData?.isAdmin ? [{ name: 'Admin', path: '/admin', icon: ShieldCheck }] : []),
   ];
+
+  const navLinks = user 
+    ? allNavLinks 
+    : [
+        { name: 'Home', path: '/community', icon: Home },
+        { name: 'Search', path: '/search', icon: Search },
+        { name: 'Log In', path: '/login', icon: User }
+      ];
 
   const unreadMsgCount = useUnreadChatCount(user?.uid);
 
