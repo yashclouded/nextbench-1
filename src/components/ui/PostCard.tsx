@@ -237,6 +237,19 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
           <PdfPreview pdfUrl={post.pdfUrl} totalPages={post.pdfPages || 1} title={post.title} />
         )}
 
+        {/* Video */}
+        {(post as any).videoUrl && (
+          <div className="relative mt-2 mb-6 w-full rounded-[20px] overflow-hidden bg-black/5">
+            <video
+              src={(post as any).videoUrl}
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full h-auto max-h-[60vh] object-contain rounded-[20px]"
+            />
+          </div>
+        )}
+
         {/* Action Bar */}
         <div className="flex flex-wrap items-center justify-between pt-4 border-t gap-y-4" style={{ borderColor: 'var(--color-border)' }}>
           <div className="flex flex-wrap items-center gap-3 sm:gap-6">

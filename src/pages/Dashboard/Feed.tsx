@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import SEO from '../../components/seo/SEO';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
-import { uploadPostImage, uploadReplyImage, uploadPostPdf } from '../../lib/storage';
+import { uploadPostImage, uploadReplyImage, uploadPostPdf, uploadPostVideo } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useFollowingIds } from '../../lib/follows';
 import { isTextSafe } from '../../lib/moderation';
@@ -693,6 +693,7 @@ export default function Feed() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [submittingStatus, setSubmittingStatus] = useState('Posting...');
@@ -1028,6 +1029,7 @@ export default function Feed() {
       if (!items) return;
       const pastedImages: File[] = [];
       const pastedPdfs: File[] = [];
+      const pastedVideos: File[] = [];
       for (const item of Array.from(items)) {
         if (item.type.startsWith('image/')) {
           const file = item.getAsFile();
@@ -1035,15 +1037,27 @@ export default function Feed() {
         } else if (item.type === 'application/pdf') {
           const file = item.getAsFile();
           if (file) pastedPdfs.push(file);
+        } else if (item.type.startsWith('video/')) {
+          const file = item.getAsFile();
+          if (file) pastedVideos.push(file);
         }
       }
-      if (pastedImages.length > 0) {
-        const dt = new DataTransfer();
-        pastedImages.forEach(f => dt.items.add(f));
-        handleFilesSelected(dt.files);
-      }
-      if (pastedPdfs.length > 0) {
-        setPdfFile(pastedPdfs[0]);
+      
+      if (pastedVideos.length > 0) {
+        setVideoFile(pastedVideos[0]);
+        setImageFiles([]);
+        setPdfFile(null);
+      } else {
+        if (pastedImages.length > 0) {
+          const dt = new DataTransfer();
+          pastedImages.forEach(f => dt.items.add(f));
+          handleFilesSelected(dt.files);
+          setVideoFile(null);
+        }
+        if (pastedPdfs.length > 0) {
+          setPdfFile(pastedPdfs[0]);
+          setVideoFile(null);
+        }
       }
     };
     window.addEventListener('paste', handlePaste);
@@ -1127,14 +1141,23 @@ export default function Feed() {
       const files = Array.from(e.dataTransfer.files);
       const images = files.filter(f => f.type.startsWith('image/'));
       const pdfs = files.filter(f => f.type === 'application/pdf');
+      const videos = files.filter(f => f.type.startsWith('video/'));
       
-      if (images.length > 0) {
-        const dt = new DataTransfer();
-        images.forEach(f => dt.items.add(f));
-        handleFilesSelected(dt.files);
-      }
-      if (pdfs.length > 0) {
-        setPdfFile(pdfs[0]);
+      if (videos.length > 0) {
+        setVideoFile(videos[0]);
+        setImageFiles([]);
+        setPdfFile(null);
+      } else {
+        if (images.length > 0) {
+          const dt = new DataTransfer();
+          images.forEach(f => dt.items.add(f));
+          handleFilesSelected(dt.files);
+          setVideoFile(null);
+        }
+        if (pdfs.length > 0) {
+          setPdfFile(pdfs[0]);
+          setVideoFile(null);
+        }
       }
     }
   };
@@ -1187,15 +1210,17 @@ export default function Feed() {
       let imageUrls: string[] = [];
       let pdfUrl: string | undefined = undefined;
       let pdfPages: number = 0;
+      let videoUrl: string | undefined = undefined;
 
-      if (pdfFile) {
+      if (videoFile) {
+        setSubmittingStatus('Uploading video...');
+        videoUrl = await uploadPostVideo(videoFile);
+      } else if (pdfFile) {
         setSubmittingStatus('Uploading PDF...');
         const pdfResult = await uploadPostPdf(pdfFile);
         pdfUrl = pdfResult.url;
         pdfPages = pdfResult.pages;
-      }
-
-      if (imageFiles.length > 0) {
+      } else if (imageFiles.length > 0) {
         setSubmittingStatus('Uploading images...');
         imageUrls = await Promise.all(imageFiles.map(file => uploadPostImage(file)));
       }
@@ -1233,6 +1258,7 @@ export default function Feed() {
         privacy,
         imageUrls,
         ...(pdfUrl ? { pdfUrl, pdfPages } : {}),
+        ...(videoUrl ? { videoUrl } : {}),
         upvotesCount: 0,
         repliesCount: 0,
         ...(showPollCreator && pollChoices.filter(c => c.trim()).length >= 2 ? {
@@ -1278,6 +1304,7 @@ export default function Feed() {
       setIsModalOpen(false);
       setImageFiles([]);
       setPdfFile(null);
+      setVideoFile(null);
       setPendingFiles([]);
       setIsAnonymous(false);
       setSelectedPostType('info');
@@ -2179,6 +2206,17 @@ export default function Feed() {
                       </div>
                     )}
 
+                    {/* Video Preview */}
+                    {videoFile && (
+                      <div className="mt-4 flex items-center gap-3 p-3 rounded-xl border border-luxury-ink/10 bg-surface-soft shrink-0">
+                        <Film size={24} className="text-brand-teal" />
+                        <span className="flex-1 text-sm font-medium text-luxury-ink truncate">{videoFile.name}</span>
+                        <button type="button" onClick={() => setVideoFile(null)} className="p-1 rounded-full text-luxury-ink/40 hover:text-red-500 hover:bg-red-50">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Image Previews */}
                     {imageFiles.length > 0 && (
                       <div className="mt-4 flex gap-2 overflow-x-auto pb-2 no-scrollbar shrink-0">
@@ -2207,21 +2245,30 @@ export default function Feed() {
                         <Paperclip size={22} />
                         <input
                           type="file"
-                          accept="image/*,application/pdf"
+                          accept="image/*,application/pdf,video/mp4,video/webm,video/quicktime"
                           multiple
                           onChange={(e) => {
                             if (!e.target.files) return;
                             const files = Array.from(e.target.files);
                             const images = files.filter(f => f.type.startsWith('image/'));
                             const pdfs = files.filter(f => f.type === 'application/pdf');
+                            const videos = files.filter(f => f.type.startsWith('video/'));
                             
-                            if (images.length > 0) {
-                              const dt = new DataTransfer();
-                              images.forEach(f => dt.items.add(f));
-                              handleFilesSelected(dt.files);
-                            }
-                            if (pdfs.length > 0) {
-                              setPdfFile(pdfs[0]);
+                            if (videos.length > 0) {
+                              setVideoFile(videos[0]);
+                              setImageFiles([]);
+                              setPdfFile(null);
+                            } else {
+                              if (images.length > 0) {
+                                const dt = new DataTransfer();
+                                images.forEach(f => dt.items.add(f));
+                                handleFilesSelected(dt.files);
+                                setVideoFile(null);
+                              }
+                              if (pdfs.length > 0) {
+                                setPdfFile(pdfs[0]);
+                                setVideoFile(null);
+                              }
                             }
                           }}
                           className="hidden"

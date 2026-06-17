@@ -4,6 +4,9 @@
  * and avoid requiring a credit card for the Firebase Blaze plan.
  */
 
+import { storage } from './firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -131,3 +134,20 @@ export async function uploadReplyImage(file: File): Promise<string> {
   const randomId = Math.random().toString(36).substring(2, 15);
   return uploadToCloudinary(file, `nextbench/replies/${randomId}`);
 }
+
+/**
+ * Uploads a video for a community post to Firebase Storage.
+ */
+export async function uploadPostVideo(file: File): Promise<string> {
+  if (!storage) {
+    throw new Error('Firebase Storage is not initialized.');
+  }
+  const randomId = Math.random().toString(36).substring(2, 15);
+  const fileExt = file.name.split('.').pop() || 'mp4';
+  const fileName = `nextbench/post_videos/${randomId}_${Date.now()}.${fileExt}`;
+  
+  const storageRef = ref(storage, fileName);
+  await uploadBytes(storageRef, file);
+  const downloadUrl = await getDownloadURL(storageRef);
+  return downloadUrl;
+}

@@ -8,6 +8,7 @@ import {
 
 import { getFunctions } from 'firebase/functions';
 import { getMessaging, isSupported } from 'firebase/messaging';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -15,6 +16,7 @@ const firebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
 };
 
 const firestoreDbId = import.meta.env.VITE_FIREBASE_FIRESTORE_DB || '(default)';
@@ -47,6 +49,7 @@ export const db = createFirestore();
 
 export const auth = getAuth(app);
 export const functions = getFunctions(app);
+export const storage = getStorage(app);
 
 // Initialize Messaging only if supported by the browser.
 // We keep the `messaging` export for backward compat (non-critical reads)
