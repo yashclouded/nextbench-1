@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film } from 'lucide-react';
+import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film, Pencil } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -135,9 +135,28 @@ function InfiniteScrollSentinel({ onVisible }: { onVisible: () => void }) {
   );
 }
 
-function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, replyUpvotedIds, isAdmin, user, level = 0 }: any) {
+function Comment({ reply, repliesMap, onReply, onDeleteReply, onEditReply, onUpvoteReply, replyUpvotedIds, isAdmin, user, level = 0 }: any) {
   const children = repliesMap[reply.id] || [];
   const hasUpvoted = replyUpvotedIds.has(reply.id);
+  const canEdit = reply.authorId === user?.uid;
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(reply.content || '');
+
+  const handleSaveEdit = () => {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === reply.content?.trim()) {
+      setIsEditing(false);
+      return;
+    }
+    onEditReply(reply.id, trimmed);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditText(reply.content || '');
+    setIsEditing(false);
+  };
 
   // Show stored pic immediately; fall back to live Firestore fetch if missing
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(reply.authorProfilePicture);
@@ -150,6 +169,7 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
       }
     }).catch(() => {});
   }, [reply.authorId, reply.authorProfilePicture]);
+
   return (
     <div className={`mt-4 ${level > 0 ? 'ml-4 md:ml-6 border-l-2 border-brand-teal/20 pl-4 md:pl-6' : ''}`}>
       <div className="bg-surface-soft/30 p-4 rounded-2xl border border-luxury-ink/5">
@@ -180,6 +200,15 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
               <MessageSquare size={14} />
               Reply
             </button>
+            {canEdit && !isEditing && onEditReply && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1 p-1.5 hover:bg-surface-soft rounded-full text-[10px] font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
+              >
+                <Pencil size={14} />
+                Edit
+              </button>
+            )}
             {(isAdmin || reply.authorId === user?.uid) && onDeleteReply && (
               <button
                 onClick={() => onDeleteReply(reply.id)}
@@ -190,16 +219,51 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
             )}
           </div>
         </div>
-        {reply.content?.trim() && (
-          <p className="text-sm text-luxury-ink/80 leading-relaxed">{reply.content}</p>
-        )}
-        {reply.imageUrl && (
-          <img
-            src={getOptimizedImageUrl(reply.imageUrl)}
-            alt=""
-            className="mt-3 max-h-60 rounded-xl object-cover"
-            referrerPolicy="no-referrer"
-          />
+
+        {isEditing ? (
+          <div className="mt-1">
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              autoFocus
+              rows={2}
+              className="w-full bg-surface-base border border-luxury-ink/10 rounded-xl p-2.5 text-sm text-luxury-ink/80 focus:outline-none focus:border-brand-teal resize-none"
+            />
+            <div className="flex gap-3 mt-2">
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={!editText.trim()}
+                className="text-[11px] font-bold text-brand-teal hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-[11px] font-bold text-luxury-ink/40 hover:text-luxury-ink/70 hover:underline"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {reply.content?.trim() && (
+              <p className="text-sm text-luxury-ink/80 leading-relaxed">
+                {reply.content}
+                {reply.edited && <span className="text-[10px] text-luxury-ink/30 font-normal ml-1.5">(edited)</span>}
+              </p>
+            )}
+            {reply.imageUrl && (
+              <img
+                src={getOptimizedImageUrl(reply.imageUrl)}
+                alt=""
+                className="mt-3 max-h-60 rounded-xl object-cover"
+                referrerPolicy="no-referrer"
+              />
+            )}
+          </>
         )}
       </div>
       {children.length > 0 && (
@@ -211,6 +275,7 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
               repliesMap={repliesMap}
               onReply={onReply}
               onDeleteReply={onDeleteReply}
+              onEditReply={onEditReply}
               onUpvoteReply={onUpvoteReply}
               replyUpvotedIds={replyUpvotedIds}
               isAdmin={isAdmin}
@@ -236,6 +301,7 @@ function PostDetailModal({
   onShare, 
   onDelete, 
   onDeleteReply,
+  onEditReply,
   onUpvoteReply,
   onReply,
   replyUpvotedIds,
@@ -260,6 +326,7 @@ function PostDetailModal({
   onShare: (post: Post) => void;
   onDelete?: (postId: string) => void;
   onDeleteReply?: (replyId: string) => void;
+  onEditReply: (replyId: string, newContent: string) => void;
   onUpvoteReply: (replyId: string) => void;
   onReply: (replyId: string, authorName: string) => void;
   replyUpvotedIds: Set<string>;
@@ -479,17 +546,18 @@ function PostDetailModal({
             ) : (
               <div className="space-y-4 mb-6">
                 {sortedRootReplies.map(reply => (
-                  <Comment
-                    key={reply.id}
-                    reply={reply}
-                    repliesMap={repliesMap}
-                    onReply={onReply}
-                    onDeleteReply={onDeleteReply}
-                    onUpvoteReply={onUpvoteReply}
-                    replyUpvotedIds={replyUpvotedIds}
-                    isAdmin={isAdmin}
-                    user={user}
-                  />
+                <Comment
+                  key={reply.id}
+                  reply={reply}
+                  repliesMap={repliesMap}
+                  onReply={onReply}
+                  onDeleteReply={onDeleteReply}
+                  onEditReply={onEditReply}
+                  onUpvoteReply={onUpvoteReply}
+                  replyUpvotedIds={replyUpvotedIds}
+                  isAdmin={isAdmin}
+                  user={user}
+                />
                 ))}
               </div>
             )}
@@ -1626,7 +1694,18 @@ export default function Feed() {
       handleFirestoreError(e, OperationType.DELETE, 'post_replies');
     }
   };
-
+  const handleEditReply = async (replyId: string, newContent: string) => {
+    try {
+      await updateDoc(doc(db, 'post_replies', replyId), {
+        content: newContent,
+        edited: true,
+        updatedAt: serverTimestamp()
+      });
+      showToast('Comment updated', 'success');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'post_replies');
+    }
+  };
   // ─── Filtering (block system) ────────────────────────────
 
   let filteredPosts = posts.filter(p => {
@@ -1833,6 +1912,7 @@ export default function Feed() {
             onShare={handleShare}
             onDelete={handleDeletePost}
             onDeleteReply={handleDeleteReply}
+            onEditReply={handleEditReply}
             onUpvoteReply={handleUpvoteReply}
             onReply={handleReplyTo}
             replyUpvotedIds={replyUpvotedIds}
