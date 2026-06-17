@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, useAnimationControls } from 'motion/react';
+import { motion, AnimatePresence, useAnimationControls } from 'motion/react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getOptimizedImageUrl } from '../lib/utils';
@@ -14,10 +14,36 @@ interface MarketplaceItem {
   createdAt: any;
 }
 
-function MarketplaceCard({ item, onClick }: { item: MarketplaceItem; onClick: () => void }) {
+const headerContainer = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+};
+const headerItem = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const } },
+};
+
+function MarketplaceCard({
+  item,
+  index,
+  onClick,
+}: {
+  item: MarketplaceItem;
+  index: number;
+  onClick: () => void;
+}) {
+  // Cascading entrance delay based on position — capped so late items in long lists
+  // don't sit invisible for ages. Resets per-column, which reads as a nice ripple.
+  const delay = Math.min(index * 0.05, 0.5);
+
   return (
-    <button
+    <motion.button
       onClick={onClick}
+      initial={{ opacity: 0, scale: 0.92, y: 18 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.45, delay, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -5, scale: 1.015 }}
+      whileTap={{ scale: 0.97 }}
       className="group block w-full break-inside-avoid overflow-hidden rounded-2xl bg-surface-card border border-luxury-ink/5 shadow-sm hover:shadow-lg transition-shadow text-left mb-4"
     >
       <div className="relative w-full overflow-hidden bg-luxury-ink/5">
@@ -33,7 +59,7 @@ function MarketplaceCard({ item, onClick }: { item: MarketplaceItem; onClick: ()
       <div className="px-4 py-3">
         <p className="text-lg font-serif font-bold text-luxury-ink">₹{item.price}</p>
       </div>
-    </button>
+    </motion.button>
   );
 }
 
@@ -96,7 +122,12 @@ function ScrollingColumn({ items, direction, speed, onItemClick }: {
         }}
       >
         {doubled.map((item, i) => (
-          <MarketplaceCard key={`${item.id}-${i}`} item={item} onClick={onItemClick} />
+          <MarketplaceCard
+            key={`${item.id}-${i}`}
+            item={item}
+            index={i % items.length}
+            onClick={onItemClick}
+          />
         ))}
       </motion.div>
     </div>
@@ -143,6 +174,9 @@ export default function Marketplace() {
     return cols.filter(c => c.length > 0);
   }, [items]);
 
+  // One state key drives the crossfade between loading / empty / content
+  const viewState = loading ? 'loading' : items.length === 0 ? 'empty' : 'content';
+
   return (
     <div className="pt-28 pb-20 px-4 md:px-8 max-w-400 mx-auto">
       <SEO
@@ -150,36 +184,72 @@ export default function Marketplace() {
         description="Browse items for sale from verified students near you."
       />
 
-      <div className="text-center mb-12">
-        <h1 className="text-4xl md:text-6xl font-serif font-bold text-luxury-ink mb-3">
+      <motion.div
+        variants={headerContainer}
+        initial="hidden"
+        animate="visible"
+        className="text-center mb-12"
+      >
+        <motion.h1 variants={headerItem} className="text-4xl md:text-6xl font-serif font-bold text-luxury-ink mb-3">
           The Marketplace
-        </h1>
-        <p className="text-luxury-ink/50 text-sm md:text-base">
+        </motion.h1>
+        <motion.p variants={headerItem} className="text-luxury-ink/50 text-sm md:text-base">
           Sign in to view details, message sellers, and reserve items.
-        </p>
-      </div>
+        </motion.p>
+      </motion.div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : items.length === 0 ? (
-        <p className="text-center text-luxury-ink/40 text-sm py-20">
-          No items available right now. Check back soon!
-        </p>
-      ) : (
-        <div className="flex gap-4 h-[calc(100vh-220px)]">
-          {columns.map((col, idx) => (
-            <ScrollingColumn
-              key={idx}
-              items={col}
-              direction={idx % 2 === 0 ? 'up' : 'down'}
-              speed={idx % 2 === 0 ? 55 : 45}
-              onItemClick={goToLogin}
-            />
-          ))}
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        {viewState === 'loading' && (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center justify-center py-20"
+          >
+            <div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+          </motion.div>
+        )}
+
+        {viewState === 'empty' && (
+          <motion.p
+            key="empty"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="text-center text-luxury-ink/40 text-sm py-20"
+          >
+            No items available right now. Check back soon!
+          </motion.p>
+        )}
+
+        {viewState === 'content' && (
+          <motion.div
+            key="content"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex gap-4 h-[calc(100vh-220px)]"
+            style={{
+              maskImage: 'linear-gradient(to bottom, transparent, black 6%, black 94%, transparent)',
+              WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 6%, black 94%, transparent)',
+            }}
+          >
+            {columns.map((col, idx) => (
+              <ScrollingColumn
+                key={idx}
+                items={col}
+                direction={idx % 2 === 0 ? 'up' : 'down'}
+                speed={idx % 2 === 0 ? 55 : 45}
+                onItemClick={goToLogin}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

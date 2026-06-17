@@ -7,6 +7,16 @@ import { signInWithPopup, signInWithRedirect, GoogleAuthProvider, signOut, sendS
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../../lib/AuthContext';
 
+// Shared entrance choreography — reused for every top-level block on the page
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+};
+const itemVariants = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const } },
+};
+
 export default function Login() {
   const [error, setError] = useState('');
   const [notFound, setNotFound] = useState(false);
@@ -34,12 +44,12 @@ export default function Login() {
         if (!savedEmail) {
           savedEmail = window.prompt('Please provide your email for confirmation');
         }
-        
+
         if (savedEmail) {
           try {
             const result = await signInWithEmailLink(auth, savedEmail, window.location.href);
             window.localStorage.removeItem('emailForSignIn');
-            
+
             // Check if this account has a registered Nextbench profile
             const docRef = doc(db, 'users', result.user.uid);
             const docSnap = await getDoc(docRef);
@@ -62,7 +72,7 @@ export default function Login() {
         }
       }
     };
-    
+
     handleEmailLinkLogin();
   }, [navigate]);
 
@@ -115,12 +125,12 @@ export default function Login() {
     setError('');
     setNotFound(false);
     setIsSigningIn(true);
-    
+
     const actionCodeSettings = {
       url: window.location.origin + '/login',
       handleCodeInApp: true,
     };
-    
+
     try {
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
@@ -137,12 +147,13 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-surface-base flex items-center justify-center px-6 pt-20 pb-10">
-      <div className="w-full max-w-sm">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-16"
-        >
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="w-full max-w-sm"
+      >
+        <motion.div variants={itemVariants} className="text-center mb-16">
           <div className="inline-block px-3 py-1 bg-brand-mint/20 text-brand-teal text-[11px] font-bold uppercase tracking-[0.2em] mb-8 rounded-full">
             Secured Portal
           </div>
@@ -154,29 +165,42 @@ export default function Login() {
           </p>
         </motion.div>
 
-        {/* Error banner */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-red-50 text-red-600 text-xs font-bold uppercase tracking-widest text-center border border-red-100 rounded-sm"
-          >
-            {error}
-          </motion.div>
-        )}
+        {/* Error banner — now collapses smoothly instead of popping out of existence */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              key="error-banner"
+              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="overflow-hidden"
+            >
+              <div className="p-4 bg-red-50 text-red-600 text-xs font-bold uppercase tracking-widest text-center border border-red-100 rounded-sm">
+                {error}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* "Account not found" card — guides unregistered users to sign up */}
         <AnimatePresence>
           {notFound && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.97, y: -8 }}
+              initial={{ opacity: 0, scale: 0.96, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97 }}
+              exit={{ opacity: 0, scale: 0.96, y: -8 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="mb-8 p-6 bg-brand-pink/5 border border-brand-pink/20 rounded-2xl text-center"
             >
-              <div className="w-12 h-12 bg-brand-pink/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.1, type: 'spring', stiffness: 300, damping: 18 }}
+                className="w-12 h-12 bg-brand-pink/10 rounded-full flex items-center justify-center mx-auto mb-4"
+              >
                 <UserPlus size={22} className="text-brand-pink" />
-              </div>
+              </motion.div>
               <h3 className="text-sm font-bold text-luxury-ink mb-2">No account found</h3>
               <p className="text-xs text-luxury-ink/50 leading-relaxed mb-5">
                 This Google account isn't registered on Nextbench yet.
@@ -192,16 +216,29 @@ export default function Login() {
           )}
         </AnimatePresence>
 
-        <div className="space-y-4">
+        <motion.div variants={itemVariants} className="space-y-4">
           <form onSubmit={handleGoogleLogin}>
-            <button
+            <motion.button
+              whileHover={!isSigningIn ? { scale: 1.015, y: -1 } : undefined}
+              whileTap={!isSigningIn ? { scale: 0.97 } : undefined}
+              transition={{ duration: 0.15 }}
               type="submit"
               disabled={isSigningIn}
-              className="w-full bg-luxury-ink text-surface-base py-4 rounded-sm font-bold text-xs uppercase tracking-[0.2em] shadow-xl shadow-luxury-ink/10 hover:bg-brand-teal transition-all active:scale-[0.98] flex items-center justify-center gap-3 group disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full bg-luxury-ink text-surface-base py-4 rounded-sm font-bold text-xs uppercase tracking-[0.2em] shadow-xl shadow-luxury-ink/10 hover:bg-brand-teal transition-colors flex items-center justify-center gap-3 group disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden"
             >
               <ShieldCheck size={16} className="opacity-60 group-hover:opacity-100 transition-opacity" />
-              {isSigningIn ? 'Verifying...' : 'Continue with Google'}
-            </button>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={isSigningIn ? 'verifying' : 'idle'}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {isSigningIn ? 'Verifying...' : 'Continue with Google'}
+                </motion.span>
+              </AnimatePresence>
+            </motion.button>
           </form>
 
           <div className="relative py-4 flex items-center">
@@ -211,42 +248,64 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleEmailLogin} className="space-y-4">
-            {linkSent ? (
-              <div className="bg-brand-teal/5 border border-brand-teal/20 p-4 rounded-xl text-center">
-                <p className="text-brand-teal text-sm font-bold mb-1">Check your inbox</p>
-                <p className="text-luxury-ink/60 text-xs">We've sent a magic link to {email}</p>
-              </div>
-            ) : (
-              <>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                  className="w-full bg-surface-base border border-luxury-ink/10 rounded-sm py-4 px-4 text-sm font-medium focus:outline-none focus:border-brand-teal transition-colors"
-                />
-                <button
-                  type="submit"
-                  disabled={isSigningIn || !email}
-                  className="w-full bg-transparent border border-luxury-ink text-luxury-ink py-4 rounded-sm font-bold text-xs uppercase tracking-[0.2em] hover:bg-luxury-ink hover:text-surface-base transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            <AnimatePresence mode="wait" initial={false}>
+              {linkSent ? (
+                <motion.div
+                  key="link-sent"
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.25 }}
+                  className="bg-brand-teal/5 border border-brand-teal/20 p-4 rounded-xl text-center"
                 >
-                  {isSigningIn ? 'Sending...' : 'Send Magic Link'}
-                </button>
-              </>
-            )}
+                  <p className="text-brand-teal text-sm font-bold mb-1">Check your inbox</p>
+                  <p className="text-luxury-ink/60 text-xs">We've sent a magic link to {email}</p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="email-form"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
+                >
+                  <motion.input
+                    whileFocus={{ scale: 1.01 }}
+                    transition={{ duration: 0.15 }}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                    className="w-full bg-surface-base border border-luxury-ink/10 rounded-sm py-4 px-4 text-sm font-medium focus:outline-none focus:border-brand-teal transition-colors"
+                  />
+                  <motion.button
+                    whileHover={!isSigningIn && email ? { scale: 1.015, y: -1 } : undefined}
+                    whileTap={!isSigningIn && email ? { scale: 0.97 } : undefined}
+                    transition={{ duration: 0.15 }}
+                    type="submit"
+                    disabled={isSigningIn || !email}
+                    className="w-full bg-transparent border border-luxury-ink text-luxury-ink py-4 rounded-sm font-bold text-xs uppercase tracking-[0.2em] hover:bg-luxury-ink hover:text-surface-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSigningIn ? 'Sending...' : 'Send Magic Link'}
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </form>
-        </div>
+        </motion.div>
 
-        <div className="mt-16 pt-10 border-t border-brand-teal/5">
+        <motion.div variants={itemVariants} className="mt-16 pt-10 border-t border-brand-teal/5">
           <p className="text-center text-[11px] font-bold uppercase tracking-widest text-brand-teal/40">
             New to Nextbench?{' '}
             <Link to="/signup" className="text-brand-pink hover:text-brand-teal transition-colors">
               Create Account
             </Link>
           </p>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
+ 

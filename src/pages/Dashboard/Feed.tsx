@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film } from 'lucide-react';
+import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film, Pencil } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -27,6 +27,7 @@ import { getPersonaDisplay } from '../../lib/confessions';
 import { togglePostReaction, getUserReaction, REACTION_TYPES, REACTION_KEYS, ReactionType } from '../../lib/reactions';
 import { usePublicClubs, joinClub } from '../../lib/clubs';
 import { savePost, unsavePost } from '../../lib/saves';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 interface Post {
   id: string;
@@ -135,9 +136,28 @@ function InfiniteScrollSentinel({ onVisible }: { onVisible: () => void }) {
   );
 }
 
-function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, replyUpvotedIds, isAdmin, user, level = 0 }: any) {
+function Comment({ reply, repliesMap, onReply, onDeleteReply, onEditReply, onUpvoteReply, replyUpvotedIds, isAdmin, user, level = 0 }: any) {
   const children = repliesMap[reply.id] || [];
   const hasUpvoted = replyUpvotedIds.has(reply.id);
+  const canEdit = reply.authorId === user?.uid;
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(reply.content || '');
+
+  const handleSaveEdit = () => {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === reply.content?.trim()) {
+      setIsEditing(false);
+      return;
+    }
+    onEditReply(reply.id, trimmed);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditText(reply.content || '');
+    setIsEditing(false);
+  };
 
   // Show stored pic immediately; fall back to live Firestore fetch if missing
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(reply.authorProfilePicture);
@@ -150,6 +170,7 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
       }
     }).catch(() => {});
   }, [reply.authorId, reply.authorProfilePicture]);
+
   return (
     <div className={`mt-4 ${level > 0 ? 'ml-4 md:ml-6 border-l-2 border-brand-teal/20 pl-4 md:pl-6' : ''}`}>
       <div className="bg-surface-soft/30 p-4 rounded-2xl border border-luxury-ink/5">
@@ -180,6 +201,15 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
               <MessageSquare size={14} />
               Reply
             </button>
+            {canEdit && !isEditing && onEditReply && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1 p-1.5 hover:bg-surface-soft rounded-full text-[10px] font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
+              >
+                <Pencil size={14} />
+                Edit
+              </button>
+            )}
             {(isAdmin || reply.authorId === user?.uid) && onDeleteReply && (
               <button
                 onClick={() => onDeleteReply(reply.id)}
@@ -190,16 +220,51 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
             )}
           </div>
         </div>
-        {reply.content?.trim() && (
-          <p className="text-sm text-luxury-ink/80 leading-relaxed">{reply.content}</p>
-        )}
-        {reply.imageUrl && (
-          <img
-            src={getOptimizedImageUrl(reply.imageUrl)}
-            alt=""
-            className="mt-3 max-h-60 rounded-xl object-cover"
-            referrerPolicy="no-referrer"
-          />
+
+        {isEditing ? (
+          <div className="mt-1">
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              autoFocus
+              rows={2}
+              className="w-full bg-surface-base border border-luxury-ink/10 rounded-xl p-2.5 text-sm text-luxury-ink/80 focus:outline-none focus:border-brand-teal resize-none"
+            />
+            <div className="flex gap-3 mt-2">
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={!editText.trim()}
+                className="text-[11px] font-bold text-brand-teal hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-[11px] font-bold text-luxury-ink/40 hover:text-luxury-ink/70 hover:underline"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {reply.content?.trim() && (
+              <p className="text-sm text-luxury-ink/80 leading-relaxed">
+                {reply.content}
+                {reply.edited && <span className="text-[10px] text-luxury-ink/30 font-normal ml-1.5">(edited)</span>}
+              </p>
+            )}
+            {reply.imageUrl && (
+              <img
+                src={getOptimizedImageUrl(reply.imageUrl)}
+                alt=""
+                className="mt-3 max-h-60 rounded-xl object-cover"
+                referrerPolicy="no-referrer"
+              />
+            )}
+          </>
         )}
       </div>
       {children.length > 0 && (
@@ -211,6 +276,7 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onUpvoteReply, rep
               repliesMap={repliesMap}
               onReply={onReply}
               onDeleteReply={onDeleteReply}
+              onEditReply={onEditReply}
               onUpvoteReply={onUpvoteReply}
               replyUpvotedIds={replyUpvotedIds}
               isAdmin={isAdmin}
@@ -236,6 +302,7 @@ function PostDetailModal({
   onShare, 
   onDelete, 
   onDeleteReply,
+  onEditReply,
   onUpvoteReply,
   onReply,
   replyUpvotedIds,
@@ -260,6 +327,7 @@ function PostDetailModal({
   onShare: (post: Post) => void;
   onDelete?: (postId: string) => void;
   onDeleteReply?: (replyId: string) => void;
+  onEditReply: (replyId: string, newContent: string) => void;
   onUpvoteReply: (replyId: string) => void;
   onReply: (replyId: string, authorName: string) => void;
   replyUpvotedIds: Set<string>;
@@ -479,17 +547,18 @@ function PostDetailModal({
             ) : (
               <div className="space-y-4 mb-6">
                 {sortedRootReplies.map(reply => (
-                  <Comment
-                    key={reply.id}
-                    reply={reply}
-                    repliesMap={repliesMap}
-                    onReply={onReply}
-                    onDeleteReply={onDeleteReply}
-                    onUpvoteReply={onUpvoteReply}
-                    replyUpvotedIds={replyUpvotedIds}
-                    isAdmin={isAdmin}
-                    user={user}
-                  />
+                <Comment
+                  key={reply.id}
+                  reply={reply}
+                  repliesMap={repliesMap}
+                  onReply={onReply}
+                  onDeleteReply={onDeleteReply}
+                  onEditReply={onEditReply}
+                  onUpvoteReply={onUpvoteReply}
+                  replyUpvotedIds={replyUpvotedIds}
+                  isAdmin={isAdmin}
+                  user={user}
+                />
                 ))}
               </div>
             )}
@@ -655,6 +724,17 @@ export default function Feed() {
   const [replyingTo, setReplyingTo] = useState<{id: string, name: string} | null>(null);
   const [replyUpvotedIds, setReplyUpvotedIds] = useState<Set<string>>(new Set());
   const [replyUpvoteMap, setReplyUpvoteMap] = useState<Record<string, string>>({});
+
+  // Confirm dialog state (replaces window.confirm everywhere in this component)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const askConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmDialog({ title, message, onConfirm });
+  };
 
   // Lock body scroll when a modal is open
   useScrollLock(isModalOpen || !!selectedPost || cropImageSrc !== null);
@@ -1177,10 +1257,10 @@ export default function Feed() {
             const followerId = f.data().followerId;
             createNotification({ 
               userId: followerId, 
-              type: 'new_message', 
+              type: 'new_post', 
               title: 'New Post', 
               message: `${authorName} just posted: "${title}"`, 
-              link: `/dashboard`,
+              link: `/post/${postDocRef.id}`,
               postId: postDocRef.id
             });
           });
@@ -1572,58 +1652,75 @@ export default function Feed() {
     }
   };
 
-  const handleDeletePost = async (postId: string) => {
-    if (!window.confirm('Are you sure you want to delete this post? This will also delete all comments and likes.')) return;
-    try {
-      const batch = writeBatch(db);
-      
-      const repliesQ = query(collection(db, 'post_replies'), where('postId', '==', postId));
-      const repliesSnap = await getDocs(repliesQ);
-      repliesSnap.forEach(docSnap => batch.delete(docSnap.ref));
-      
-      const upvotesQ = query(collection(db, 'post_upvotes'), where('postId', '==', postId));
-      const upvotesSnap = await getDocs(upvotesQ);
-      upvotesSnap.forEach(docSnap => batch.delete(docSnap.ref));
+  const handleDeletePost = (postId: string) => {
+    askConfirm(
+      'Delete this post?',
+      'This will also delete all comments and likes. This action cannot be undone.',
+      async () => {
+        setConfirmDialog(null);
+        try {
+          const batch = writeBatch(db);
 
-      const downvotesQ = query(collection(db, 'post_downvotes'), where('postId', '==', postId));
-      const downvotesSnap = await getDocs(downvotesQ);
-      downvotesSnap.forEach(docSnap => batch.delete(docSnap.ref));
+          const repliesQ = query(collection(db, 'post_replies'), where('postId', '==', postId));
+          const repliesSnap = await getDocs(repliesQ);
+          repliesSnap.forEach(docSnap => batch.delete(docSnap.ref));
 
-      const reactionsQ = query(collection(db, 'post_reactions'), where('postId', '==', postId));
-      const reactionsSnap = await getDocs(reactionsQ);
-      reactionsSnap.forEach(docSnap => batch.delete(docSnap.ref));
+          const upvotesQ = query(collection(db, 'post_upvotes'), where('postId', '==', postId));
+          const upvotesSnap = await getDocs(upvotesQ);
+          upvotesSnap.forEach(docSnap => batch.delete(docSnap.ref));
 
-      // We do not delete notifications here because it violates security rules 
-      // (some notifications might belong to other users), and standard behavior
-      // is to simply show "Post not found" when clicking an old notification.
+          const downvotesQ = query(collection(db, 'post_downvotes'), where('postId', '==', postId));
+          const downvotesSnap = await getDocs(downvotesQ);
+          downvotesSnap.forEach(docSnap => batch.delete(docSnap.ref));
 
-      await batch.commit();
+          const reactionsQ = query(collection(db, 'post_reactions'), where('postId', '==', postId));
+          const reactionsSnap = await getDocs(reactionsQ);
+          reactionsSnap.forEach(docSnap => batch.delete(docSnap.ref));
 
-      // Delete the post separately AFTER the batch. If the post is deleted inside
-      // the batch, the security rules evaluating `get()` for the related documents 
-      // will fail because the post is considered deleted during evaluation.
-      await deleteDoc(doc(db, 'posts', postId));
-      
-      showToast('Post deleted successfully', 'success');
-      setSelectedPost(null);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, 'posts');
-    }
+          await batch.commit();
+          await deleteDoc(doc(db, 'posts', postId));
+
+          showToast('Post deleted successfully', 'success');
+          setSelectedPost(null);
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, 'posts');
+        }
+      }
+    );
   };
 
-  const handleDeleteReply = async (replyId: string) => {
-    if (!window.confirm('Are you sure you want to delete this reply?')) return;
-    try {
-      await deleteDoc(doc(db, 'post_replies', replyId));
-      if (selectedPost) {
-        await updateDoc(doc(db, 'posts', selectedPost.id), {
-          repliesCount: Math.max(0, (selectedPost.repliesCount || 0) - 1),
-          updatedAt: serverTimestamp()
-        });
+  const handleDeleteReply = (replyId: string) => {
+    askConfirm(
+      'Delete this reply?',
+      'This action cannot be undone.',
+      async () => {
+        setConfirmDialog(null);
+        try {
+          await deleteDoc(doc(db, 'post_replies', replyId));
+          if (selectedPost) {
+            await updateDoc(doc(db, 'posts', selectedPost.id), {
+              repliesCount: Math.max(0, (selectedPost.repliesCount || 0) - 1),
+              updatedAt: serverTimestamp()
+            });
+          }
+          showToast('Reply deleted', 'success');
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, 'post_replies');
+        }
       }
-      showToast('Reply deleted', 'success');
+    );
+  };
+
+  const handleEditReply = async (replyId: string, newContent: string) => {
+    try {
+      await updateDoc(doc(db, 'post_replies', replyId), {
+        content: newContent,
+        edited: true,
+        updatedAt: serverTimestamp()
+      });
+      showToast('Comment updated', 'success');
     } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, 'post_replies');
+      handleFirestoreError(e, OperationType.UPDATE, 'post_replies');
     }
   };
 
@@ -1833,6 +1930,7 @@ export default function Feed() {
             onShare={handleShare}
             onDelete={handleDeletePost}
             onDeleteReply={handleDeleteReply}
+            onEditReply={handleEditReply}
             onUpvoteReply={handleUpvoteReply}
             onReply={handleReplyTo}
             replyUpvotedIds={replyUpvotedIds}
@@ -1873,9 +1971,10 @@ export default function Feed() {
                 setPendingFiles([]);
               };
               if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
-                if (window.confirm('Discard your post?')) {
+                askConfirm('Discard this post?', 'Your draft will be lost.', () => {
+                  setConfirmDialog(null);
                   closeModal();
-                }
+                });
               } else {
                 closeModal();
               }
@@ -1917,9 +2016,10 @@ export default function Feed() {
                     setPendingFiles([]);
                   };
                   if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
-                    if (window.confirm('Discard your post?')) {
+                    askConfirm('Discard this post?', 'Your draft will be lost.', () => {
+                      setConfirmDialog(null);
                       closeModal();
-                    }
+                    });
                   } else {
                     closeModal();
                   }
@@ -2216,9 +2316,10 @@ export default function Feed() {
                             setPendingFiles([]);
                           };
                           if (title.trim() || content.trim() || imageFiles.length > 0 || pdfFile) {
-                            if (window.confirm('Discard your post?')) {
+                            askConfirm('Discard this post?', 'Your draft will be lost.', () => {
+                              setConfirmDialog(null);
                               closeModal();
-                            }
+                            });
                           } else {
                             closeModal();
                           }
@@ -2261,6 +2362,15 @@ export default function Feed() {
         postUrl={shareModalData.url}
         postTitle={shareModalData.title}
         sharedPost={shareModalData.sharedPost}
+      />
+
+      {/* ─── Confirm Dialog (custom, replaces window.confirm) ──── */}
+      <ConfirmDialog
+        isOpen={!!confirmDialog}
+        title={confirmDialog?.title || ''}
+        message={confirmDialog?.message || ''}
+        onConfirm={() => confirmDialog?.onConfirm()}
+        onCancel={() => setConfirmDialog(null)}
       />
 
     </div>
