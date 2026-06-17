@@ -1257,10 +1257,10 @@ export default function Feed() {
             const followerId = f.data().followerId;
             createNotification({ 
               userId: followerId, 
-              type: 'new_message', 
+              type: 'new_post', 
               title: 'New Post', 
               message: `${authorName} just posted: "${title}"`, 
-              link: `/dashboard`,
+              link: `/post/${postDocRef.id}`,
               postId: postDocRef.id
             });
           });
