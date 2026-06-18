@@ -191,14 +191,14 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onEditReply, onUpv
               onClick={() => onUpvoteReply(reply.id)}
               className={`flex items-center gap-1 p-1.5 rounded-full text-[10px] font-bold transition-all ${hasUpvoted ? 'text-brand-pink bg-brand-pink/10' : 'text-luxury-ink/40 hover:bg-surface-soft hover:text-brand-pink'}`}
             >
-              <Heart size={14} className={hasUpvoted ? 'fill-brand-pink' : ''} />
+              <Heart size={18} className={hasUpvoted ? 'fill-brand-pink' : ''} />
               {reply.upvotesCount || 0}
             </button>
             <button
               onClick={() => onReply(reply.id, reply.authorName)}
               className="flex items-center gap-1 p-1.5 hover:bg-surface-soft rounded-full text-[10px] font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
             >
-              <MessageSquare size={14} />
+              <MessageSquare size={18} />
               Reply
             </button>
             {canEdit && !isEditing && onEditReply && (
@@ -206,7 +206,7 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onEditReply, onUpv
                 onClick={() => setIsEditing(true)}
                 className="flex items-center gap-1 p-1.5 hover:bg-surface-soft rounded-full text-[10px] font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
               >
-                <Pencil size={14} />
+                <Pencil size={16} />
                 Edit
               </button>
             )}
@@ -215,7 +215,7 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onEditReply, onUpv
                 onClick={() => onDeleteReply(reply.id)}
                 className="p-1.5 hover:bg-red-500/10 hover:text-red-500 rounded-full text-luxury-ink/20 transition-all"
               >
-                <Trash2 size={14} />
+                <Trash2 size={16} />
               </button>
             )}
           </div>
@@ -412,7 +412,7 @@ function PostDetailModal({
         {/* Scrollable Container */}
         <div className="flex-1 overflow-y-auto flex flex-col relative p-4 pt-14 sm:p-6 sm:pt-6 md:p-8">
           <button onClick={onClose} className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-surface-base text-luxury-ink/40 rounded-full hover:bg-surface-soft hover:text-luxury-ink transition-all z-10">
-            <X size={18} />
+            <X size={20} />
           </button>
 
           {/* Author */}
@@ -640,7 +640,7 @@ function PostDetailModal({
                     onClick={() => onUpvote(post)}
                     className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasUpvoted ? 'bg-brand-pink/10 text-brand-pink' : 'hover:bg-white text-luxury-ink/40 hover:text-brand-pink'}`}
                   >
-                    <Heart size={20} className={hasUpvoted ? 'fill-brand-pink' : ''} />
+                    <Heart size={26} className={hasUpvoted ? 'fill-brand-pink' : ''} />
                     {post.upvotesCount || 0}
                   </button>
                   <div className="w-1px h-6 bg-luxury-ink/10"></div>
@@ -648,7 +648,7 @@ function PostDetailModal({
                     onClick={() => onDownvote(post)}
                     className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-sm font-bold transition-all ${hasDownvoted ? 'bg-indigo-500/10 text-indigo-500' : 'hover:bg-white text-luxury-ink/40 hover:text-indigo-500'}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={hasDownvoted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill={hasDownvoted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
                     </svg>
                     {post.downvotesCount || 0}
@@ -658,14 +658,14 @@ function PostDetailModal({
                 onClick={() => document.getElementById('reply-input')?.focus()}
                 className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 hover:bg-surface-soft rounded-2xl text-sm font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
               >
-                <MessageSquare size={20} className="sm:w-6 sm:h-6" />
+                <MessageSquare size={26} />
                 {post.repliesCount || 0}
               </button>
               <button
                 onClick={() => onShare(post)}
                 className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 hover:bg-surface-soft rounded-xl text-xs font-bold text-luxury-ink/40 hover:text-brand-teal transition-all"
               >
-                <Share2 size={18} />
+                <Share2 size={24} />
               </button>
             </div>
             {(isAdmin || post.authorId === user?.uid) && onDelete && (
@@ -673,7 +673,7 @@ function PostDetailModal({
               onClick={() => onDelete(post.id)}
               className="flex items-center gap-1.5 px-4 py-2.5 hover:bg-red-500/10 hover:text-red-500 rounded-xl text-xs font-bold text-luxury-ink/20 transition-all"
             >
-              <Trash2 size={16} />
+              <Trash2 size={18} />
             </button>
           )}
           </div>
@@ -1813,21 +1813,42 @@ export default function Feed() {
       <div className="sticky top-0 z-40 nav-glass border-b flex items-center px-4 sm:px-6 gap-1" style={{ borderColor: 'var(--color-border)' }}>
         <button
           onClick={() => { setContentType('all'); setVisibleCount(6); }}
-          className={`py-3.5 px-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${contentType === 'all' ? 'border-luxury-ink text-luxury-ink' : 'border-transparent text-luxury-ink/40 hover:text-luxury-ink/70'}`}
+          className={`relative py-3.5 px-4 text-sm font-semibold transition-colors whitespace-nowrap ${contentType === 'all' ? 'text-luxury-ink' : 'text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           For you
+          {contentType === 'all' && (
+            <motion.div
+              layoutId="feed-tab-underline"
+              className="absolute bottom-0 left-0 right-0 h-0.5 bg-luxury-ink"
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+            />
+          )}
         </button>
         <button
           onClick={() => { setContentType('posts'); setVisibleCount(6); }}
-          className={`py-3.5 px-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${contentType === 'posts' ? 'border-luxury-ink text-luxury-ink' : 'border-transparent text-luxury-ink/40 hover:text-luxury-ink/70'}`}
+          className={`relative py-3.5 px-4 text-sm font-semibold transition-colors whitespace-nowrap ${contentType === 'posts' ? 'text-luxury-ink' : 'text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           Posts
+          {contentType === 'posts' && (
+            <motion.div
+              layoutId="feed-tab-underline"
+              className="absolute bottom-0 left-0 right-0 h-0.5 bg-luxury-ink"
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+            />
+          )}
         </button>
         <button
           onClick={() => { setContentType('marketplace'); setVisibleCount(6); }}
-          className={`py-3.5 px-4 text-sm font-semibold transition-all border-b-2 whitespace-nowrap ${contentType === 'marketplace' ? 'border-luxury-ink text-luxury-ink' : 'border-transparent text-luxury-ink/40 hover:text-luxury-ink/70'}`}
+          className={`relative py-3.5 px-4 text-sm font-semibold transition-colors whitespace-nowrap ${contentType === 'marketplace' ? 'text-luxury-ink' : 'text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           Marketplace
+          {contentType === 'marketplace' && (
+            <motion.div
+              layoutId="feed-tab-underline"
+              className="absolute bottom-0 left-0 right-0 h-0.5 bg-luxury-ink"
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+            />
+          )}
         </button>
       </div>
 

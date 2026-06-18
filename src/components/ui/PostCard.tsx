@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PollDisplay from './PollDisplay';
 import { useNavigate } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import PdfViewer, { PdfPreview } from './PdfViewer';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { POST_TYPES } from '../../pages/Dashboard/Feed';
 import { getPersonaDisplay } from '../../lib/confessions';
@@ -98,6 +98,35 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
 
+  // Instagram-style feedback: pop the heart icon only on the false -> true transition
+  const [likeBurst, setLikeBurst] = useState(0);
+  const prevUpvoted = useRef(hasUpvoted);
+  useEffect(() => {
+    if (hasUpvoted && !prevUpvoted.current) setLikeBurst((n) => n + 1);
+    prevUpvoted.current = hasUpvoted;
+  }, [hasUpvoted]);
+
+  // Big center heart on double-tap, like Instagram
+  const [showBigHeart, setShowBigHeart] = useState(false);
+  const bigHeartTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    onUpvote?.(post);
+    setShowBigHeart(false);
+    clearTimeout(bigHeartTimeout.current);
+    // brief tick lets the exit/enter cycle restart cleanly on rapid double-taps
+    requestAnimationFrame(() => setShowBigHeart(true));
+    bigHeartTimeout.current = setTimeout(() => setShowBigHeart(false), 800);
+  };
+
+  // Small bounce on save/bookmark toggle
+  const [saveBurst, setSaveBurst] = useState(0);
+  const prevSaved = useRef(hasSaved);
+  useEffect(() => {
+    if (hasSaved && !prevSaved.current) setSaveBurst((n) => n + 1);
+    prevSaved.current = hasSaved;
+  }, [hasSaved]);
+
   const displayInfo = getPersonaDisplay(post, false);
   const profileLink = displayInfo.isAnonymous ? '#' : (post.authorUsername ? `/u/${post.authorUsername}` : `/profile/${post.authorId}`);
 
@@ -131,9 +160,29 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0 }}
-        className={`post-card-clean p-4 sm:p-6 md:p-8 flex flex-col w-full min-w-0 overflow-x-hidden ${post.type === 'confession' ? 'is-confession' : ''}`}
-        onDoubleClick={(e) => { e.preventDefault(); onUpvote?.(post); }}
+        className={`post-card-clean relative p-4 sm:p-6 md:p-8 flex flex-col w-full min-w-0 overflow-x-hidden ${post.type === 'confession' ? 'is-confession' : ''}`}
+        onDoubleClick={handleDoubleClick}
       >
+        {/* Big center heart burst, Instagram-style double-tap feedback */}
+        <AnimatePresence>
+          {showBigHeart && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            >
+              <motion.div
+                initial={{ scale: 0, rotate: -8 }}
+                animate={{ scale: [0, 1.15, 1], rotate: 0 }}
+                exit={{ scale: 0.85, opacity: 0 }}
+                transition={{ duration: 0.45, times: [0, 0.6, 1], ease: 'easeOut' }}
+              >
+                <Heart size={96} className="fill-white text-white drop-shadow-2xl" />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Metadata Row */}
         <div className="mb-3" onClick={handleProfileClick}>
           <div className="flex items-center gap-2 min-w-0">
@@ -255,54 +304,89 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
           <div className="flex flex-wrap items-center gap-3 sm:gap-6">
             <button 
               onClick={(e) => { e.stopPropagation(); onUpvote?.(post); }}
-              className={`flex items-center gap-1.5 text-[13px] transition-colors group ${hasUpvoted ? 'text-brand-pink font-bold' : 'text-luxury-ink/40 hover:text-brand-pink font-semibold'}`}
+              className={`flex items-center gap-1.5 text-[15px] transition-colors group ${hasUpvoted ? 'text-brand-pink font-bold' : 'text-luxury-ink/40 hover:text-brand-pink font-semibold'}`}
             >
-              <div className="p-2 rounded-full group-hover:bg-brand-pink/10 transition-colors">
-                <Heart size={16} className={hasUpvoted ? 'fill-brand-pink' : ''} />
-              </div>
-              {(post.upvotesCount > 0 || true) && <span className="relative -left-1">{post.upvotesCount || 0}</span>}
+              <motion.div
+                className="p-2 rounded-full group-hover:bg-brand-pink/10 transition-colors"
+                whileTap={{ scale: 0.8 }}
+              >
+                <motion.div
+                  key={likeBurst}
+                  initial={likeBurst > 0 ? { scale: 0.5 } : false}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 600, damping: 14 }}
+                >
+                  <Heart size={24} className={hasUpvoted ? 'fill-brand-pink' : ''} />
+                </motion.div>
+              </motion.div>
+              {(post.upvotesCount > 0 || true) && (
+                <AnimatePresence mode="popLayout">
+                  <motion.span
+                    key={post.upvotesCount || 0}
+                    initial={{ y: -6, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 6, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="relative -left-1"
+                  >
+                    {post.upvotesCount || 0}
+                  </motion.span>
+                </AnimatePresence>
+              )}
             </button>
             
             <button 
               onClick={(e) => { e.stopPropagation(); onDownvote?.(post); }}
-              className={`flex items-center gap-1.5 text-[13px] transition-colors group ${hasDownvoted ? 'text-indigo-500 font-bold' : 'text-luxury-ink/40 hover:text-indigo-500 font-semibold'}`}
+              className={`flex items-center gap-1.5 text-[15px] transition-colors group ${hasDownvoted ? 'text-indigo-500 font-bold' : 'text-luxury-ink/40 hover:text-indigo-500 font-semibold'}`}
             >
-              <div className="p-2 rounded-full group-hover:bg-indigo-500/10 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={hasDownvoted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <motion.div className="p-2 rounded-full group-hover:bg-indigo-500/10 transition-colors" whileTap={{ scale: 0.8 }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={hasDownvoted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
                 </svg>
-              </div>
+              </motion.div>
               {(post.downvotesCount || 0) > 0 && <span className="relative -left-1">{post.downvotesCount || 0}</span>}
             </button>
 
             <button 
               onClick={(e) => { e.stopPropagation(); onClick(); }}
-              className="flex items-center gap-2 text-[14px] text-luxury-ink/40 hover:text-brand-teal transition-colors group font-semibold"
+              className="flex items-center gap-2 text-[15px] text-luxury-ink/40 hover:text-brand-teal transition-colors group font-semibold"
             >
-              <MessageCircle size={18} className="transition-transform group-hover:scale-110" />
+              <motion.div whileTap={{ scale: 0.8 }}>
+                <MessageCircle size={24} className="transition-transform group-hover:scale-110" />
+              </motion.div>
               {(post.repliesCount > 0 || true) && <span>{post.repliesCount || 0}</span>}
             </button>
 
             <button 
               onClick={(e) => { e.stopPropagation(); onShare?.(post); }}
-              className="flex items-center text-[14px] text-luxury-ink/40 hover:text-brand-teal transition-colors group"
+              className="flex items-center text-[15px] text-luxury-ink/40 hover:text-brand-teal transition-colors group"
             >
-              <Share2 size={18} className="transition-transform group-hover:scale-110" />
+              <motion.div whileTap={{ scale: 0.8 }}>
+                <Share2 size={24} className="transition-transform group-hover:scale-110" />
+              </motion.div>
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button 
+          <div className="flex items-center gap-4">
+            <motion.button 
               onClick={(e) => { e.stopPropagation(); onSave?.(post); }}
+              whileTap={{ scale: 0.8 }}
               className={`transition-colors hover:scale-110 ${hasSaved ? 'text-brand-teal' : 'text-luxury-ink/40 hover:text-brand-teal'}`}
             >
-              <Bookmark size={18} className={hasSaved ? 'fill-brand-teal' : ''} />
-            </button>
+              <motion.div
+                key={saveBurst}
+                initial={saveBurst > 0 ? { scale: 0.5 } : false}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 600, damping: 14 }}
+              >
+                <Bookmark size={22} className={hasSaved ? 'fill-brand-teal' : ''} />
+              </motion.div>
+            </motion.button>
             <button
               onClick={(e) => { e.stopPropagation(); setShowReport(true); }}
               className="text-luxury-ink/20 hover:text-red-400 hover:scale-110 transition-all"
             >
-              <Flag size={16} />
+              <Flag size={18} />
             </button>
           </div>
         </div>
