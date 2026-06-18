@@ -10,6 +10,7 @@ import { useToast } from '../../lib/ToastContext';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { isChatMessageNotification } from '../../lib/notifications';
 import { useUnreadChatCount } from '../../hooks/useUnreadChatCount';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function SidebarNav() {
   const { user, userData } = useAuth();
@@ -98,19 +99,26 @@ export default function SidebarNav() {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className={`h-screen sticky top-0 flex flex-col pt-8 pb-6 transition-all duration-300 ease-in-out z-40 ${
-        isExpanded ? 'w-[240px] px-4 xl:px-5' : 'w-[72px] px-3 items-center'
+        isExpanded ? 'w-60 px-4 xl:px-5' : 'w-18 px-3 items-center'
       } ${
         !isWideScreen && isHovered ? 'shadow-[10px_0_30px_rgba(0,0,0,0.15)] border-r border-luxury-ink/5' : ''
       }`}
       style={{ background: 'var(--color-surface-card)' }}
     >
       {/* Logo */}
-      <Link to="/" className={`flex items-center gap-3 mb-8 group w-fit ${
+      <Link to="/" className={`flex items-center gap-1.5 mb-8 group w-fit ${
         isExpanded ? 'px-3' : 'justify-center px-0'
       }`}>
-        <img src="/logo.png" alt="Nextbench Logo" className="h-8 w-auto transition-transform group-hover:scale-105 duration-200" />
+        <motion.img
+          src="/logo.png"
+          alt="Nextbench Logo"
+          className="h-8 w-auto"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+        />
         <span className={`text-xl font-bold tracking-tight text-luxury-ink transition-all duration-300 overflow-hidden whitespace-nowrap ${
-          isExpanded ? 'opacity-100 max-w-[150px] ml-3' : 'opacity-0 max-w-0 ml-0'
+          isExpanded ? 'opacity-100 max-w-37.5' : 'opacity-0 max-w-0'
         }`}>nextbench</span>
       </Link>
 
@@ -124,31 +132,79 @@ export default function SidebarNav() {
               key={link.name}
               to={link.path}
               title={!isExpanded ? link.name : undefined}
-              className={`group flex items-center rounded-xl transition-all duration-200 ease-out relative w-full ${
+              className={`group flex items-center rounded-xl transition-colors duration-200 ease-out relative w-full ${
                 isActive 
-                  ? 'bg-surface-soft/60 text-luxury-ink' 
-                  : 'text-luxury-ink/50 hover:bg-surface-soft/40 hover:text-luxury-ink/80'
+                  ? 'text-luxury-ink' 
+                  : 'text-luxury-ink/50 hover:text-luxury-ink/80'
               } ${isExpanded ? 'px-3.5 py-2.5 xl:py-3 gap-4' : 'justify-center p-2.5'}`}
             >
-              <div className="relative flex items-center justify-center">
+              {isActive && (
+                <motion.div
+                  layoutId="sidebar-active-pill"
+                  className="absolute inset-0 bg-surface-soft/60 rounded-xl -z-10"
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
+              )}
+              {!isActive && (
+                <span className="absolute inset-0 rounded-xl bg-surface-soft/40 opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
+              )}
+              <motion.div className="relative flex items-center justify-center" whileTap={{ scale: 0.85 }}>
                 <Icon size={20} className={`transition-all duration-200 ${isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px] group-hover:stroke-[2px]'}`} />
-                {link.name === 'Messages' && unreadMsgCount > 0 && (
-                  <div className={`absolute w-4 h-4 bg-brand-pink text-white rounded-full text-[9px] font-bold flex items-center justify-center border-2 ${
-                    !isExpanded ? '-top-2.5 -right-2.5' : '-top-1 -right-1.5'
-                  }`} style={{ borderColor: 'var(--color-surface-card)' }}>
-                    {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
-                  </div>
-                )}
-                {link.name === 'Notifications' && unreadCount > 0 && (
-                  <div className={`absolute w-4 h-4 bg-brand-pink text-white rounded-full text-[9px] font-bold flex items-center justify-center border-2 ${
-                    !isExpanded ? '-top-2.5 -right-2.5' : '-top-1 -right-1.5'
-                  }`} style={{ borderColor: 'var(--color-surface-card)' }}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </div>
-                )}
-              </div>
+                <AnimatePresence>
+                  {link.name === 'Messages' && unreadMsgCount > 0 && (
+                    <motion.div
+                      key="msg-badge"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 600, damping: 16 }}
+                      className={`absolute w-4 h-4 bg-brand-pink text-white rounded-full text-[9px] font-bold flex items-center justify-center border-2 ${
+                        !isExpanded ? '-top-2.5 -right-2.5' : '-top-1 -right-1.5'
+                      }`}
+                      style={{ borderColor: 'var(--color-surface-card)' }}
+                    >
+                      <AnimatePresence mode="popLayout">
+                        <motion.span
+                          key={unreadMsgCount}
+                          initial={{ y: -4, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          exit={{ y: 4, opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
+                        </motion.span>
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                  {link.name === 'Notifications' && unreadCount > 0 && (
+                    <motion.div
+                      key="notif-badge"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 600, damping: 16 }}
+                      className={`absolute w-4 h-4 bg-brand-pink text-white rounded-full text-[9px] font-bold flex items-center justify-center border-2 ${
+                        !isExpanded ? '-top-2.5 -right-2.5' : '-top-1 -right-1.5'
+                      }`}
+                      style={{ borderColor: 'var(--color-surface-card)' }}
+                    >
+                      <AnimatePresence mode="popLayout">
+                        <motion.span
+                          key={unreadCount}
+                          initial={{ y: -4, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          exit={{ y: 4, opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </motion.span>
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
               <span className={`text-[15px] tracking-normal transition-all duration-300 overflow-hidden whitespace-nowrap ${
-                isExpanded ? 'opacity-100 max-w-[150px]' : 'opacity-0 max-w-0'
+                isExpanded ? 'opacity-100 max-w-37.5' : 'opacity-0 max-w-0'
               } ${isActive ? 'font-semibold' : 'font-medium'}`}>
                 {link.name}
               </span>
@@ -168,7 +224,7 @@ export default function SidebarNav() {
                 isExpanded ? 'gap-3 p-3' : 'justify-center p-1.5'
               }`}
             >
-              <div className="w-10 h-10 rounded-full bg-surface-soft flex items-center justify-center overflow-hidden shrink-0">
+              <motion.div whileTap={{ scale: 0.92 }} className="w-10 h-10 rounded-full bg-surface-soft flex items-center justify-center overflow-hidden shrink-0">
                 {userData?.profilePicture ? (
                   <img src={getOptimizedImageUrl(userData.profilePicture)} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
@@ -176,9 +232,9 @@ export default function SidebarNav() {
                     {(userData?.name || user.email || 'U')[0].toUpperCase()}
                   </span>
                 )}
-              </div>
+              </motion.div>
               <div className={`flex-1 min-w-0 transition-all duration-300 overflow-hidden whitespace-nowrap ${
-                isExpanded ? 'opacity-100 max-w-[150px] ml-3' : 'opacity-0 max-w-0 ml-0'
+                isExpanded ? 'opacity-100 max-w-37.5 ml-3' : 'opacity-0 max-w-0 ml-0'
               }`}>
                 <p className="text-sm font-semibold text-luxury-ink truncate">{userData?.name || 'User'}</p>
                 {userData?.username ? (
@@ -189,18 +245,19 @@ export default function SidebarNav() {
               </div>
             </Link>
 
-            <button 
+            <motion.button 
               onClick={handleSignOut}
               title={!isExpanded ? "Log out" : undefined}
+              whileTap={{ scale: 0.97 }}
               className={`flex items-center rounded-xl text-luxury-ink/40 hover:bg-surface-soft hover:text-red-500 transition-all group w-full ${
                 isExpanded ? 'p-3 gap-3' : 'justify-center p-3'
               }`}
             >
               <LogOut size={18} className="group-hover:scale-105 transition-transform" />
               <span className={`text-sm font-medium transition-all duration-300 overflow-hidden whitespace-nowrap ${
-                isExpanded ? 'opacity-100 max-w-[150px]' : 'opacity-0 max-w-0'
+                isExpanded ? 'opacity-100 max-w-37.5' : 'opacity-0 max-w-0'
               }`}>Log out</span>
-            </button>
+            </motion.button>
           </div>
         ) : (
           <div className={`flex flex-col gap-2 ${isExpanded ? 'px-1' : 'px-0 items-center'}`}>

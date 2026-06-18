@@ -17,7 +17,7 @@ export default function RightSidebarDrawer() {
         onClick={() => setOpen(true)}
         className={`fixed z-40 lg:hidden w-11 h-11 rounded-full bg-brand-teal text-white shadow-lg flex items-center justify-center active:scale-95 transition-all duration-300 ${
           hasPlusButton 
-            ? 'bottom-24 right-4 max-sm:bottom-[168px] max-sm:right-[22px]' 
+            ? 'bottom-24 right-4 max-sm:bottom-42 max-sm:right-5.5' 
             : 'bottom-24 right-4'
         }`}
         aria-label="Open trending panel"
@@ -55,7 +55,7 @@ export default function RightSidebarDrawer() {
                   setOpen(false);
                 }
               }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-[70vw] sm:w-[340px] lg:hidden overflow-y-auto no-scrollbar shadow-2xl"
+              className="fixed top-0 right-0 bottom-0 z-50 w-[70vw] sm:w-85 lg:hidden overflow-y-auto no-scrollbar shadow-2xl"
               style={{ background: 'var(--color-surface-card)', borderLeft: '1px solid var(--color-border)', touchAction: 'pan-y' }}
             >
               {/* Header */}
