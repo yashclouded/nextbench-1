@@ -9,6 +9,7 @@ import { POST_TYPES } from '../../pages/Dashboard/Feed';
 import { getPersonaDisplay } from '../../lib/confessions';
 import ReportModal from './ReportModal';
 import LinkifiedText from './LinkifiedText';
+import VideoPlayer from './VideoPlayer';
 import { useToast } from '../../lib/ToastContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -239,14 +240,8 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
 
         {/* Video */}
         {(post as any).videoUrl && (
-          <div className="relative mt-2 mb-6 w-full rounded-[20px] overflow-hidden bg-black/5">
-            <video
-              src={(post as any).videoUrl}
-              controls
-              playsInline
-              preload="metadata"
-              className="w-full h-auto max-h-[60vh] object-contain rounded-[20px]"
-            />
+          <div className="relative mt-2 mb-6 w-full">
+            <VideoPlayer src={(post as any).videoUrl} />
           </div>
         )}
 
