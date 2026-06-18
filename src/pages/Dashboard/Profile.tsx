@@ -103,6 +103,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const coverInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
+  const [myUpvotedPostIds, setMyUpvotedPostIds] = useState<Set<string>>(new Set());
 
   // Username
   const [showUsernameSetup, setShowUsernameSetup] = useState(false);
@@ -305,6 +306,23 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     });
     return () => unsub();
   }, [targetUserId, isOwnProfile]);
+
+  // Track which posts the viewer themselves has liked, so the Posts tab can show liked status
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'post_upvotes'), where('userId', '==', user.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const ids = new Set<string>();
+      snap.forEach(d => {
+        const postId = d.data()?.postId;
+        if (postId) ids.add(postId);
+      });
+      setMyUpvotedPostIds(ids);
+    }, (err) => {
+      console.warn('Profile: upvotes listener error (ignored):', err);
+    });
+    return () => unsub();
+  }, [user?.uid]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
@@ -940,8 +958,8 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                 {firstName} {lastName}
                 {profileUser.verified && (
                   <span title={profileUser.accountType === 'organization' ? 'Verified Organization' : 'Verified Student'} className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-teal text-white shrink-0" style={{ marginTop: '2px' }}>
-                    {profileUser.accountType === 'organization' ? <Building2 size={13} title="Organization" /> : <ShieldCheck size={13} title="Verified" />}
-                  </span>
+                    {profileUser.accountType === 'organization' ? <Building2 size={13} /> : <ShieldCheck size={13} />
+                }</span>
                 )}
               </h1>
               {isFriend && (
@@ -1130,17 +1148,29 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
         <div className="flex w-full border-b mb-8" style={{ borderColor: 'var(--color-border)' }}>
           <button
             onClick={() => setViewMode('listings')}
-            className={`flex-1 flex justify-center pb-4 pt-2 transition-all hover:bg-luxury-ink/5 relative text-sm sm:text-base ${viewMode === 'listings' ? 'text-luxury-ink font-bold' : 'text-luxury-ink/50 font-medium'}`}
+            className={`flex-1 flex justify-center pb-4 pt-2 transition-colors hover:bg-luxury-ink/5 relative text-sm sm:text-base ${viewMode === 'listings' ? 'text-luxury-ink font-bold' : 'text-luxury-ink/50 font-medium'}`}
           >
             Listings
-            {viewMode === 'listings' && <div className="absolute bottom-0 h-1 w-16 bg-brand-pink rounded-t-full"></div>}
+            {viewMode === 'listings' && (
+              <motion.div
+                layoutId="profile-tab-underline"
+                className="absolute bottom-0 h-1 w-16 bg-brand-pink rounded-t-full"
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+              />
+            )}
           </button>
           <button
             onClick={() => setViewMode('posts')}
-            className={`flex-1 flex justify-center pb-4 pt-2 transition-all hover:bg-luxury-ink/5 relative text-sm sm:text-base ${viewMode === 'posts' ? 'text-luxury-ink font-bold' : 'text-luxury-ink/50 font-medium'}`}
+            className={`flex-1 flex justify-center pb-4 pt-2 transition-colors hover:bg-luxury-ink/5 relative text-sm sm:text-base ${viewMode === 'posts' ? 'text-luxury-ink font-bold' : 'text-luxury-ink/50 font-medium'}`}
           >
             Posts
-            {viewMode === 'posts' && <div className="absolute bottom-0 h-1 w-12 bg-brand-teal rounded-t-full"></div>}
+            {viewMode === 'posts' && (
+              <motion.div
+                layoutId="profile-tab-underline"
+                className="absolute bottom-0 h-1 w-12 bg-brand-teal rounded-t-full"
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+              />
+            )}
           </button>
         </div>
 
@@ -1286,8 +1316,8 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                     </div>
                     <p className="text-luxury-ink/60 leading-relaxed mb-4 text-sm line-clamp-2">{post.content}</p>
                     <div className="flex items-center gap-4 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
-                      <span className="flex items-center gap-1.5 text-xs font-semibold text-luxury-ink/40">
-                        <Heart size={14} /> {post.upvotesCount || 0}
+                      <span className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${myUpvotedPostIds.has(post.id) ? 'text-brand-pink' : 'text-luxury-ink/40'}`}>
+                        <Heart size={14} className={myUpvotedPostIds.has(post.id) ? 'fill-brand-pink' : ''} /> {post.upvotesCount || 0}
                       </span>
                       <span className="flex items-center gap-1.5 text-xs font-semibold text-luxury-ink/40">
                         <MessageSquare size={14} /> {post.repliesCount || 0}
@@ -1434,7 +1464,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-luxury-ink text-sm group-hover:text-brand-teal transition-colors flex items-center gap-1.5">
                             {u.name}
-                            {u.verified && <ShieldCheck size={14} className="text-brand-teal" title="Verified" />}
+                            {u.verified && <span title="Verified"><ShieldCheck size={14} className="text-brand-teal" /></span>}
                           </p>
                           {u.username && <p className="text-[11px] text-luxury-ink/40">@{u.username}</p>}
                           <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30 truncate">{u.school}</p>
