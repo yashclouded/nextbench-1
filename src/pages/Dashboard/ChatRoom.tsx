@@ -445,7 +445,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
             <div>
               <Link to={otherUserProfileUrl} className="font-bold text-luxury-ink flex items-center gap-1.5 leading-none mb-0.5 text-sm hover:text-brand-teal transition-colors">
                 {otherUser.name}
-                {otherUser.verified && <ShieldCheck size={14} className="text-brand-teal" title="Verified" />}
+                {otherUser.verified && <ShieldCheck size={14} className="text-brand-teal"  />}
               </Link>
               <div className="flex flex-col gap-0.5">
                 {roomData?.productTitle && roomData?.productId && (

@@ -41,7 +41,7 @@ export default function MentionInput({
   const [mentionStartPos, setMentionStartPos] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Detect @mention trigger as user types
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

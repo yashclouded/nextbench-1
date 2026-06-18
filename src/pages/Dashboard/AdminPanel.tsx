@@ -456,7 +456,7 @@ export default function AdminPanel() {
               <div className="flex-1 text-center md:text-left">
                 <div className="flex items-center gap-2 mb-0.5 justify-center md:justify-start">
                   <Link to={`/profile/${u.id}`} className="font-bold text-luxury-ink text-sm hover:text-brand-teal transition-colors">{u.name}</Link>
-                  {u.verified && <ShieldCheck size={14} className="text-brand-teal" title="Verified" />}
+                  {u.verified && <ShieldCheck size={14} className="text-brand-teal"  />}
                   {u.isAdmin && <Crown size={14} className="text-brand-pink" />}
                 </div>
                 <div className="text-xs text-luxury-ink/40 flex items-center gap-1.5 flex-wrap">
@@ -601,8 +601,8 @@ export default function AdminPanel() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => handleDismissReport(item.id)} className="p-2 rounded-xl border border-luxury-ink/5 hover:bg-surface-soft transition-all text-luxury-ink/40" title="Dismiss"><XCircle size={18} /></button>
-                  <button onClick={() => handleResolveReport(item.id)} className="p-2 rounded-xl bg-brand-pink text-white hover:bg-brand-pink/80 transition-all shadow-lg" title="Mark Resolved"><CheckCircle size={18} /></button>
+                  <button onClick={() => handleDismissReport(item.id)} className="p-2 rounded-xl border border-luxury-ink/5 hover:bg-surface-soft transition-all text-luxury-ink/40" ><XCircle size={18} /></button>
+                  <button onClick={() => handleResolveReport(item.id)} className="p-2 rounded-xl bg-brand-pink text-white hover:bg-brand-pink/80 transition-all shadow-lg" ><CheckCircle size={18} /></button>
                 </div>
               </div>
               {item.details && <p className="text-sm text-luxury-ink/60 whitespace-pre-wrap bg-surface-base p-4 rounded-xl w-full">{item.details}</p>}

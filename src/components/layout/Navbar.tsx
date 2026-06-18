@@ -136,7 +136,7 @@ export default function Navbar() {
                 </Link>
               )}
               <Link to="/profile" className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-brand-teal/50 hover:text-brand-pink transition-colors">
-                {userData?.verified && <ShieldCheck size={16} className="text-brand-mint" title="Verified" />}
+                {userData?.verified && <ShieldCheck size={16} className="text-brand-mint"  />}
                 <span className="max-w-30 truncate">{userData?.name || user.email}</span>
               </Link>
               <button 

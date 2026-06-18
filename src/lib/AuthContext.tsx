@@ -10,7 +10,8 @@ export interface UserData {
   email: string;
   school: string;
   verified: boolean;
-  verificationStatus: 'pending' | 'approved' | 'rejected';
+  verificationStatus: 'pending' | 'approved' | 'rejected' | 'flagged_manual';
+  verificationRejectionReason?: string;
   reputation: number;
   isAdmin: boolean;
   role?: 'admin' | 'moderator' | 'user';

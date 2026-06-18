@@ -210,7 +210,7 @@ export default function SuggestedUsers() {
                   <div className="min-w-0 pr-2">
                     <p className="text-[13px] font-semibold text-luxury-ink truncate group-hover:text-brand-teal transition-colors flex items-center gap-1">
                       {suggestion.name}
-                      {suggestion.verified && <ShieldCheck size={12} className="text-brand-teal" title="Verified" />}
+                      {suggestion.verified && <ShieldCheck size={12} className="text-brand-teal"  />}
                     </p>
                     <p className="text-[11px] text-luxury-ink/40 truncate">
                       {suggestion.mutualCount && suggestion.mutualFriends && suggestion.mutualFriends.length > 0 ? (
