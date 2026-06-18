@@ -733,6 +733,8 @@ export default function Feed() {
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set());
   const [downvoteMap, setDownvoteMap] = useState<Record<string, string>>({});
   const repostedPostIds = useRepostedPostIds();
+  const [wishlisted, setWishlisted] = useState<Set<string>>(new Set());
+  const [wishlistMap, setWishlistMap] = useState<Record<string, string>>({});
   const wishlistedProductIds = Array.from(wishlisted);
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -758,8 +760,6 @@ export default function Feed() {
   // Lock body scroll when a modal is open
   useScrollLock(isModalOpen || !!selectedPost || cropImageSrc !== null);
 
-  const [wishlisted, setWishlisted] = useState<Set<string>>(new Set());
-  const [wishlistMap, setWishlistMap] = useState<Record<string, string>>({});
 
   const [rawPosts, setRawPosts] = useState<Post[]>([]);
   const [visibleCount, setVisibleCount] = useState(6); // Show 6 items initially, load more on scroll
