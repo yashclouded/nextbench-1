@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bell, Check, CheckCheck, ShieldCheck, Package, MessageSquare, Star, Trash2, Crown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Bell, Check, CheckCheck, ShieldCheck, Package, MessageSquare, Star, Trash2, Crown, ChevronDown, ChevronUp, AtSign, Repeat2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
@@ -28,6 +28,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   item_sold: <Package size={20} className="text-brand-teal" />,
   new_review: <Star size={20} className="text-yellow-500" />,
   admin_promoted: <Crown size={20} className="text-brand-pink" />,
+  mention: <AtSign size={20} className="text-indigo-500" />,
+  repost: <Repeat2 size={20} className="text-emerald-500" />,
 };
 
 export default function Notifications() {
@@ -44,7 +46,7 @@ export default function Notifications() {
   });
 
   const isDeals = (type: string) => ['listing_approved', 'listing_rejected', 'item_reserved', 'item_sold', 'new_review'].includes(type);
-  const isSocial = (type: string) => ['new_message'].includes(type);
+  const isSocial = (type: string) => ['new_message', 'mention', 'repost'].includes(type);
   const isSystem = (type: string) => ['user_approved', 'admin_promoted'].includes(type);
 
   const getNotificationCategory = (type: string): 'deals' | 'social' | 'system' | 'other' => {
