@@ -358,7 +358,7 @@ export default function Signup() {
                 I agree to Nextbench's{' '}
                 <Link to="/terms" target="_blank" className="text-brand-teal font-bold hover:text-brand-pink transition-colors">Terms of Service</Link>{' '}
                 and{' '}
-                <Link to="/privacy" target="_blank" className="text-brand-teal font-bold hover:text-brand-pink transition-colors">Privacy Policy</Link>.
+                <Link to="/privacy" target="_blank" className="text-brand-teal font-bold hover:text-brand-pink transition-colors">Privacy Policy</Link>, including consent to the collection and processing of my personal data for identity verification as described in the Privacy Policy.
                 I confirm I am a currently enrolled student.
               </span>
             </label>

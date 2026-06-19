@@ -16,6 +16,7 @@ const SECTIONS: Section[] = [
       'Nextbench is exclusively available to currently enrolled students of participating schools. By creating an account, you confirm that you are a genuine student of one of the listed institutions and that you are at least 13 years of age.',
       'All accounts must be verified via a valid, unaltered student ID card and a live selfie. Accounts found to be created with forged, expired, or borrowed identification will be permanently banned and reported to the relevant school administration.',
       'Nextbench reserves the right to refuse or revoke access to any user at its sole discretion, particularly in cases of suspected fraud, abuse, or violation of these Terms.',
+      'By creating an account, you expressly consent to AI-based identity verification (including analysis of your student ID card and selfie) and to the collection, processing, and storage of your personal data as described in our Privacy Policy. If you do not consent to these practices, you may not use the platform.',
     ],
   },
   {
