@@ -469,6 +469,20 @@ function PostDetailModal({
             <PollDisplay postId={post.id} poll={post.poll} />
           )}
 
+          {/* Video */}
+          {(post as any).videoUrl && (
+            <div className="relative mb-6 w-full rounded-2xl overflow-hidden bg-black">
+              <video
+                src={(post as any).videoUrl}
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full h-auto max-h-[60vh] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+
           {/* Image Section Moved Here */}
           {postImageUrls.length > 0 && (
             <div className="relative bg-luxury-ink/5 rounded-2xl overflow-hidden mb-6 border border-luxury-ink/5 shrink-0 group">
