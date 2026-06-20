@@ -140,9 +140,9 @@ export default function SellItem() {
   };
   
   const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
-      const newTag = tagInput.trim().toLowerCase();
+      const newTag = tagInput.trim().toLowerCase().replace(/,/g, '');
       if (newTag && !tags.includes(newTag)) {
         if (tags.length >= 10) {
           showToast('Maximum of 10 tags allowed', 'warning');
@@ -494,7 +494,7 @@ export default function SellItem() {
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleAddTag}
-                placeholder={tags.length < 10 ? "Type a tag and press Enter" : "Tag limit reached"}
+                placeholder={tags.length < 10 ? "Type a tag, press Enter or ," : "Tag limit reached"}
                 disabled={tags.length >= 10}
                 className="flex-1 min-w-37.5 bg-transparent outline-none text-sm font-medium px-2 py-2 placeholder-luxury-ink/30"
               />

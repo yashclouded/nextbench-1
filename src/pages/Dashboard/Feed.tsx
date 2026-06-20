@@ -469,6 +469,20 @@ function PostDetailModal({
             <PollDisplay postId={post.id} poll={post.poll} />
           )}
 
+          {/* Video */}
+          {(post as any).videoUrl && (
+            <div className="relative mb-6 w-full rounded-2xl overflow-hidden bg-black">
+              <video
+                src={(post as any).videoUrl}
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full h-auto max-h-[60vh] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+
           {/* Image Section Moved Here */}
           {postImageUrls.length > 0 && (
             <div className="relative bg-luxury-ink/5 rounded-2xl overflow-hidden mb-6 border border-luxury-ink/5 shrink-0 group">
@@ -702,6 +716,12 @@ function PostDetailModal({
 
 // ─── Main Posts Component ─────────────────────────────────
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function Feed() {
   const [privacy, setPrivacy] = useState('public');
   const [showPostOptions, setShowPostOptions] = useState(false);
@@ -714,6 +734,7 @@ export default function Feed() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [submittingStatus, setSubmittingStatus] = useState('Posting...');
+  const [uploadProgress, setUploadProgress] = useState<{ pct: number; loaded: number; total: number } | null>(null);
   const [contentType, setContentType] = useState<'all' | 'posts' | 'marketplace'>('all');
   const [shareModalData, setShareModalData] = useState<{isOpen: boolean, url: string, title: string, sharedPost?: any}>({isOpen: false, url: '', title: ''});
 
@@ -1257,15 +1278,37 @@ export default function Feed() {
 
       if (videoFile) {
         setSubmittingStatus('Uploading video...');
-        videoUrl = await uploadPostVideo(videoFile);
+        setUploadProgress({ pct: 0, loaded: 0, total: videoFile.size });
+        videoUrl = await uploadPostVideo(videoFile, (pct, loaded, total) => {
+          setUploadProgress({ pct, loaded, total });
+        });
+        setUploadProgress(null);
       } else if (pdfFile) {
         setSubmittingStatus('Uploading PDF...');
-        const pdfResult = await uploadPostPdf(pdfFile);
+        setUploadProgress({ pct: 0, loaded: 0, total: pdfFile.size });
+        const pdfResult = await uploadPostPdf(pdfFile, (pct, loaded, total) => {
+          setUploadProgress({ pct, loaded, total });
+        });
+        setUploadProgress(null);
         pdfUrl = pdfResult.url;
         pdfPages = pdfResult.pages;
       } else if (imageFiles.length > 0) {
         setSubmittingStatus('Uploading images...');
-        imageUrls = await Promise.all(imageFiles.map(file => uploadPostImage(file)));
+        // For multiple images, distribute progress evenly across files
+        const totalSize = imageFiles.reduce((sum, f) => sum + f.size, 0);
+        let uploadedSize = 0;
+        imageUrls = await Promise.all(
+          imageFiles.map(async (file) => {
+            setUploadProgress({ pct: Math.round((uploadedSize / totalSize) * 100), loaded: uploadedSize, total: totalSize });
+            const url = await uploadPostImage(file, (pct, loaded) => {
+              const baseLoaded = uploadedSize;
+              setUploadProgress({ pct: Math.round((baseLoaded + loaded) / totalSize * 100), loaded: baseLoaded + loaded, total: totalSize });
+            });
+            uploadedSize += file.size;
+            return url;
+          })
+        );
+        setUploadProgress(null);
       }
 
       const isTextClean = isTextSafe(title) && isTextSafe(content);
@@ -1360,6 +1403,7 @@ export default function Feed() {
       handleFirestoreError(error, OperationType.CREATE, 'posts');
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(null);
     }
   };
 
@@ -2140,11 +2184,42 @@ export default function Feed() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center"
+                    className="absolute inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center px-8"
                   >
-                    <div className="w-12 h-12 border-4 border-brand-teal border-t-transparent rounded-full animate-spin mb-4" />
-                    <p className="text-luxury-ink font-bold text-lg">{submittingStatus}</p>
-                    <p className="text-luxury-ink/50 text-sm mt-1">{submittingStatus === 'Scanning images for safety...' ? 'AI is checking your images — this only takes a moment' : 'Uploading media and publishing to community'}</p>
+                    {uploadProgress ? (
+                      /* Progress bar mode — shown during file uploads */
+                      <div className="w-full max-w-xs flex flex-col items-center gap-3">
+                        <p className="text-white font-bold text-lg">{submittingStatus}</p>
+
+                        {/* Track + filled bar */}
+                        <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
+                          <motion.div
+                            className="h-full rounded-full bg-brand-teal"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${uploadProgress.pct}%` }}
+                            transition={{ ease: 'linear', duration: 0.1 }}
+                          />
+                        </div>
+
+                        {/* Bytes done / left */}
+                        <div className="flex w-full justify-between text-[12px] text-white/50 font-medium">
+                          <span>{formatBytes(uploadProgress.loaded)} done</span>
+                          <span className="font-bold text-brand-teal">{uploadProgress.pct}%</span>
+                          <span>{formatBytes(uploadProgress.total - uploadProgress.loaded)} left</span>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Spinner mode — shown for non-upload steps */
+                      <>
+                        <div className="w-12 h-12 border-4 border-brand-teal border-t-transparent rounded-full animate-spin mb-4" />
+                        <p className="text-white font-bold text-lg">{submittingStatus}</p>
+                        <p className="text-white/50 text-sm mt-1">
+                          {submittingStatus === 'Scanning images for safety...'
+                            ? 'AI is checking your images — this only takes a moment'
+                            : 'Uploading media and publishing to community'}
+                        </p>
+                      </>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

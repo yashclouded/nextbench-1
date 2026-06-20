@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe, Eye, Gift, UserPlus, ArrowUpDown } from 'lucide-react';
+import { ShieldCheck, Star, Package, Settings, MapPin, X, Smartphone, ExternalLink, Trash2, Camera, MessageSquare, Handshake, Heart, MoreHorizontal, Ban, Flag, Copy, Check, Edit2, Building2, Globe, Eye, Gift, UserPlus, ArrowUpDown, Film } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/AuthContext';
 import React, { useState, useEffect, useRef } from 'react';
@@ -1287,7 +1287,21 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
               return (
                 <div key={post.id} onClick={() => navigate(`/community?postId=${post.id}`)} className="theme-card rounded-2xl overflow-hidden transition-all hover:scale-[1.005] cursor-pointer group">
-                  {hasImage && !post.pdfUrl && (
+                  {post.videoUrl && (
+                    <div className="relative w-full aspect-video overflow-hidden bg-black" onClick={(e) => e.stopPropagation()}>
+                      <video
+                        src={post.videoUrl}
+                        controls
+                        preload="metadata"
+                        className="w-full h-full object-contain"
+                        playsInline
+                      />
+                      <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none">
+                        <Film size={10} /> Video
+                      </div>
+                    </div>
+                  )}
+                  {hasImage && !post.pdfUrl && !post.videoUrl && (
                     <div className="relative w-full aspect-video overflow-hidden bg-surface-soft">
                       <img
                         src={getOptimizedImageUrl(postImageUrls[0])}
