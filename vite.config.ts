@@ -104,9 +104,11 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id: string) {
-            // Isolate TensorFlow.js and nsfwjs into their own lazy-loaded chunks
             if (id.includes('@tensorflow') || id.includes('nsfwjs')) {
               return 'nsfwjs';
+            }
+            if (id.includes('firebase')) {
+              return 'firebase';
             }
           },
         },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film, Pencil } from 'lucide-react';
-import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, orderBy, limit, documentId } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
@@ -941,7 +941,9 @@ export default function Feed() {
   useEffect(() => {
     const q = query(
       collection(db, 'posts'),
-      where('status', '==', 'approved')
+      where('status', '==', 'approved'),
+      orderBy('createdAt', 'desc'),
+      limit(30)
     );
 
     const userCache: Record<string, any> = {};
@@ -955,14 +957,20 @@ export default function Feed() {
           if (authorId && !userCache[authorId]) uncachedIds.add(authorId);
         });
 
-        // 2. Fetch missing authors concurrently
+        // 2. Fetch missing authors in batches of 30 (Firestore 'in' limit)
         if (uncachedIds.size > 0) {
-          const promises = Array.from(uncachedIds).map(async (uid) => {
-            const uDoc = await getDoc(doc(db, 'users', uid));
-            if (uDoc.exists()) userCache[uid] = uDoc.data();
-            else userCache[uid] = {}; // Cache empty to avoid refetching
-          });
-          await Promise.all(promises);
+          const idArray = Array.from(uncachedIds);
+          for (let i = 0; i < idArray.length; i += 30) {
+            const batch = idArray.slice(i, i + 30);
+            const batchSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', batch)));
+            batchSnap.forEach(uDoc => {
+              userCache[uDoc.id] = uDoc.data();
+            });
+            // Mark any missing IDs as empty to avoid refetching
+            batch.forEach(uid => {
+              if (!userCache[uid]) userCache[uid] = {};
+            });
+          }
         }
 
         // 3. Build post list with real-time author data
@@ -1033,7 +1041,9 @@ export default function Feed() {
   useEffect(() => {
     const q = query(
       collection(db, 'products'),
-      where('status', 'in', ['available', 'sold'])
+      where('status', 'in', ['available', 'sold']),
+      orderBy('createdAt', 'desc'),
+      limit(20)
     );
     const sellerCache: Record<string, any> = {};
 
@@ -1047,10 +1057,17 @@ export default function Feed() {
           if (sellerId && !sellerCache[sellerId]) uncachedIds.add(sellerId);
         });
         if (uncachedIds.size > 0) {
-          await Promise.all(Array.from(uncachedIds).map(async (uid) => {
-            const uDoc = await getDoc(doc(db, 'users', uid));
-            sellerCache[uid] = uDoc.exists() ? uDoc.data() : {};
-          }));
+          const idArray = Array.from(uncachedIds);
+          for (let i = 0; i < idArray.length; i += 30) {
+            const batch = idArray.slice(i, i + 30);
+            const batchSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', batch)));
+            batchSnap.forEach(uDoc => {
+              sellerCache[uDoc.id] = uDoc.data();
+            });
+            batch.forEach(uid => {
+              if (!sellerCache[uid]) sellerCache[uid] = {};
+            });
+          }
         }
 
         snapshot.forEach(docSnap => {
@@ -1085,63 +1102,83 @@ export default function Feed() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'post_upvotes'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(q, snap => {
-      const ids = new Set<string>();
-      const map: Record<string, string> = {};
-      snap.forEach(d => {
-        ids.add(d.data().postId);
-        map[d.data().postId] = d.id;
-      });
-      setUpvotedPostIds(ids);
-      setUpvoteMap(map);
-    });
-    return () => unsub();
+    const fetchUpvotes = async () => {
+      try {
+        const q = query(collection(db, 'post_upvotes'), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const ids = new Set<string>();
+        const map: Record<string, string> = {};
+        snap.forEach(d => {
+          ids.add(d.data().postId);
+          map[d.data().postId] = d.id;
+        });
+        setUpvotedPostIds(ids);
+        setUpvoteMap(map);
+      } catch (err) {
+        console.error('Error fetching upvotes:', err);
+      }
+    };
+    fetchUpvotes();
   }, [user?.uid]);
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'post_downvotes'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(q, snap => {
-      const ids = new Set<string>();
-      const map: Record<string, string> = {};
-      snap.forEach(d => {
-        ids.add(d.data().postId);
-        map[d.data().postId] = d.id;
-      });
-      setDownvotedPostIds(ids);
-      setDownvoteMap(map);
-    });
-    return () => unsub();
+    const fetchDownvotes = async () => {
+      try {
+        const q = query(collection(db, 'post_downvotes'), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const ids = new Set<string>();
+        const map: Record<string, string> = {};
+        snap.forEach(d => {
+          ids.add(d.data().postId);
+          map[d.data().postId] = d.id;
+        });
+        setDownvotedPostIds(ids);
+        setDownvoteMap(map);
+      } catch (err) {
+        console.error('Error fetching downvotes:', err);
+      }
+    };
+    fetchDownvotes();
   }, [user?.uid]);
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'saved_posts'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(q, snap => {
-      const ids = new Set<string>();
-      snap.forEach(d => {
-        ids.add(d.data().postId);
-      });
-      setSavedPostIds(ids);
-    });
-    return () => unsub();
+    const fetchSaves = async () => {
+      try {
+        const q = query(collection(db, 'saved_posts'), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const ids = new Set<string>();
+        snap.forEach(d => {
+          ids.add(d.data().postId);
+        });
+        setSavedPostIds(ids);
+      } catch (err) {
+        console.error('Error fetching saves:', err);
+      }
+    };
+    fetchSaves();
   }, [user?.uid]);
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'reply_upvotes'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(q, snap => {
-      const ids = new Set<string>();
-      const map: Record<string, string> = {};
-      snap.forEach(d => {
-        ids.add(d.data().replyId);
-        map[d.data().replyId] = d.id;
-      });
-      setReplyUpvotedIds(ids);
-      setReplyUpvoteMap(map);
-    });
-    return () => unsub();
+    const fetchReplyUpvotes = async () => {
+      try {
+        const q = query(collection(db, 'reply_upvotes'), where('userId', '==', user.uid));
+        const snap = await getDocs(q);
+        const ids = new Set<string>();
+        const map: Record<string, string> = {};
+        snap.forEach(d => {
+          ids.add(d.data().replyId);
+          map[d.data().replyId] = d.id;
+        });
+        setReplyUpvotedIds(ids);
+        setReplyUpvoteMap(map);
+      } catch (err) {
+        console.error('Error fetching reply upvotes:', err);
+      }
+    };
+    fetchReplyUpvotes();
   }, [user?.uid]);
 
   useEffect(() => {
@@ -1158,19 +1195,24 @@ export default function Feed() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'wishlists'), where('userId', '==', user.uid));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ids = new Set<string>();
-      const map: Record<string, string> = {};
-      snapshot.forEach((d) => {
-        const data = d.data();
-        ids.add(data.productId);
-        map[data.productId] = d.id;
-      });
-      setWishlisted(ids);
-      setWishlistMap(map);
-    });
-    return () => unsubscribe();
+    const fetchWishlists = async () => {
+      try {
+        const q = query(collection(db, 'wishlists'), where('userId', '==', user.uid));
+        const snapshot = await getDocs(q);
+        const ids = new Set<string>();
+        const map: Record<string, string> = {};
+        snapshot.forEach((d) => {
+          const data = d.data();
+          ids.add(data.productId);
+          map[data.productId] = d.id;
+        });
+        setWishlisted(ids);
+        setWishlistMap(map);
+      } catch (err) {
+        console.error('Error fetching wishlists:', err);
+      }
+    };
+    fetchWishlists();
   }, [user?.uid]);
 
   // ─── Paste to add image/pdf ───────────────────────────────
