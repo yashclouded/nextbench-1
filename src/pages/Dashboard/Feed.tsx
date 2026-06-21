@@ -943,7 +943,7 @@ export default function Feed() {
       collection(db, 'posts'),
       where('status', '==', 'approved'),
       orderBy('createdAt', 'desc'),
-      limit(30)
+      limit(15)
     );
 
     const userCache: Record<string, any> = {};
@@ -1043,7 +1043,7 @@ export default function Feed() {
       collection(db, 'products'),
       where('status', 'in', ['available', 'sold']),
       orderBy('createdAt', 'desc'),
-      limit(20)
+      limit(10)
     );
     const sellerCache: Record<string, any> = {};
 
