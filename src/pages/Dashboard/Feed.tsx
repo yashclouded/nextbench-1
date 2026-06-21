@@ -322,7 +322,9 @@ function PostDetailModal({
   isSubmitting,
   replyImageFile,
   setReplyImageFile,
-  isUploadingReplyImage
+  isUploadingReplyImage,
+  replyGifUrl,
+  setReplyGifUrl,
 }: {
   post: Post;
   onClose: () => void;
@@ -350,6 +352,8 @@ function PostDetailModal({
   replyImageFile: File | null;
   setReplyImageFile: (f: File | null) => void;
   isUploadingReplyImage: boolean;
+  replyGifUrl: string | null;
+  setReplyGifUrl: (url: string | null) => void;
 }) {
   const postImageUrls = post.imageUrls && post.imageUrls.length > 0
     ? post.imageUrls
@@ -358,6 +362,13 @@ function PostDetailModal({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
   const { user } = useAuth();
+
+  // GIF picker state
+  const giphyKey = import.meta.env.VITE_GIPHY_API_KEY;
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [gifSearch, setGifSearch] = useState('');
+  const [gifResults, setGifResults] = useState<any[]>([]);
+  const [gifLoading, setGifLoading] = useState(false);
   
   const displayInfo = getPersonaDisplay(post, isAdmin);
 
@@ -392,12 +403,32 @@ function PostDetailModal({
 
   const handleReactionClick = async (reaction: ReactionType) => {
     if (!user) return;
-    // Optimistic UI update could go here, but for simplicity we let the snapshot handle it usually.
-    // We will just call the toggler.
     await togglePostReaction(post.id, user.uid, reaction);
     const newReaction = await getUserReaction(post.id, user.uid);
     setUserReaction(newReaction);
   };
+
+  // GIPHY search
+  useEffect(() => {
+    if (!showGifPicker) return;
+    const controller = new AbortController();
+    const delay = setTimeout(async () => {
+      setGifLoading(true);
+      try {
+        const endpoint = gifSearch.trim()
+          ? `https://api.giphy.com/v1/gifs/search?api_key=${giphyKey}&q=${encodeURIComponent(gifSearch)}&limit=24&rating=g`
+          : `https://api.giphy.com/v1/gifs/trending?api_key=${giphyKey}&limit=24&rating=g`;
+        const res = await fetch(endpoint, { signal: controller.signal });
+        const json = await res.json();
+        setGifResults(json.data || []);
+      } catch (e) {
+        if ((e as any).name !== 'AbortError') console.error(e);
+      } finally {
+        setGifLoading(false);
+      }
+    }, 400);
+    return () => { clearTimeout(delay); controller.abort(); };
+  }, [gifSearch, showGifPicker]);
 
   return (
     <motion.div
@@ -601,10 +632,23 @@ function PostDetailModal({
                 const file = e.dataTransfer.files?.[0];
                 if (file && file.type.startsWith('image/')) {
                   setReplyImageFile(file);
+                  setReplyGifUrl(null);
                 }
               }}
             >
-              {replyImageFile && (
+              {/* GIF or image preview */}
+              {replyGifUrl ? (
+                <div className="relative inline-block mb-3">
+                  <img src={replyGifUrl} alt="GIF" className="h-24 rounded-xl border border-luxury-ink/10 object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setReplyGifUrl(null)}
+                    className="absolute -top-1.5 -right-1.5 bg-luxury-ink text-white p-1 rounded-full"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ) : replyImageFile ? (
                 <div className="relative inline-block mb-3">
                   <div className="w-20 h-20 rounded-xl overflow-hidden border border-luxury-ink/10">
                     <img src={URL.createObjectURL(replyImageFile)} alt="Preview" className="w-full h-full object-cover" />
@@ -617,8 +661,70 @@ function PostDetailModal({
                     <X size={10} />
                   </button>
                 </div>
+              ) : null}
+
+              {/* GIF Picker Panel */}
+              {showGifPicker && (
+                <div className="mb-3 rounded-2xl border border-luxury-ink/8 bg-surface-base overflow-hidden">
+                  <div className="p-2 border-b border-luxury-ink/5">
+                    <input
+                      type="text"
+                      value={gifSearch}
+                      onChange={(e) => setGifSearch(e.target.value)}
+                      placeholder="Search GIFs..."
+                      autoFocus
+                      className="w-full bg-surface-soft rounded-xl px-3 py-2 text-sm font-medium text-luxury-ink focus:outline-none focus:ring-2 focus:ring-brand-teal/20 placeholder-luxury-ink/30"
+                    />
+                  </div>
+                  <div className="h-52 overflow-y-auto p-2">
+                    {gifLoading ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="w-5 h-5 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : gifResults.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {gifResults.map((gif: any) => (
+                          <button
+                            key={gif.id}
+                            type="button"
+                            onClick={() => {
+                              setReplyGifUrl(gif.images.fixed_height.url);
+                              setReplyImageFile(null);
+                              setShowGifPicker(false);
+                              setGifSearch('');
+                              setGifResults([]);
+                            }}
+                            className="aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-brand-teal transition-all"
+                          >
+                            <img
+                              src={gif.images.fixed_height_small.url}
+                              alt={gif.title}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-luxury-ink/30 text-sm font-medium">
+                        {gifSearch ? 'No GIFs found' : 'Trending GIFs loading...'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-3 py-1.5 border-t border-luxury-ink/5 flex justify-between items-center">
+                    <span className="text-[10px] text-luxury-ink/25 font-semibold tracking-wide uppercase">Powered by GIPHY</span>
+                    <button
+                      type="button"
+                      onClick={() => { setShowGifPicker(false); setGifSearch(''); }}
+                      className="text-[11px] font-bold text-luxury-ink/40 hover:text-luxury-ink transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
               )}
-              <div className="flex gap-3 items-end">
+
+              <div className="flex gap-2 items-end">
                 <MentionInput
                   id="reply-input"
                   value={replyContent}
@@ -626,6 +732,21 @@ function PostDetailModal({
                   placeholder="Write a reply..."
                   className="w-full bg-surface-base border border-luxury-ink/5 rounded-xl py-3 px-4 focus:outline-none focus:border-brand-teal text-sm font-medium"
                 />
+                {/* GIF button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGifPicker(p => !p);
+                    if (!showGifPicker) { setReplyImageFile(null); setReplyGifUrl(null); }
+                  }}
+                  className={`p-3 rounded-xl border text-[11px] font-bold tracking-wide shrink-0 transition-colors ${
+                    showGifPicker
+                      ? 'border-brand-teal/40 text-brand-teal bg-brand-teal/5'
+                      : 'border-luxury-ink/5 text-luxury-ink/40 hover:text-brand-teal hover:border-brand-teal/30'
+                  }`}
+                >
+                  GIF
+                </button>
                 <label className="p-3 rounded-xl border border-luxury-ink/5 text-luxury-ink/40 hover:text-brand-teal hover:border-brand-teal/30 cursor-pointer transition-colors shrink-0">
                   <ImageIcon size={18} />
                   <input
@@ -634,6 +755,8 @@ function PostDetailModal({
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         setReplyImageFile(e.target.files[0]);
+                        setReplyGifUrl(null);
+                        setShowGifPicker(false);
                       }
                     }}
                     className="hidden"
@@ -641,7 +764,7 @@ function PostDetailModal({
                 </label>
                 <button
                   type="submit"
-                  disabled={(!replyContent.trim() && !replyImageFile) || isSubmitting}
+                  disabled={(!replyContent.trim() && !replyImageFile && !replyGifUrl) || isSubmitting}
                   className="bg-brand-teal text-white px-5 py-3 rounded-xl text-[11px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-brand-teal/20 hover:bg-brand-pink transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   {isUploadingReplyImage ? '...' : 'Send'}
@@ -767,6 +890,7 @@ export default function Feed() {
   const [replyingTo, setReplyingTo] = useState<{id: string, name: string} | null>(null);
   const [replyUpvotedIds, setReplyUpvotedIds] = useState<Set<string>>(new Set());
   const [replyUpvoteMap, setReplyUpvoteMap] = useState<Record<string, string>>({});
+  const [replyGifUrl, setReplyGifUrl] = useState<string | null>(null);
 
   // Confirm dialog state (replaces window.confirm everywhere in this component)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -1628,12 +1752,15 @@ export default function Feed() {
       showToast('You must be verified to reply.', 'error');
       return;
     }
-    if (!selectedPost || (!replyContent.trim() && !replyImageFile) || isSubmitting) return;
+    if (!selectedPost || (!replyContent.trim() && !replyImageFile && !replyGifUrl) || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
       let imageUrl: string | null = null;
-      if (replyImageFile) {
+      if (replyGifUrl) {
+        // GIF — use URL directly, no upload needed
+        imageUrl = replyGifUrl;
+      } else if (replyImageFile) {
         setIsUploadingReplyImage(true);
         const safety = await checkImageSafety(replyImageFile);
         if (!safety.isSafe) {
@@ -1711,6 +1838,7 @@ export default function Feed() {
 
       setReplyContent('');
       setReplyImageFile(null);
+      setReplyGifUrl(null);
       setReplyingTo(null);
       showToast('Reply posted!', 'success');
     } catch (error) {
@@ -2093,6 +2221,8 @@ export default function Feed() {
             replyImageFile={replyImageFile}
             setReplyImageFile={setReplyImageFile}
             isUploadingReplyImage={isUploadingReplyImage}
+            replyGifUrl={replyGifUrl}
+            setReplyGifUrl={setReplyGifUrl}
           />
         )}
       </AnimatePresence>
