@@ -9,6 +9,8 @@ import { handleFirestoreError, OperationType } from '../../lib/firestore-errors'
 import { useToast } from '../../lib/ToastContext';
 import { uploadChatImage } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
+import MentionInput from '../../components/ui/MentionInput';
+import { notifyMentionedUsers } from '../../lib/mentions';
 import type { ClubData } from '../../lib/clubs';
 import MessageText from '../../components/ui/MessageText';
 
@@ -148,6 +150,13 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
         lastSenderName: userData?.name || 'Unknown',
         updatedAt: serverTimestamp(),
       });
+
+      if (messageText) {
+        notifyMentionedUsers(messageText, user.uid, userData?.name || 'Someone', {
+          type: 'club_chat',
+          link: `/club/${clubId}`,
+        }).catch(err => console.warn('Failed to notify mentioned users:', err));
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `clubs/${clubId}/messages`);
     }
@@ -619,13 +628,12 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
 
               {/* Input pill */}
               <div className="flex-1 flex items-center bg-surface-card rounded-full border border-luxury-ink/10 shadow-md px-4" style={{ borderColor: 'var(--color-border)' }}>
-                <input
-                  type="text"
+                <MentionInput
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(val) => setNewMessage(val)}
                   placeholder={isUploading ? 'Uploading...' : 'Type your message...'}
                   disabled={isUploading}
-                  className="flex-1 bg-transparent py-3.5 text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
+                  className="w-full bg-transparent py-3.5 text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
                 />
               </div>
 

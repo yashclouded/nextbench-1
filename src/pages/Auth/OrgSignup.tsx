@@ -488,7 +488,7 @@ export default function OrgSignup() {
                       I agree to Nextbench's{' '}
                       <Link to="/terms" target="_blank" className="text-brand-teal font-bold hover:text-brand-pink transition-colors">Terms of Service</Link>{' '}
                       and{' '}
-                      <Link to="/privacy" target="_blank" className="text-brand-teal font-bold hover:text-brand-pink transition-colors">Privacy Policy</Link>.
+                      <Link to="/privacy" target="_blank" className="text-brand-teal font-bold hover:text-brand-pink transition-colors">Privacy Policy</Link>, including consent to the collection and processing of my organization's data for identity verification as described in the Privacy Policy.
                       I confirm I am an authorized representative of this organization.
                     </span>
                   </label>

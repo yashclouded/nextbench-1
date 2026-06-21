@@ -390,7 +390,7 @@ export default function ChatList() {
                       </div>
                       {room.otherUser?.verified && (
                         <div className="absolute bottom-0 right-0 bg-brand-teal text-white p-0.5 rounded-full border-2 border-surface-base">
-                          <ShieldCheck size={10} title="Verified" />
+                          <ShieldCheck size={10}  />
                         </div>
                       )}
                       {(() => {
@@ -560,7 +560,7 @@ export default function ChatList() {
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-luxury-ink text-sm flex items-center gap-1.5">
                             {u.name}
-                            {u.verified && <ShieldCheck size={14} className="text-brand-teal" title="Verified" />}
+                            {u.verified && <ShieldCheck size={14} className="text-brand-teal"  />}
                           </p>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30 truncate">{u.school}</p>
                         </div>

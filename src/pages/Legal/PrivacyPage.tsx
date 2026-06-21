@@ -210,6 +210,31 @@ const SECTIONS: Section[] = [
       'We aim to respond to all privacy-related enquiries within 30 days.',
     ],
   },
+  {
+    title: '11. Your Consent',
+    content: [
+      'By creating an account and using Nextbench, you explicitly acknowledge and consent to the following data processing activities:',
+      {
+        subtitle: 'What You Consent To',
+        items: [
+          'Collection and processing of your personal data (name, email, school, profile photo, ID card photo, selfie) as described in this Privacy Policy',
+          'AI-based analysis of your student ID card and selfie for automated identity verification purposes',
+          'Secure storage of your verification documents with our trusted partners (Cloudinary, Firebase) as described in Section 3',
+          'Retention of your data for the duration of your account, as described in Section 5',
+          'In-app communications and notifications related to your account, listings, and transactions',
+        ],
+      },
+      {
+        subtitle: 'Your Rights Regarding Consent',
+        items: [
+          'You may withdraw your consent at any time by deleting your account via our contact email',
+          'Withdrawal of consent does not affect the lawfulness of processing based on consent before its withdrawal',
+          'If you do not agree with these data processing activities, please do not create an account or use the platform',
+          'You may request a copy of your data or correction of inaccurate data at any time (see Section 6)',
+        ],
+      },
+    ],
+  },
 ];
 
 export default function PrivacyPage() {

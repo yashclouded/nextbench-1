@@ -473,7 +473,7 @@ export default function ProductDetail() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-lg font-bold text-luxury-ink group-hover:text-brand-teal transition-colors">{product.sellerName}</p>
-                  <ShieldCheck size={14} className="text-brand-teal" title="Verified" />
+                  <ShieldCheck size={14} className="text-brand-teal"  />
                 </div>
                 <p className="text-sm text-luxury-ink/50 font-medium flex items-center gap-1 mt-1">
                   {product.sellerSchool} 

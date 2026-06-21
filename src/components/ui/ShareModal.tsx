@@ -274,7 +274,7 @@ export default function ShareModal({ isOpen, onClose, postUrl, postTitle, shared
                         <div className="truncate">
                           <p className="font-bold text-luxury-ink text-sm flex items-center gap-1.5">
                             {u.name}
-                            {u.verified && <ShieldCheck size={12} className="text-brand-teal" title="Verified" />}
+                            {u.verified && <ShieldCheck size={12} className="text-brand-teal"  />}
                           </p>
                           <p className="text-[10px] text-luxury-ink/40 truncate">{u.school || 'Nextbench User'}</p>
                         </div>

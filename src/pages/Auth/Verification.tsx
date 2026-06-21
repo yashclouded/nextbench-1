@@ -360,7 +360,7 @@ export default function Verification() {
                   </motion.div>
                   <h2 className="text-3xl font-serif font-bold text-luxury-ink mb-6 italic">Profile <span className="not-italic">Verified!</span></h2>
                   <p className="text-luxury-ink/50 mb-12 leading-relaxed text-lg">
-                    Awesome! Gemini successfully verified your identity and school credentials. Your account is active.
+                    Your identity and school credentials have been verified successfully. Your account is active.
                   </p>
                   <div className="p-8 bg-brand-teal/5 rounded-3xl mb-12">
                     <span className="text-xs font-bold uppercase tracking-widest text-brand-teal flex items-center gap-2 justify-center">

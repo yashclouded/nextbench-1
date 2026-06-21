@@ -349,6 +349,7 @@ service cloud.firestore {
         && data.updatedAt is timestamp
         && (!data.keys().hasAny(['city']) || (data.city == null || data.city is string))
         && (!data.keys().hasAny(['upvotesCount']) || (data.upvotesCount is number))
+        && (!data.keys().hasAny(['downvotesCount']) || (data.downvotesCount is number))
         && (!data.keys().hasAny(['repliesCount']) || (data.repliesCount is number))
         && (!data.keys().hasAny(['imageUrl']) || (data.imageUrl is string))
         && (!data.keys().hasAny(['imageUrls']) || (data.imageUrls is list))
@@ -384,8 +385,8 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'type', 'city', 'privacy', 'updatedAt'])
           && incoming().updatedAt == request.time)
         ||
-        // Any verified user can update upvotes, replies, reactions counts, and poll votes
-        (incoming().diff(existing()).affectedKeys().hasOnly(['upvotesCount', 'repliesCount', 'reactionsCount', 'poll', 'updatedAt']))
+        // Any verified user can update upvotes, downvotes, replies, reactions counts, and poll votes
+        (incoming().diff(existing()).affectedKeys().hasOnly(['upvotesCount', 'downvotesCount', 'repliesCount', 'reactionsCount', 'poll', 'updatedAt']))
         ||
         (isAdmin() && incoming().updatedAt == request.time)
       );

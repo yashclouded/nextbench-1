@@ -1,7 +1,7 @@
 import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
-export type NotificationType = 'user_approved' | 'listing_approved' | 'listing_rejected' | 'new_message' | 'new_post' | 'item_reserved' | 'item_sold' | 'new_review' | 'admin_promoted';
+export type NotificationType = 'user_approved' | 'listing_approved' | 'listing_rejected' | 'new_message' | 'new_post' | 'item_reserved' | 'item_sold' | 'new_review' | 'admin_promoted' | 'mention';
 
 export function isChatMessageNotification(data: { type?: unknown; link?: unknown }) {
   return data.type === 'new_message' && typeof data.link === 'string' && data.link.startsWith('/chat/');
