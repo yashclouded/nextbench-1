@@ -174,7 +174,7 @@ function ProductMockup({ products }: { products: RealProduct[] }) {
                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-soft)' }}
                 whileHover={{ borderColor: 'rgba(0,113,227,0.25)' }}
               >
-                <div className="w-full aspect-[4/3] rounded-md mb-2 flex items-center justify-center overflow-hidden relative"
+                <div className="w-full aspect-4/3 rounded-md mb-2 flex items-center justify-center overflow-hidden relative"
                   style={{ backgroundColor: colors[i % colors.length] }}
                 >
                   {product.image ? (
@@ -209,7 +209,7 @@ function ProductMockup({ products }: { products: RealProduct[] }) {
           </div>
         </div>
       </div>
-      <div className="absolute -inset-x-4 bottom-0 h-16 bg-gradient-to-t pointer-events-none" style={{ background: `linear-gradient(to top, var(--color-surface-base), var(--color-surface-base)/80, transparent)` }} />
+      <div className="absolute -inset-x-4 bottom-0 h-16 bg-linear-to-t pointer-events-none" style={{ background: `linear-gradient(to top, var(--color-surface-base), var(--color-surface-base)/80, transparent)` }} />
       <div className="absolute -inset-x-8 -bottom-8 h-24 opacity-20 blur-3xl rounded-full pointer-events-none" style={{ backgroundColor: 'var(--color-brand-teal)' }} />
     </motion.div>
   );
@@ -262,7 +262,7 @@ function SocialProofStrip({ schools }: { schools: string[] }) {
             {display.map((school, i) => (
               <div
                 key={i}
-                className="flex-shrink-0 text-sm font-semibold tracking-tight whitespace-nowrap opacity-40 hover:opacity-60 transition-opacity cursor-default"
+                className="shrink-0 text-sm font-semibold tracking-tight whitespace-nowrap opacity-40 hover:opacity-60 transition-opacity cursor-default"
                 style={{ color: 'var(--color-luxury-ink-muted)' }}
               >
                 {school}
@@ -661,7 +661,7 @@ function FeaturedStudents({ users }: { users: RealUser[] }) {
           return (
             <div
               key={`${u.id}-${i}`}
-              className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium"
+              className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium"
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-soft)' }}
               title={`${u.name} · ${u.school}`}
             >
