@@ -18,9 +18,8 @@
     "nodemailer": "^6.9.14"
   },
   "devDependencies": {
-    "firebase-functions-test": "^3.5.0",
-    "typescript": "^6.0.3",
-    "@types/nodemailer": "^6.4.15"
+    "@types/nodemailer": "^6.4.15",
+    "typescript": "^5.9.3"
   },
   "private": true
 }
