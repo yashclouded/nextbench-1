@@ -33,8 +33,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
+exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
 const https_1 = require("firebase-functions/v2/https");
+const firestore_1 = require("firebase-functions/v2/firestore");
+const scheduler_1 = require("firebase-functions/v2/scheduler");
 const params_1 = require("firebase-functions/params");
 const admin = __importStar(require("firebase-admin"));
 const crypto = __importStar(require("crypto"));
@@ -462,5 +464,433 @@ exports.submitInviteCode = (0, https_1.onCall)(async (request) => {
         t.update(referrerRef, { referralCount: currentCount + 1 });
         return { success: true };
     });
+});
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── EMAIL NOTIFICATION SYSTEM ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+const APP_URL = "https://nextbench.app";
+const FROM_ADDRESS = '"Nextbench" <noreply@nextbench.app>';
+const COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes between emails per user
+const DAILY_LIMIT_MS = 22 * 60 * 60 * 1000; // 22 hours (daily cap)
+// ─── Shared Helpers ───────────────────────────────────────────────────────────
+function getTransporter(emailPass) {
+    return nodemailer.createTransport({
+        host: "smtp.resend.com",
+        port: 465,
+        secure: true,
+        auth: { user: "resend", pass: emailPass },
+    });
+}
+async function canSendEmail(userId) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const userSnap = await db.collection("users").doc(userId).get();
+    if (!userSnap.exists)
+        return { ok: false, email: null, firstName: "there" };
+    const data = userSnap.data();
+    if (data.emailOptOut === true)
+        return { ok: false, email: null, firstName: ((_a = data.name) === null || _a === void 0 ? void 0 : _a.split(" ")[0]) || "there" };
+    if (!data.email)
+        return { ok: false, email: null, firstName: ((_b = data.name) === null || _b === void 0 ? void 0 : _b.split(" ")[0]) || "there" };
+    if (data.online === true)
+        return { ok: false, email: data.email, firstName: ((_c = data.name) === null || _c === void 0 ? void 0 : _c.split(" ")[0]) || "there" };
+    const lastEmail = (_f = (_e = (_d = data.lastEmailNotification) === null || _d === void 0 ? void 0 : _d.toMillis) === null || _e === void 0 ? void 0 : _e.call(_d)) !== null && _f !== void 0 ? _f : 0;
+    const msSince = Date.now() - lastEmail;
+    if (msSince < COOLDOWN_MS)
+        return { ok: false, email: data.email, firstName: ((_g = data.name) === null || _g === void 0 ? void 0 : _g.split(" ")[0]) || "there" };
+    return { ok: true, email: data.email, firstName: ((_h = data.name) === null || _h === void 0 ? void 0 : _h.split(" ")[0]) || "there" };
+}
+async function markEmailSent(userId) {
+    await db.collection("users").doc(userId).update({
+        lastEmailNotification: admin.firestore.FieldValue.serverTimestamp(),
+    });
+}
+// ─── Shared Email Template Builder ────────────────────────────────────────────
+function buildEmailHtml(opts) {
+    const unsubscribeUrl = `${APP_URL}/unsubscribe?uid=${opts.unsubscribeUserId}`;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light"/>
+  <title>Nextbench</title>
+  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background:#f0f4f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+
+<!-- Preheader -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${opts.preheader || opts.greeting}</div>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f3;padding:32px 16px;">
+  <tr>
+    <td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+        <!-- Logo Row -->
+        <tr>
+          <td align="center" style="padding-bottom:24px;">
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background:#1a6b5e;border-radius:12px;padding:12px 24px;">
+                  <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.08em;">NEXTBENCH</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Card -->
+        <tr>
+          <td style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.08);">
+
+            <!-- Header stripe -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background:linear-gradient(135deg,#1a6b5e 0%,#2d9e8a 100%);padding:32px 40px;">
+                  <p style="margin:0 0 8px;color:rgba(255,255,255,0.65);font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;">${opts.headerBadge}</p>
+                  <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:700;line-height:1.3;">${opts.greeting}</h1>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Body -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:36px 40px;">
+                  ${opts.bodyHtml}
+
+                  <!-- CTA Button -->
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px;">
+                    <tr>
+                      <td align="center">
+                        <a href="${opts.ctaUrl}"
+                           style="display:inline-block;background:#1a6b5e;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;padding:16px 40px;border-radius:12px;letter-spacing:0.02em;">
+                          ${opts.ctaText}
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:24px 0 8px;text-align:center;">
+            <p style="margin:0 0 8px;color:#8a9e98;font-size:12px;line-height:1.6;">
+              You're receiving this because you have an account on Nextbench.<br/>
+              Only verified students, only real schools. 🎓
+            </p>
+            <p style="margin:0;">
+              <a href="${unsubscribeUrl}" style="color:#8a9e98;font-size:11px;text-decoration:underline;">Unsubscribe from emails</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+}
+// ─── Email #1: Unread DM Notification ─────────────────────────────────────────
+exports.notifyOnNewMessage = (0, firestore_1.onDocumentCreated)({ document: "chatRooms/{roomId}/messages/{messageId}", secrets: [EMAIL_PASS] }, async (event) => {
+    var _a, _b;
+    const snapshot = event.data;
+    if (!snapshot)
+        return;
+    const msgData = snapshot.data();
+    const senderId = msgData.senderId;
+    if (!senderId)
+        return;
+    const roomId = event.params.roomId;
+    const roomSnap = await db.collection("chatRooms").doc(roomId).get();
+    if (!roomSnap.exists)
+        return;
+    const participants = ((_a = roomSnap.data()) === null || _a === void 0 ? void 0 : _a.participants) || [];
+    const receiverId = participants.find((id) => id !== senderId);
+    if (!receiverId)
+        return;
+    const { ok, email, firstName } = await canSendEmail(receiverId);
+    if (!ok || !email)
+        return;
+    const senderSnap = await db.collection("users").doc(senderId).get();
+    const senderName = ((_b = senderSnap.data()) === null || _b === void 0 ? void 0 : _b.name) || "Someone";
+    const preview = msgData.text
+        ? msgData.text.substring(0, 120)
+        : msgData.image
+            ? "📷 Sent you an image"
+            : msgData.sharedPost
+                ? `📋 Shared: ${msgData.sharedPost.title || "a post"}`
+                : "Sent you a message";
+    const html = buildEmailHtml({
+        preheader: `${senderName}: ${preview}`,
+        headerBadge: "💬 New Message",
+        greeting: `Hey ${firstName}!`,
+        bodyHtml: `
+        <p style="margin:0 0 20px;font-size:16px;color:#374140;line-height:1.7;">
+          <strong style="color:#1a6b5e;">${senderName}</strong> just sent you a message on Nextbench and is waiting for your reply.
+        </p>
+        <div style="background:#f5f8f7;border-left:4px solid #1a6b5e;padding:16px 20px;border-radius:0 12px 12px 0;margin-bottom:8px;">
+          <p style="margin:0;font-size:15px;color:#374140;line-height:1.6;font-style:italic;">"${preview}"</p>
+        </div>
+        <p style="margin:12px 0 0;font-size:13px;color:#8a9e98;">Don't leave them hanging — tap below to reply 👇</p>
+      `,
+        ctaUrl: `${APP_URL}/dashboard/messages`,
+        ctaText: "Reply to ${senderName} →",
+        unsubscribeUserId: receiverId,
+    });
+    try {
+        await getTransporter(EMAIL_PASS.value()).sendMail({
+            from: FROM_ADDRESS,
+            to: email,
+            subject: `${senderName} messaged you on Nextbench 💬`,
+            html,
+        });
+        await markEmailSent(receiverId);
+        console.log(`[DM email] sent to ${email}`);
+    }
+    catch (err) {
+        console.error("[DM email] failed:", err);
+    }
+});
+// ─── Email #2: Product Reserved Alert ─────────────────────────────────────────
+exports.notifyOnProductReserved = (0, firestore_1.onDocumentUpdated)({ document: "products/{productId}", secrets: [EMAIL_PASS] }, async (event) => {
+    var _a, _b, _c;
+    const before = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
+    const after = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
+    if (!before || !after)
+        return;
+    // Only fire when status changes TO 'reserved'
+    if (before.status === after.status || after.status !== "reserved")
+        return;
+    const sellerId = after.sellerId;
+    const buyerId = after.reservedById;
+    if (!sellerId || !buyerId)
+        return;
+    const { ok, email, firstName } = await canSendEmail(sellerId);
+    if (!ok || !email)
+        return;
+    const buyerSnap = await db.collection("users").doc(buyerId).get();
+    const buyerName = ((_c = buyerSnap.data()) === null || _c === void 0 ? void 0 : _c.name) || "A student";
+    const productId = event.params.productId;
+    const html = buildEmailHtml({
+        preheader: `${buyerName} just reserved your listing!`,
+        headerBadge: "🎉 Item Reserved",
+        greeting: `Great news, ${firstName}!`,
+        bodyHtml: `
+        <p style="margin:0 0 20px;font-size:16px;color:#374140;line-height:1.7;">
+          <strong style="color:#1a6b5e;">${buyerName}</strong> just reserved your listing on Nextbench:
+        </p>
+        <div style="background:#f5f8f7;border-radius:12px;padding:20px 24px;margin-bottom:20px;">
+          <p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#1a1a1a;">${after.title}</p>
+          <p style="margin:0;font-size:16px;color:#1a6b5e;font-weight:600;">₹${after.price}</p>
+        </div>
+        <p style="margin:0 0 8px;font-size:15px;color:#374140;line-height:1.7;">
+          They've locked in your item — time to coordinate the meetup and close the deal! 💼
+        </p>
+        <p style="margin:0;font-size:13px;color:#8a9e98;">
+          Tap below to view the listing and message the buyer.
+        </p>
+      `,
+        ctaUrl: `${APP_URL}/dashboard/product/${productId}`,
+        ctaText: "View Listing & Message Buyer →",
+        unsubscribeUserId: sellerId,
+    });
+    try {
+        await getTransporter(EMAIL_PASS.value()).sendMail({
+            from: FROM_ADDRESS,
+            to: email,
+            subject: `${buyerName} reserved your listing! 🎉`,
+            html,
+        });
+        await markEmailSent(sellerId);
+        console.log(`[Reserve email] sent to ${email}`);
+    }
+    catch (err) {
+        console.error("[Reserve email] failed:", err);
+    }
+});
+// ─── Email #3: Weekly Digest (Re-engagement) ──────────────────────────────────
+exports.sendWeeklyDigest = (0, scheduler_1.onSchedule)({ schedule: "every sunday 10:00", timeZone: "Asia/Kolkata", secrets: [EMAIL_PASS] }, async () => {
+    var _a, _b, _c, _d, _e, _f;
+    const now = Date.now();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    // Get users who haven't been online in 7+ days and have email
+    const usersSnap = await db.collection("users")
+        .where("emailOptOut", "!=", true)
+        .limit(500)
+        .get();
+    const transporter = getTransporter(EMAIL_PASS.value());
+    let sent = 0;
+    for (const userDoc of usersSnap.docs) {
+        const user = userDoc.data();
+        if (!user.email || !user.name)
+            continue;
+        if (user.online === true)
+            continue;
+        if (user.emailOptOut === true)
+            continue;
+        const lastSeen = (_c = (_b = (_a = user.lastSeen) === null || _a === void 0 ? void 0 : _a.toMillis) === null || _b === void 0 ? void 0 : _b.call(_a)) !== null && _c !== void 0 ? _c : 0;
+        if (now - lastSeen < sevenDaysMs)
+            continue; // Still active — skip
+        const lastEmail = (_f = (_e = (_d = user.lastEmailNotification) === null || _d === void 0 ? void 0 : _d.toMillis) === null || _e === void 0 ? void 0 : _e.call(_d)) !== null && _f !== void 0 ? _f : 0;
+        if (now - lastEmail < DAILY_LIMIT_MS)
+            continue; // Already emailed recently
+        // Fetch 3 new products from their school/city
+        let products = [];
+        try {
+            const pSnap = await db.collection("products")
+                .where("status", "==", "available")
+                .orderBy("createdAt", "desc")
+                .limit(4)
+                .get();
+            products = pSnap.docs
+                .filter((d) => d.data().sellerId !== userDoc.id)
+                .slice(0, 3)
+                .map((d) => (Object.assign({ id: d.id }, d.data())));
+        }
+        catch (_g) { }
+        if (products.length === 0)
+            continue; // Nothing to show
+        const firstName = user.name.split(" ")[0];
+        const productCardsHtml = products.map((p) => `
+        <a href="${APP_URL}/dashboard/product/${p.id}" style="display:block;text-decoration:none;background:#f9fafb;border-radius:12px;padding:16px;margin-bottom:12px;border:1px solid #eaeeec;">
+          <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#1a1a1a;">${p.title}</p>
+          <p style="margin:0;font-size:14px;color:#1a6b5e;font-weight:600;">₹${p.price} &nbsp;·&nbsp; <span style="font-weight:400;color:#6b7c79;">${p.category}</span></p>
+        </a>
+      `).join("");
+        const html = buildEmailHtml({
+            preheader: `New listings from your campus – check out what's available!`,
+            headerBadge: "📦 Weekly Digest",
+            greeting: `Miss us, ${firstName}? 👀`,
+            bodyHtml: `
+          <p style="margin:0 0 24px;font-size:16px;color:#374140;line-height:1.7;">
+            While you were away, students near you listed some fresh items on the marketplace. Here's a quick peek:
+          </p>
+          ${productCardsHtml}
+          <p style="margin:16px 0 0;font-size:14px;color:#8a9e98;">
+            Plus posts, clubs, and more are waiting for you on Nextbench.
+          </p>
+        `,
+            ctaUrl: `${APP_URL}/dashboard`,
+            ctaText: "Explore Nextbench →",
+            unsubscribeUserId: userDoc.id,
+        });
+        try {
+            await transporter.sendMail({
+                from: FROM_ADDRESS,
+                to: user.email,
+                subject: `What's new on Nextbench this week 🛍️`,
+                html,
+            });
+            await db.collection("users").doc(userDoc.id).update({
+                lastEmailNotification: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            sent++;
+            // Rate limit: don't hammer Resend
+            await new Promise((r) => setTimeout(r, 150));
+        }
+        catch (err) {
+            console.error(`[Digest] failed for ${user.email}:`, err);
+        }
+    }
+    console.log(`[Weekly Digest] Sent to ${sent} users.`);
+    await db.collection("emailBroadcasts").add({
+        type: "weekly_digest",
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        recipientCount: sent,
+    });
+});
+// ─── Email #4: Admin Broadcast ─────────────────────────────────────────────────
+exports.broadcastEmail = (0, https_1.onCall)({ secrets: [EMAIL_PASS] }, async (request) => {
+    var _a, _b, _c;
+    const uid = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid;
+    if (!uid)
+        throw new https_1.HttpsError("unauthenticated", "Must be logged in.");
+    const adminSnap = await db.collection("users").doc(uid).get();
+    if (!((_b = adminSnap.data()) === null || _b === void 0 ? void 0 : _b.isAdmin))
+        throw new https_1.HttpsError("permission-denied", "Admins only.");
+    const { subject, bodyHtml, broadcastId } = request.data;
+    if (!subject || !bodyHtml)
+        throw new https_1.HttpsError("invalid-argument", "subject and bodyHtml are required.");
+    if (subject.length > 200)
+        throw new https_1.HttpsError("invalid-argument", "Subject too long.");
+    // Idempotency: prevent double sends
+    const broadcastRef = db.collection("emailBroadcasts").doc(broadcastId);
+    const existing = await broadcastRef.get();
+    if (existing.exists)
+        throw new https_1.HttpsError("already-exists", "This broadcast was already sent.");
+    const usersSnap = await db.collection("users").where("emailOptOut", "!=", true).limit(2000).get();
+    const transporter = getTransporter(EMAIL_PASS.value());
+    let sent = 0;
+    let failed = 0;
+    for (const userDoc of usersSnap.docs) {
+        const user = userDoc.data();
+        if (!user.email || user.emailOptOut === true)
+            continue;
+        const firstName = ((_c = user.name) === null || _c === void 0 ? void 0 : _c.split(" ")[0]) || "there";
+        const unsubscribeUrl = `${APP_URL}/unsubscribe?uid=${userDoc.id}`;
+        const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>${subject}</title></head>
+<body style="margin:0;padding:0;background:#f0f4f3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f4f3;padding:32px 16px;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+  <tr><td align="center" style="padding-bottom:24px;">
+    <table cellpadding="0" cellspacing="0" border="0">
+      <tr><td style="background:#1a6b5e;border-radius:12px;padding:12px 24px;"><span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.08em;">NEXTBENCH</span></td></tr>
+    </table>
+  </td></tr>
+  <tr>
+    <td style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.08);">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td style="background:linear-gradient(135deg,#1a6b5e 0%,#2d9e8a 100%);padding:32px 40px;">
+          <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Hey ${firstName} 👋</h1>
+        </td></tr>
+        <tr><td style="padding:36px 40px;">
+          ${bodyHtml}
+          <hr style="border:none;border-top:1px solid #eaeeec;margin:32px 0;"/>
+          <p style="margin:0;font-size:12px;color:#8a9e98;">
+            You're receiving this announcement because you have a Nextbench account.<br/>
+            <a href="${unsubscribeUrl}" style="color:#8a9e98;">Unsubscribe</a>
+          </p>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</td></tr></table>
+</body></html>`;
+        try {
+            await transporter.sendMail({ from: FROM_ADDRESS, to: user.email, subject, html: fullHtml });
+            sent++;
+            await new Promise((r) => setTimeout(r, 100)); // ~10 emails/sec
+        }
+        catch (_d) {
+            failed++;
+        }
+    }
+    await broadcastRef.set({
+        subject,
+        sentBy: uid,
+        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        recipientCount: sent,
+        failedCount: failed,
+    });
+    return { success: true, sent, failed };
+});
+// ─── Unsubscribe Endpoint ─────────────────────────────────────────────────────
+exports.unsubscribeFromEmails = (0, https_1.onCall)(async (request) => {
+    const { uid } = request.data;
+    if (!uid)
+        throw new https_1.HttpsError("invalid-argument", "uid required.");
+    await db.collection("users").doc(uid).update({ emailOptOut: true });
+    return { success: true };
 });
 //# sourceMappingURL=index.js.map

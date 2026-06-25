@@ -1,8 +1,9 @@
 import { motion } from 'motion/react';
-import { ShieldCheck, XCircle, AlertTriangle, Filter, CheckCircle, Trash2, Ban, ChevronRight, Users, Package, Crown, Eye, RefreshCw, IdCard, Camera, School, FileText, Database, Building2, Globe } from 'lucide-react';
+import { ShieldCheck, XCircle, AlertTriangle, Filter, CheckCircle, Trash2, Ban, ChevronRight, Users, Package, Crown, Eye, RefreshCw, IdCard, Camera, School, FileText, Database, Building2, Globe, Mail, Send, AlertOctagon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, query, where, getDocs, getDoc, updateDoc, doc, deleteDoc, serverTimestamp, onSnapshot, getCountFromServer, addDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../../lib/firebase';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useAuth } from '../../lib/AuthContext';
@@ -29,6 +30,14 @@ export default function AdminPanel() {
   const [selectedSchoolName, setSelectedSchoolName] = useState<string>('');
   const [pendingOrgs, setPendingOrgs] = useState<any[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, verifiedUsers: 0, totalProducts: 0, totalPending: 0 });
+  // Email broadcast state
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBodyHtml, setEmailBodyHtml] = useState('');
+  const [emailConfirm1, setEmailConfirm1] = useState(false);
+  const [emailConfirm2, setEmailConfirm2] = useState(false);
+  const [emailConfirmText, setEmailConfirmText] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailResult, setEmailResult] = useState<{ sent: number; failed: number } | null>(null);
   const { userData, loading } = useAuth();
   const { showToast } = useToast();
 
@@ -328,7 +337,7 @@ export default function AdminPanel() {
 
   if (loading || !userData?.isAdmin) return <div className="pt-32 text-center text-xs font-bold uppercase tracking-widest text-brand-teal/40">Loading Secure Portal...</div>;
 
-  const tabs = ['Verifications', 'Org Verifications', 'Listings', 'Users', 'School Requests', 'Posts', 'Reports'];
+  const tabs = ['Verifications', 'Org Verifications', 'Listings', 'Users', 'School Requests', 'Posts', 'Reports', 'Email Users'];
 
   return (
     <div className="pt-32 pb-20 px-6 max-w-7xl mx-auto">
@@ -648,6 +657,141 @@ export default function AdminPanel() {
               </div>
             </motion.div>
           ))}
+        </div>
+      )}
+      {/* Email Users Tab */}
+      {activeTab === 'Email Users' && (
+        <div className="space-y-6 max-w-3xl">
+          <div>
+            <h2 className="text-lg font-serif font-bold text-luxury-ink italic mb-1">📧 Broadcast Email</h2>
+            <p className="text-sm text-luxury-ink/40">Send a message to all {stats.totalUsers} users on Nextbench. Be thoughtful — emails cannot be recalled.</p>
+          </div>
+
+          {emailResult ? (
+            <div className="theme-card rounded-2xl p-8 border text-center" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="text-5xl mb-4">🎉</div>
+              <h3 className="text-xl font-bold text-luxury-ink mb-2">Broadcast Sent!</h3>
+              <p className="text-luxury-ink/60">✅ Delivered to <strong>{emailResult.sent}</strong> users · ❌ Failed: <strong>{emailResult.failed}</strong></p>
+              <button onClick={() => { setEmailResult(null); setEmailSubject(''); setEmailBodyHtml(''); setEmailConfirm1(false); setEmailConfirm2(false); setEmailConfirmText(''); }} className="mt-6 px-6 py-3 bg-brand-teal text-white rounded-xl font-bold text-sm">Send Another</button>
+            </div>
+          ) : (
+            <>
+              {/* Subject */}
+              <div className="theme-card rounded-2xl p-6 border" style={{ borderColor: 'var(--color-border)' }}>
+                <label className="block text-xs font-bold uppercase tracking-widest text-luxury-ink/40 mb-3">Subject Line</label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  placeholder="e.g. Big update from Nextbench 🚀"
+                  className="w-full bg-transparent text-luxury-ink font-semibold text-lg outline-none border-b border-luxury-ink/10 pb-2 placeholder:text-luxury-ink/20"
+                />
+              </div>
+
+              {/* Rich Text Body */}
+              <div className="theme-card rounded-2xl p-6 border" style={{ borderColor: 'var(--color-border)' }}>
+                <label className="block text-xs font-bold uppercase tracking-widest text-luxury-ink/40 mb-3">Email Body (Rich Text)</label>
+                <div className="flex gap-2 mb-3 flex-wrap">
+                  {[['Bold', '<strong>'], ['Italic', '<em>'], ['H2', '<h2>'], ['Link', '<a href="">']].map(([label, tag]) => (
+                    <button key={label} onClick={() => setEmailBodyHtml(prev => prev + tag + `text</${tag.split('<')[1]?.split(' ')[0]?.replace('>','')}>`)} className="px-3 py-1 text-xs font-bold border border-luxury-ink/10 rounded-lg hover:bg-luxury-ink/5 text-luxury-ink/50 transition-all">{label}</button>
+                  ))}
+                </div>
+                <textarea
+                  rows={10}
+                  value={emailBodyHtml}
+                  onChange={(e) => setEmailBodyHtml(e.target.value)}
+                  placeholder="Write your email body here. You can use HTML tags for formatting — <strong>bold</strong>, <p>paragraphs</p>, <a href='...'>links</a>, etc."
+                  className="w-full bg-transparent text-luxury-ink text-sm outline-none resize-none placeholder:text-luxury-ink/20 font-mono leading-relaxed"
+                />
+              </div>
+
+              {/* Live Preview */}
+              {emailBodyHtml && (
+                <div className="theme-card rounded-2xl p-6 border" style={{ borderColor: 'var(--color-border)' }}>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-luxury-ink/40 mb-4">👁️ Preview</label>
+                  <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
+                    <div className="bg-[#1a6b5e] rounded-t-xl p-5 text-center">
+                      <span className="text-white font-bold tracking-widest text-lg">NEXTBENCH</span>
+                    </div>
+                    <div className="bg-white rounded-b-xl p-6">
+                      <p className="font-bold text-gray-800 mb-4">Hey [First Name] 👋</p>
+                      <div className="text-gray-700 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: emailBodyHtml }} />
+                      <div className="mt-6 pt-4 border-t border-gray-100 text-xs text-gray-400">You're receiving this because you have a Nextbench account. · Unsubscribe</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Confirmation Step 1 */}
+              {emailSubject && emailBodyHtml && (
+                <div className="theme-card rounded-2xl p-6 border border-amber-200 bg-amber-50/30" style={{ borderColor: undefined }}>
+                  <div className="flex items-start gap-3">
+                    <AlertOctagon size={20} className="text-amber-500 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-bold text-luxury-ink text-sm mb-1">⚠️ Confirmation Step 1 of 2</p>
+                      <p className="text-sm text-luxury-ink/60 mb-4">You are about to email <strong>{stats.totalUsers} users</strong>. This action will go out immediately to all accounts. Are you sure you want to proceed?</p>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={emailConfirm1} onChange={(e) => setEmailConfirm1(e.target.checked)} className="w-4 h-4 accent-brand-teal" />
+                        <span className="text-sm font-medium text-luxury-ink">Yes, I want to send an email to all {stats.totalUsers} users</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Confirmation Step 2 */}
+              {emailConfirm1 && (
+                <div className="theme-card rounded-2xl p-6 border border-red-200 bg-red-50/30" style={{ borderColor: undefined }}>
+                  <div className="flex items-start gap-3">
+                    <AlertOctagon size={20} className="text-red-500 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="font-bold text-red-600 text-sm mb-1">🚨 Final Confirmation — Step 2 of 2</p>
+                      <p className="text-sm text-luxury-ink/60 mb-4">This cannot be undone. Type <strong className="font-mono">SEND</strong> below to confirm the broadcast.</p>
+                      <input
+                        type="text"
+                        value={emailConfirmText}
+                        onChange={(e) => setEmailConfirmText(e.target.value)}
+                        placeholder="Type SEND to confirm"
+                        className="w-full px-4 py-3 border border-red-200 rounded-xl bg-white text-red-600 font-bold font-mono outline-none focus:ring-2 focus:ring-red-300 mb-4 placeholder:font-normal placeholder:text-gray-400"
+                      />
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={emailConfirm2} onChange={(e) => setEmailConfirm2(e.target.checked)} className="w-4 h-4 accent-red-500" />
+                        <span className="text-sm font-medium text-luxury-ink">I understand this is irreversible and will email all users immediately</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Send Button */}
+              {emailConfirm1 && emailConfirm2 && emailConfirmText === 'SEND' && (
+                <button
+                  onClick={async () => {
+                    setEmailSending(true);
+                    try {
+                      const functions = getFunctions();
+                      const broadcastFn = httpsCallable(functions, 'broadcastEmail');
+                      const broadcastId = `broadcast_${Date.now()}_${userData?.uid || 'admin'}`;
+                      const result: any = await broadcastFn({ subject: emailSubject, bodyHtml: emailBodyHtml, broadcastId });
+                      setEmailResult({ sent: result.data.sent, failed: result.data.failed });
+                    } catch (err: any) {
+                      showToast(err?.message || 'Broadcast failed. Please try again.', 'error');
+                    } finally {
+                      setEmailSending(false);
+                    }
+                  }}
+                  disabled={emailSending}
+                  className="w-full flex items-center justify-center gap-3 py-4 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-2xl font-bold text-base transition-all luxury-shadow"
+                >
+                  {emailSending ? (
+                    <><RefreshCw size={18} className="animate-spin" /> Sending broadcast...</>
+                  ) : (
+                    <><Send size={18} /> Send to All {stats.totalUsers} Users Now</>
+                  )}
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
 
