@@ -144,6 +144,18 @@ export default function VideoPlayer({ src, className = '' }: VideoPlayerProps) {
     return () => observer.disconnect();
   }, []);
 
+  // ─── Pause when browser tab is hidden ───────────────
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      const video = videoRef.current;
+      if (document.hidden && video && !video.paused) {
+        video.pause();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
   // ─── Controls ──────────────────────────────────────
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
