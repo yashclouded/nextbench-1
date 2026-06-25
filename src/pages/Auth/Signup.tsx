@@ -533,8 +533,8 @@ export default function Signup() {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="p-4 bg-red-50 text-red-600 text-xs font-bold uppercase tracking-widest text-center border border-red-100 rounded-sm">
-                  {error}
+                <div className="p-4 bg-brand-pink/10 text-brand-pink text-xs font-bold uppercase tracking-widest text-center border border-brand-pink/20 rounded-sm">
+                  {error === "INTERNAL" ? "Server Error: Could not connect to verification service" : error}
                 </div>
               </motion.div>
             )}
@@ -556,7 +556,7 @@ export default function Signup() {
                     onClick={() => { setActiveTab(tab); setError(''); }}
                     className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-widest rounded-md transition-all ${
                       activeTab === tab
-                        ? 'bg-white text-luxury-ink shadow-sm'
+                        ? 'bg-luxury-ink text-surface-base shadow-sm'
                         : 'text-luxury-ink/40 hover:text-luxury-ink/60'
                     }`}
                   >

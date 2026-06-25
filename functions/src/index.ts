@@ -167,7 +167,7 @@ async function sendOtpEmail(to: string, otp: string, emailUser: string, emailPas
 
 // ─── Cloud Function: sendEmailOTP ─────────────────────────────────────────────
 export const sendEmailOTP = onCall(
-  { secrets: [EMAIL_USER, EMAIL_PASS, OTP_HMAC_SECRET] },
+  { secrets: [EMAIL_USER, EMAIL_PASS, OTP_HMAC_SECRET], invoker: "public" },
   async (request) => {
     const rawEmail = (request.data?.email || "").toString().trim().toLowerCase();
 
@@ -241,7 +241,7 @@ export const sendEmailOTP = onCall(
 
 // ─── Cloud Function: verifyEmailOTP ──────────────────────────────────────────
 export const verifyEmailOTP = onCall(
-  { secrets: [OTP_HMAC_SECRET] },
+  { secrets: [OTP_HMAC_SECRET], invoker: "public" },
   async (request) => {
     const rawEmail  = (request.data?.email  || "").toString().trim().toLowerCase();
     const rawOtp    = (request.data?.otp    || "").toString().trim();
