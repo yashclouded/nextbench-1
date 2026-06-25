@@ -5,6 +5,7 @@ import App from './App.tsx';
 import { AuthProvider } from './lib/AuthContext';
 import { ToastProvider } from './lib/ToastContext';
 import { ThemeProvider } from './lib/ThemeContext';
+import { VideoPrefsProvider } from './lib/VideoPrefsContext';
 import { HelmetProvider } from 'react-helmet-async';
 import './index.css';
 
@@ -13,11 +14,13 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <HelmetProvider>
         <ThemeProvider>
-          <AuthProvider>
-            <ToastProvider>
-              <App />
-            </ToastProvider>
-          </AuthProvider>
+          <VideoPrefsProvider>
+            <AuthProvider>
+              <ToastProvider>
+                <App />
+              </ToastProvider>
+            </AuthProvider>
+          </VideoPrefsProvider>
         </ThemeProvider>
       </HelmetProvider>
     </BrowserRouter>
