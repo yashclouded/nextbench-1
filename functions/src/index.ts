@@ -901,7 +901,7 @@ export const broadcastEmail = onCall(
     const existing = await broadcastRef.get();
     if (existing.exists) throw new HttpsError("already-exists", "This broadcast was already sent.");
 
-    const usersSnap = await db.collection("users").where("emailOptOut", "!=", true).limit(2000).get();
+    const usersSnap = await db.collection("users").limit(2000).get();
     const transporter = getTransporter(EMAIL_PASS.value());
 
     let sent = 0;
