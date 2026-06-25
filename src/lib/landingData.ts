@@ -127,7 +127,7 @@ function generateSeedUsers(count: number): RealUser[] {
 
 /* ── localStorage Cache ──────────────────────────── */
 
-const CACHE_PREFIX = 'nb_landing_v3_';
+const CACHE_PREFIX = 'nb_landing_v4_';
 const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
 
 interface CacheEntry<T> {
@@ -313,9 +313,6 @@ export async function fetchLandingStats(): Promise<LandingStats> {
 /* ── Quick cache warmer (call on app mount) ──────── */
 
 export function warmLandingCache(): void {
-  if (getFromCache('schools')) return;
-  setCache('schools', SEED_SCHOOLS.map(name => ({ name })));
-  setCache('products', generateSeedProducts(30));
-  setCache('verifiedCount', 200);
-  setCache('stats', { totalUsers: 200, totalProducts: 350, totalSchools: SEED_SCHOOLS.length });
+  // Intentionally left empty. 
+  // Previously this poisoned the cache with seed data, preventing live Firestore queries.
 }
