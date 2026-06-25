@@ -127,7 +127,7 @@ function generateSeedUsers(count: number): RealUser[] {
 
 /* ── localStorage Cache ──────────────────────────── */
 
-const CACHE_PREFIX = 'nb_landing_v2_';
+const CACHE_PREFIX = 'nb_landing_v3_';
 const CACHE_TTL = 1000 * 60 * 30; // 30 minutes
 
 interface CacheEntry<T> {
