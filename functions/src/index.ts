@@ -169,7 +169,7 @@ async function sendOtpEmail(to: string, otp: string, emailUser: string, emailPas
 
 // ─── Cloud Function: sendAuthOtpEmail ─────────────────────────────────────────────
 export const sendAuthOtpEmail = onCall(
-  { secrets: [EMAIL_USER, EMAIL_PASS, OTP_HMAC_SECRET], invoker: "public" },
+  { secrets: [EMAIL_USER, EMAIL_PASS, OTP_HMAC_SECRET], invoker: "public", cors: true },
   async (request) => {
     const rawEmail = (request.data?.email || "").toString().trim().toLowerCase();
 
@@ -243,7 +243,7 @@ export const sendAuthOtpEmail = onCall(
 
 // ─── Cloud Function: verifyAuthOtpEmail ──────────────────────────────────────────
 export const verifyAuthOtpEmail = onCall(
-  { secrets: [OTP_HMAC_SECRET], invoker: "public" },
+  { secrets: [OTP_HMAC_SECRET], invoker: "public", cors: true },
   async (request) => {
     const rawEmail  = (request.data?.email  || "").toString().trim().toLowerCase();
     const rawOtp    = (request.data?.otp    || "").toString().trim();
@@ -402,7 +402,7 @@ function generateRandomCode(length: number): string {
   return result;
 }
 
-export const createInviteCode = onCall(async (request) => {
+export const createInviteCode = onCall({ invoker: "public", cors: true }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -443,7 +443,7 @@ export const createInviteCode = onCall(async (request) => {
 });
 
 // ─── Existing: submitInviteCode ──────────────────────────────────────────────────
-export const submitInviteCode = onCall(async (request) => {
+export const submitInviteCode = onCall({ invoker: "public", cors: true }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -879,7 +879,7 @@ export const sendWeeklyDigest = onSchedule(
 // ─── Email #4: Admin Broadcast ─────────────────────────────────────────────────
 
 export const broadcastEmail = onCall(
-  { secrets: [EMAIL_PASS] },
+  { secrets: [EMAIL_PASS], invoker: "public", cors: true },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Must be logged in.");
@@ -970,7 +970,7 @@ export const broadcastEmail = onCall(
 
 // ─── Unsubscribe Endpoint ─────────────────────────────────────────────────────
 
-export const unsubscribeFromEmails = onCall(async (request) => {
+export const unsubscribeFromEmails = onCall({ invoker: "public", cors: true }, async (request) => {
   const { uid } = request.data as { uid: string };
   if (!uid) throw new HttpsError("invalid-argument", "uid required.");
   await db.collection("users").doc(uid).update({ emailOptOut: true });

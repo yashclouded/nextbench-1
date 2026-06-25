@@ -160,7 +160,7 @@ async function sendOtpEmail(to, otp, emailUser, emailPass) {
     });
 }
 // ─── Cloud Function: sendAuthOtpEmail ─────────────────────────────────────────────
-exports.sendAuthOtpEmail = (0, https_1.onCall)({ secrets: [EMAIL_USER, EMAIL_PASS, OTP_HMAC_SECRET], invoker: "public" }, async (request) => {
+exports.sendAuthOtpEmail = (0, https_1.onCall)({ secrets: [EMAIL_USER, EMAIL_PASS, OTP_HMAC_SECRET], invoker: "public", cors: true }, async (request) => {
     var _a;
     const rawEmail = (((_a = request.data) === null || _a === void 0 ? void 0 : _a.email) || "").toString().trim().toLowerCase();
     // 1. Validate email
@@ -220,7 +220,7 @@ exports.sendAuthOtpEmail = (0, https_1.onCall)({ secrets: [EMAIL_USER, EMAIL_PAS
     return { success: true };
 });
 // ─── Cloud Function: verifyAuthOtpEmail ──────────────────────────────────────────
-exports.verifyAuthOtpEmail = (0, https_1.onCall)({ secrets: [OTP_HMAC_SECRET], invoker: "public" }, async (request) => {
+exports.verifyAuthOtpEmail = (0, https_1.onCall)({ secrets: [OTP_HMAC_SECRET], invoker: "public", cors: true }, async (request) => {
     var _a, _b, _c, _d, _e;
     const rawEmail = (((_a = request.data) === null || _a === void 0 ? void 0 : _a.email) || "").toString().trim().toLowerCase();
     const rawOtp = (((_b = request.data) === null || _b === void 0 ? void 0 : _b.otp) || "").toString().trim();
@@ -356,7 +356,7 @@ function generateRandomCode(length) {
     }
     return result;
 }
-exports.createInviteCode = (0, https_1.onCall)(async (request) => {
+exports.createInviteCode = (0, https_1.onCall)({ invoker: "public", cors: true }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "User must be logged in.");
     }
@@ -389,7 +389,7 @@ exports.createInviteCode = (0, https_1.onCall)(async (request) => {
     });
 });
 // ─── Existing: submitInviteCode ──────────────────────────────────────────────────
-exports.submitInviteCode = (0, https_1.onCall)(async (request) => {
+exports.submitInviteCode = (0, https_1.onCall)({ invoker: "public", cors: true }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "User must be logged in.");
     }
@@ -774,7 +774,7 @@ exports.sendWeeklyDigest = (0, scheduler_1.onSchedule)({ schedule: "every sunday
     });
 });
 // ─── Email #4: Admin Broadcast ─────────────────────────────────────────────────
-exports.broadcastEmail = (0, https_1.onCall)({ secrets: [EMAIL_PASS] }, async (request) => {
+exports.broadcastEmail = (0, https_1.onCall)({ secrets: [EMAIL_PASS], invoker: "public", cors: true }, async (request) => {
     var _a, _b, _c;
     const uid = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid;
     if (!uid)
@@ -853,7 +853,7 @@ exports.broadcastEmail = (0, https_1.onCall)({ secrets: [EMAIL_PASS] }, async (r
     return { success: true, sent, failed };
 });
 // ─── Unsubscribe Endpoint ─────────────────────────────────────────────────────
-exports.unsubscribeFromEmails = (0, https_1.onCall)(async (request) => {
+exports.unsubscribeFromEmails = (0, https_1.onCall)({ invoker: "public", cors: true }, async (request) => {
     const { uid } = request.data;
     if (!uid)
         throw new https_1.HttpsError("invalid-argument", "uid required.");
