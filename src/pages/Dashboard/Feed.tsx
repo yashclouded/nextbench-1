@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film, Pencil } from 'lucide-react';
-import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, orderBy, limit, documentId } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, orderBy, limit, documentId, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
@@ -896,7 +896,20 @@ export default function Feed() {
 
 
   const [rawPosts, setRawPosts] = useState<Post[]>([]);
-  const [visibleCount, setVisibleCount] = useState(6); // Show 6 items initially, load more on scroll
+
+  // ─── Pagination state ────────────────────────────────────
+  const [lastPostDoc, setLastPostDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [lastProductDoc, setLastProductDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // ─── Pre-upload state ─────────────────────────────────────
+  const [preUploadedVideoUrl, setPreUploadedVideoUrl] = useState<string | null>(null);
+  const [preUploadedPdfData, setPreUploadedPdfData] = useState<{ url: string; pages: number } | null>(null);
+  const [preUploadedImageUrls, setPreUploadedImageUrls] = useState<string[]>([]);
+  const [isPreUploading, setIsPreUploading] = useState(false);
+  const [preUploadLabel, setPreUploadLabel] = useState('');
 
   const [searchParams, setSearchParams] = useSearchParams();
   const postIdFromUrl = searchParams.get('postId');
@@ -938,70 +951,60 @@ export default function Feed() {
   // Firestore listener — stable subscription, no dependency on followingIds/friendIds.
   // This listener only fires when Firestore posts actually change,
   // NOT when the user's follows change.
+  // ─── Initial posts fetch (first 10) ─────────────────────
   useEffect(() => {
-    const q = query(
-      collection(db, 'posts'),
-      where('status', '==', 'approved'),
-      orderBy('createdAt', 'desc'),
-      limit(15)
-    );
-
-    const userCache: Record<string, any> = {};
-
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const fetchInitialPosts = async () => {
       try {
-        // 1. Identify uncached authors
+        const q = query(
+          collection(db, 'posts'),
+          where('status', '==', 'approved'),
+          orderBy('createdAt', 'desc'),
+          limit(10)
+        );
+        const snapshot = await getDocs(q);
+        const userCache: Record<string, any> = {};
+
         const uncachedIds = new Set<string>();
         snapshot.forEach(docSnap => {
           const authorId = docSnap.data().authorId;
           if (authorId && !userCache[authorId]) uncachedIds.add(authorId);
         });
-
-        // 2. Fetch missing authors in batches of 30 (Firestore 'in' limit)
         if (uncachedIds.size > 0) {
           const idArray = Array.from(uncachedIds);
           for (let i = 0; i < idArray.length; i += 30) {
             const batch = idArray.slice(i, i + 30);
             const batchSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', batch)));
-            batchSnap.forEach(uDoc => {
-              userCache[uDoc.id] = uDoc.data();
-            });
-            // Mark any missing IDs as empty to avoid refetching
-            batch.forEach(uid => {
-              if (!userCache[uid]) userCache[uid] = {};
-            });
+            batchSnap.forEach(uDoc => { userCache[uDoc.id] = uDoc.data(); });
+            batch.forEach(uid => { if (!userCache[uid]) userCache[uid] = {}; });
           }
         }
 
-        // 3. Build post list with real-time author data
         const fetchedPosts: Post[] = [];
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
           const isPostAnon = data.isAnonymous === true;
           const authorData = isPostAnon ? {} : (userCache[data.authorId] || {});
-          
           fetchedPosts.push({
             id: docSnap.id,
             ...data,
-            // Prioritize real-time user data, fallback to denormalized data
             authorName: isPostAnon ? (data.authorName || data.personaName || 'Anonymous') : (authorData.name || data.authorName || 'Unknown User'),
             authorProfilePicture: isPostAnon ? null : (authorData.profilePicture || data.authorProfilePicture || null),
             school: authorData.school || data.school || 'Unknown School',
           } as Post);
         });
+
         setRawPosts(fetchedPosts);
+        const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+        setLastPostDoc(lastDoc);
+        setHasMorePosts(snapshot.docs.length === 10);
       } catch (err) {
-        console.error("Error fetching posts:", err);
+        console.error('Error fetching posts:', err);
       } finally {
         setLoading(false);
       }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'posts');
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []); // Stable — no deps means no re-subscription
+    };
+    fetchInitialPosts();
+  }, []);
 
   // Feed scoring — runs in useMemo, instant re-computation when follows/userData change.
   // This never creates or destroys Firestore listeners.
@@ -1037,19 +1040,18 @@ export default function Feed() {
     return scored;
   }, [rawPosts, userData, followingIds, friendIds]);
 
-  // Fetch Products
+  // ─── Initial products fetch (first 5) ────────────────────
   useEffect(() => {
-    const q = query(
-      collection(db, 'products'),
-      where('status', 'in', ['available', 'sold']),
-      orderBy('createdAt', 'desc'),
-      limit(10)
-    );
-    const sellerCache: Record<string, any> = {};
-
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const fetchInitialProducts = async () => {
       try {
-        const fetchedProducts: Product[] = [];
+        const q = query(
+          collection(db, 'products'),
+          where('status', 'in', ['available', 'sold']),
+          orderBy('createdAt', 'desc'),
+          limit(5)
+        );
+        const sellerCache: Record<string, any> = {};
+        const snapshot = await getDocs(q);
 
         const uncachedIds = new Set<string>();
         snapshot.forEach(docSnap => {
@@ -1061,15 +1063,12 @@ export default function Feed() {
           for (let i = 0; i < idArray.length; i += 30) {
             const batch = idArray.slice(i, i + 30);
             const batchSnap = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', batch)));
-            batchSnap.forEach(uDoc => {
-              sellerCache[uDoc.id] = uDoc.data();
-            });
-            batch.forEach(uid => {
-              if (!sellerCache[uid]) sellerCache[uid] = {};
-            });
+            batchSnap.forEach(uDoc => { sellerCache[uDoc.id] = uDoc.data(); });
+            batch.forEach(uid => { if (!sellerCache[uid]) sellerCache[uid] = {}; });
           }
         }
 
+        const fetchedProducts: Product[] = [];
         snapshot.forEach(docSnap => {
           const data = docSnap.data();
           const sellerData = sellerCache[data.sellerId] || {};
@@ -1082,23 +1081,178 @@ export default function Feed() {
           } as Product);
         });
 
-        // Simple time sort for products
-        fetchedProducts.sort((a, b) => {
-          const timeA = a.createdAt?.toMillis() || 0;
-          const timeB = b.createdAt?.toMillis() || 0;
-          return timeB - timeA;
-        });
-
         setProducts(fetchedProducts);
+        const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+        setLastProductDoc(lastDoc);
+        setHasMoreProducts(snapshot.docs.length === 5);
       } catch (err) {
-        console.error("Error fetching products:", err);
+        console.error('Error fetching products:', err);
       }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'products');
-    });
-
-    return () => unsubscribe();
+    };
+    fetchInitialProducts();
   }, []);
+
+  // \u2500\u2500\u2500 Load more (cursor-based pagination) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const loadMoreFeed = useCallback(async () => {
+    if (isLoadingMore) return;
+    if (!hasMorePosts && !hasMoreProducts) return;
+    setIsLoadingMore(true);
+
+    try {
+      // Load next 10 posts
+      if (hasMorePosts && lastPostDoc) {
+        const q = query(
+          collection(db, 'posts'),
+          where('status', '==', 'approved'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastPostDoc),
+          limit(10)
+        );
+        const snapshot = await getDocs(q);
+        const userCache: Record<string, any> = {};
+        const uncachedIds = new Set<string>();
+        snapshot.forEach(d => { const aid = d.data().authorId; if (aid && !userCache[aid]) uncachedIds.add(aid); });
+        if (uncachedIds.size > 0) {
+          const idArray = Array.from(uncachedIds);
+          for (let i = 0; i < idArray.length; i += 30) {
+            const batch = idArray.slice(i, i + 30);
+            const bs = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', batch)));
+            bs.forEach(u => { userCache[u.id] = u.data(); });
+            batch.forEach(uid => { if (!userCache[uid]) userCache[uid] = {}; });
+          }
+        }
+        const newPosts: Post[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          const isPostAnon = data.isAnonymous === true;
+          const authorData = isPostAnon ? {} : (userCache[data.authorId] || {});
+          newPosts.push({
+            id: docSnap.id, ...data,
+            authorName: isPostAnon ? (data.authorName || data.personaName || 'Anonymous') : (authorData.name || data.authorName || 'Unknown User'),
+            authorProfilePicture: isPostAnon ? null : (authorData.profilePicture || data.authorProfilePicture || null),
+            school: authorData.school || data.school || 'Unknown School',
+          } as Post);
+        });
+        setRawPosts(prev => [...prev, ...newPosts]);
+        const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+        setLastPostDoc(lastDoc);
+        setHasMorePosts(snapshot.docs.length === 10);
+      }
+
+      // Load next 5 products
+      if (hasMoreProducts && lastProductDoc) {
+        const q = query(
+          collection(db, 'products'),
+          where('status', 'in', ['available', 'sold']),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastProductDoc),
+          limit(5)
+        );
+        const snapshot = await getDocs(q);
+        const sellerCache: Record<string, any> = {};
+        const uncachedIds = new Set<string>();
+        snapshot.forEach(d => { const sid = d.data().sellerId; if (sid && !sellerCache[sid]) uncachedIds.add(sid); });
+        if (uncachedIds.size > 0) {
+          const idArray = Array.from(uncachedIds);
+          for (let i = 0; i < idArray.length; i += 30) {
+            const batch = idArray.slice(i, i + 30);
+            const bs = await getDocs(query(collection(db, 'users'), where(documentId(), 'in', batch)));
+            bs.forEach(u => { sellerCache[u.id] = u.data(); });
+            batch.forEach(uid => { if (!sellerCache[uid]) sellerCache[uid] = {}; });
+          }
+        }
+        const newProducts: Product[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          const sellerData = sellerCache[data.sellerId] || {};
+          newProducts.push({
+            id: docSnap.id, ...data,
+            sellerName: sellerData.name || data.sellerName || 'Unknown User',
+            sellerSchool: sellerData.school || data.sellerSchool || 'Unknown School',
+            sellerProfilePicture: sellerData.profilePicture || data.sellerProfilePicture || null,
+          } as Product);
+        });
+        setProducts(prev => [...prev, ...newProducts]);
+        const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+        setLastProductDoc(lastDoc);
+        setHasMoreProducts(snapshot.docs.length === 5);
+      }
+    } catch (err) {
+      console.error('Error loading more feed items:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, hasMorePosts, hasMoreProducts, lastPostDoc, lastProductDoc]);
+
+  // \u2500\u2500\u2500 Background pre-upload when file is selected \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  useEffect(() => {
+    if (!videoFile) { setPreUploadedVideoUrl(null); return; }
+    let cancelled = false;
+    setIsPreUploading(true);
+    setPreUploadLabel('Uploading video...');
+    setUploadProgress({ pct: 0, loaded: 0, total: videoFile.size });
+    uploadPostVideo(videoFile, (pct, loaded, total) => {
+      if (!cancelled) setUploadProgress({ pct, loaded, total });
+    }).then(url => {
+      if (!cancelled) { setPreUploadedVideoUrl(url); setUploadProgress(null); }
+    }).catch(err => {
+      console.error('Video pre-upload failed:', err);
+      if (!cancelled) setUploadProgress(null);
+    }).finally(() => {
+      if (!cancelled) setIsPreUploading(false);
+    });
+    return () => { cancelled = true; };
+  }, [videoFile]);
+
+  useEffect(() => {
+    if (!pdfFile) { setPreUploadedPdfData(null); return; }
+    let cancelled = false;
+    setIsPreUploading(true);
+    setPreUploadLabel('Uploading PDF...');
+    setUploadProgress({ pct: 0, loaded: 0, total: pdfFile.size });
+    uploadPostPdf(pdfFile, (pct, loaded, total) => {
+      if (!cancelled) setUploadProgress({ pct, loaded, total });
+    }).then(result => {
+      if (!cancelled) { setPreUploadedPdfData(result); setUploadProgress(null); }
+    }).catch(err => {
+      console.error('PDF pre-upload failed:', err);
+      if (!cancelled) setUploadProgress(null);
+    }).finally(() => {
+      if (!cancelled) setIsPreUploading(false);
+    });
+    return () => { cancelled = true; };
+  }, [pdfFile]);
+
+  useEffect(() => {
+    if (!imageFiles.length) { setPreUploadedImageUrls([]); return; }
+    let cancelled = false;
+    setIsPreUploading(true);
+    setPreUploadLabel('Uploading images...');
+    const totalSize = imageFiles.reduce((s, f) => s + f.size, 0);
+    let uploadedSize = 0;
+    setUploadProgress({ pct: 0, loaded: 0, total: totalSize });
+    Promise.all(
+      imageFiles.map(async (file) => {
+        const url = await uploadPostImage(file, (pct, loaded) => {
+          if (!cancelled) {
+            const baseLoaded = uploadedSize;
+            setUploadProgress({ pct: Math.round((baseLoaded + loaded) / totalSize * 100), loaded: baseLoaded + loaded, total: totalSize });
+          }
+        });
+        uploadedSize += file.size;
+        return url;
+      })
+    ).then(urls => {
+      if (!cancelled) { setPreUploadedImageUrls(urls); setUploadProgress(null); }
+    }).catch(err => {
+      console.error('Image pre-upload failed:', err);
+      if (!cancelled) setUploadProgress(null);
+    }).finally(() => {
+      if (!cancelled) setIsPreUploading(false);
+    });
+    return () => { cancelled = true; };
+  }, [imageFiles]);
+
 
   useEffect(() => {
     if (!user) return;
@@ -1120,6 +1274,7 @@ export default function Feed() {
     };
     fetchUpvotes();
   }, [user?.uid]);
+
 
   useEffect(() => {
     if (!user) return;
@@ -1408,40 +1563,55 @@ export default function Feed() {
       let pdfPages: number = 0;
       let videoUrl: string | undefined = undefined;
 
+      // Use pre-uploaded URLs if the background upload already completed.
+      // This makes "Post" near-instant after the user sees the upload finish.
       if (videoFile) {
-        setSubmittingStatus('Uploading video...');
-        setUploadProgress({ pct: 0, loaded: 0, total: videoFile.size });
-        videoUrl = await uploadPostVideo(videoFile, (pct, loaded, total) => {
-          setUploadProgress({ pct, loaded, total });
-        });
-        setUploadProgress(null);
+        if (preUploadedVideoUrl) {
+          videoUrl = preUploadedVideoUrl;
+        } else {
+          setSubmittingStatus('Uploading video...');
+          setUploadProgress({ pct: 0, loaded: 0, total: videoFile.size });
+          videoUrl = await uploadPostVideo(videoFile, (pct, loaded, total) => {
+            setUploadProgress({ pct, loaded, total });
+          });
+          setUploadProgress(null);
+        }
       } else if (pdfFile) {
-        setSubmittingStatus('Uploading PDF...');
-        setUploadProgress({ pct: 0, loaded: 0, total: pdfFile.size });
-        const pdfResult = await uploadPostPdf(pdfFile, (pct, loaded, total) => {
-          setUploadProgress({ pct, loaded, total });
-        });
-        setUploadProgress(null);
-        pdfUrl = pdfResult.url;
-        pdfPages = pdfResult.pages;
+        if (preUploadedPdfData) {
+          pdfUrl = preUploadedPdfData.url;
+          pdfPages = preUploadedPdfData.pages;
+        } else {
+          setSubmittingStatus('Uploading PDF...');
+          setUploadProgress({ pct: 0, loaded: 0, total: pdfFile.size });
+          const pdfResult = await uploadPostPdf(pdfFile, (pct, loaded, total) => {
+            setUploadProgress({ pct, loaded, total });
+          });
+          setUploadProgress(null);
+          pdfUrl = pdfResult.url;
+          pdfPages = pdfResult.pages;
+        }
       } else if (imageFiles.length > 0) {
-        setSubmittingStatus('Uploading images...');
-        // For multiple images, distribute progress evenly across files
-        const totalSize = imageFiles.reduce((sum, f) => sum + f.size, 0);
-        let uploadedSize = 0;
-        imageUrls = await Promise.all(
-          imageFiles.map(async (file) => {
-            setUploadProgress({ pct: Math.round((uploadedSize / totalSize) * 100), loaded: uploadedSize, total: totalSize });
-            const url = await uploadPostImage(file, (pct, loaded) => {
-              const baseLoaded = uploadedSize;
-              setUploadProgress({ pct: Math.round((baseLoaded + loaded) / totalSize * 100), loaded: baseLoaded + loaded, total: totalSize });
-            });
-            uploadedSize += file.size;
-            return url;
-          })
-        );
-        setUploadProgress(null);
+        if (preUploadedImageUrls.length === imageFiles.length) {
+          imageUrls = preUploadedImageUrls;
+        } else {
+          setSubmittingStatus('Uploading images...');
+          const totalSize = imageFiles.reduce((sum, f) => sum + f.size, 0);
+          let uploadedSize = 0;
+          imageUrls = await Promise.all(
+            imageFiles.map(async (file) => {
+              setUploadProgress({ pct: Math.round((uploadedSize / totalSize) * 100), loaded: uploadedSize, total: totalSize });
+              const url = await uploadPostImage(file, (pct, loaded) => {
+                const baseLoaded = uploadedSize;
+                setUploadProgress({ pct: Math.round((baseLoaded + loaded) / totalSize * 100), loaded: baseLoaded + loaded, total: totalSize });
+              });
+              uploadedSize += file.size;
+              return url;
+            })
+          );
+          setUploadProgress(null);
+        }
       }
+
 
       const isTextClean = isTextSafe(title) && isTextSafe(content);
       let areImagesSafe = true;
@@ -2044,7 +2214,7 @@ export default function Feed() {
       {/* Sticky Header Tabs */}
       <div className="sticky top-0 z-40 nav-glass border-b flex items-center px-4 sm:px-6 gap-1" style={{ borderColor: 'var(--color-border)' }}>
         <button
-          onClick={() => { setContentType('all'); setVisibleCount(6); }}
+          onClick={() => { setContentType('all'); }}
           className={`relative py-3.5 px-4 text-sm font-semibold transition-colors whitespace-nowrap ${contentType === 'all' ? 'text-luxury-ink' : 'text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           For you
@@ -2057,7 +2227,7 @@ export default function Feed() {
           )}
         </button>
         <button
-          onClick={() => { setContentType('posts'); setVisibleCount(6); }}
+          onClick={() => { setContentType('posts'); }}
           className={`relative py-3.5 px-4 text-sm font-semibold transition-colors whitespace-nowrap ${contentType === 'posts' ? 'text-luxury-ink' : 'text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           Posts
@@ -2070,7 +2240,7 @@ export default function Feed() {
           )}
         </button>
         <button
-          onClick={() => { setContentType('marketplace'); setVisibleCount(6); }}
+          onClick={() => { setContentType('marketplace'); }}
           className={`relative py-3.5 px-4 text-sm font-semibold transition-colors whitespace-nowrap ${contentType === 'marketplace' ? 'text-luxury-ink' : 'text-luxury-ink/40 hover:text-luxury-ink/70'}`}
         >
           Marketplace
@@ -2123,7 +2293,7 @@ export default function Feed() {
         <>
           <div className="flex flex-col w-full min-w-0">
             <AnimatePresence>
-              {combinedFeed.slice(0, visibleCount).map((item, index) => {
+              {combinedFeed.map((item, index) => {
                 const isProduct = item._kind === 'product';
                 
                 const card = isProduct ? (
@@ -2164,13 +2334,20 @@ export default function Feed() {
               })}
             </AnimatePresence>
 
-            {/* Load-more skeletons shown while more items exist */}
-            {visibleCount < combinedFeed.length && (
-              <InfiniteScrollSentinel onVisible={() => setVisibleCount(v => v + 6)} />
+            {/* Infinite scroll sentinel — triggers Firestore pagination */}
+            {(hasMorePosts || hasMoreProducts) && (
+              <InfiniteScrollSentinel onVisible={loadMoreFeed} />
+            )}
+
+            {/* Loading more spinner */}
+            {isLoadingMore && (
+              <div className="flex justify-center py-6">
+                <div className="w-6 h-6 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+              </div>
             )}
           </div>
 
-          {!user && combinedFeed.length > 0 && visibleCount >= combinedFeed.length && (
+          {!user && combinedFeed.length > 0 && !hasMorePosts && !hasMoreProducts && (
             <div className="py-12 px-6 flex flex-col items-center justify-center text-center border-t mt-4 relative z-10" style={{ borderColor: 'var(--color-border)' }}>
               <Lock className="w-12 h-12 text-luxury-ink/20 mb-4" />
               <h3 className="text-xl font-bold text-luxury-ink mb-2">You've reached the end of your preview</h3>
@@ -2192,6 +2369,7 @@ export default function Feed() {
               <p className="text-sm text-luxury-ink/30">
                 {contentType === 'marketplace' ? 'Be the first to list an item!' : 'Be the first to share something!'}
               </p>
+
             </div>
           )}
         </>
@@ -2634,6 +2812,32 @@ export default function Feed() {
                     </div>
 
                     <div className="flex items-center gap-2">
+
+                      {/* Inline upload progress bar — visible while background upload is in progress */}
+                      {isPreUploading && uploadProgress && (
+                        <div className="flex-1 flex flex-col gap-1 mr-2">
+                          <div className="flex items-center justify-between text-[11px] font-medium">
+                            <span className="text-luxury-ink/50">{preUploadLabel}</span>
+                            <span className="text-brand-teal font-bold">{uploadProgress.pct}%</span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-luxury-ink/10 overflow-hidden">
+                            <motion.div
+                              className="h-full rounded-full bg-brand-teal"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${uploadProgress.pct}%` }}
+                              transition={{ ease: 'linear', duration: 0.1 }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* "Ready to post" badge once upload finishes */}
+                      {!isPreUploading && (preUploadedVideoUrl || preUploadedPdfData || preUploadedImageUrls.length > 0) && (
+                        <span className="text-[11px] font-semibold text-brand-teal flex items-center gap-1 mr-2">
+                          ✓ Upload done — ready to post!
+                        </span>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => {
@@ -2663,12 +2867,13 @@ export default function Feed() {
                       </button>
                       <button
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || isPreUploading}
                         className="bg-luxury-ink hover:bg-black text-surface-base px-6 py-2 rounded-full text-[14px] font-semibold shadow-sm transition-all disabled:opacity-50"
                       >
-                        {isSubmitting ? 'Posting...' : 'Post'}
+                        {isSubmitting ? 'Posting...' : isPreUploading ? 'Uploading...' : 'Post'}
                       </button>
                     </div>
+
                   </div>
                 </form>
               </div>

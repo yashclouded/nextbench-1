@@ -196,13 +196,15 @@ export async function uploadReplyImage(file: File): Promise<string> {
  */
 export async function uploadPostVideo(file: File, onProgress?: UploadProgressCallback): Promise<string> {
   if (!storage) {
-    throw new Error('Firebase Storage is not initialized.');
+    throw new Error('Firebase Storage is not initialized. Check your VITE_FIREBASE_STORAGE_BUCKET env variable.');
   }
   const randomId = Math.random().toString(36).substring(2, 15);
   const fileExt = file.name.split('.').pop() || 'mp4';
   const fileName = `nextbench/post_videos/${randomId}_${Date.now()}.${fileExt}`;
 
+  // storage is non-null here (checked above)
   const storageRef = ref(storage, fileName);
+
 
   return new Promise<string>((resolve, reject) => {
     const task = uploadBytesResumable(storageRef, file);
