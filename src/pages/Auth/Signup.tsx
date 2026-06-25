@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Building, ShieldCheck, X, Search, ChevronDown, Mail, ArrowLeft, RotateCcw, KeyRound } from 'lucide-react';
+import { Building, ShieldCheck, X, Search, ChevronDown, Mail, ArrowLeft, RotateCcw, KeyRound, User } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { auth, db, functions } from '../../lib/firebase';
@@ -300,6 +300,7 @@ export default function Signup() {
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   // Email OTP state
+  const [nameInput, setNameInput] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [otp, setOtp] = useState('');
   const [canResend, setCanResend] = useState(false);
@@ -432,12 +433,13 @@ export default function Signup() {
     e?.preventDefault();
     if (!school) { setError('Please select your school first.'); return; }
     if (!agreedToTerms) { setError('Please agree to the Terms of Service and Privacy Policy.'); return; }
+    if (!nameInput.trim()) { setError('Please enter your full name.'); return; }
     if (!emailInput.trim()) { setError('Please enter your email address.'); return; }
 
     setError('');
     setIsSendingOtp(true);
     try {
-      const sendFn = httpsCallable(functions, 'sendEmailOTP');
+      const sendFn = httpsCallable(functions, 'sendAuthOtpEmail');
       await sendFn({ email: emailInput.trim().toLowerCase() });
       setOtp('');
       setCanResend(false);
@@ -459,7 +461,7 @@ export default function Signup() {
 
     try {
       const selectedSchoolData = schoolsList.find(s => s.name === school);
-      const verifyFn = httpsCallable(functions, 'verifyEmailOTP');
+      const verifyFn = httpsCallable(functions, 'verifyAuthOtpEmail');
       const result: any = await verifyFn({
         email: emailInput.trim().toLowerCase(),
         otp,
@@ -468,7 +470,7 @@ export default function Signup() {
           school,
           city: selectedSchoolData?.city || 'Lucknow',
           referralCode: referralCode.trim(),
-          name: emailInput.split('@')[0],
+          name: nameInput.trim(),
         },
       });
 
@@ -615,6 +617,21 @@ export default function Signup() {
                 className="space-y-5"
               >
                 {SharedSchoolFields}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 ml-1">Full Name</label>
+                  <div className="relative">
+                    <User size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-luxury-ink/30 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={nameInput}
+                      onChange={e => setNameInput(e.target.value)}
+                      placeholder="Jane Doe"
+                      required
+                      autoComplete="name"
+                      className="w-full bg-surface-base border border-luxury-ink/10 rounded-sm py-4 pl-11 pr-4 text-sm font-medium focus:outline-none focus:border-brand-teal transition-colors"
+                    />
+                  </div>
+                </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-brand-teal/40 ml-1">Email Address</label>
                   <div className="relative">

@@ -165,8 +165,8 @@ async function sendOtpEmail(to: string, otp: string, emailUser: string, emailPas
   });
 }
 
-// ─── Cloud Function: sendEmailOTP ─────────────────────────────────────────────
-export const sendEmailOTP = onCall(
+// ─── Cloud Function: sendAuthOtpEmail ─────────────────────────────────────────────
+export const sendAuthOtpEmail = onCall(
   { secrets: [EMAIL_USER, EMAIL_PASS, OTP_HMAC_SECRET], invoker: "public" },
   async (request) => {
     const rawEmail = (request.data?.email || "").toString().trim().toLowerCase();
@@ -239,8 +239,8 @@ export const sendEmailOTP = onCall(
   }
 );
 
-// ─── Cloud Function: verifyEmailOTP ──────────────────────────────────────────
-export const verifyEmailOTP = onCall(
+// ─── Cloud Function: verifyAuthOtpEmail ──────────────────────────────────────────
+export const verifyAuthOtpEmail = onCall(
   { secrets: [OTP_HMAC_SECRET], invoker: "public" },
   async (request) => {
     const rawEmail  = (request.data?.email  || "").toString().trim().toLowerCase();
@@ -398,7 +398,7 @@ function generateRandomCode(length: number): string {
   return result;
 }
 
-export const generateReferralCode = onCall(async (request) => {
+export const createInviteCode = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -438,8 +438,8 @@ export const generateReferralCode = onCall(async (request) => {
   });
 });
 
-// ─── Existing: applyReferral ──────────────────────────────────────────────────
-export const applyReferral = onCall(async (request) => {
+// ─── Existing: submitInviteCode ──────────────────────────────────────────────────
+export const submitInviteCode = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "User must be logged in.");
   }

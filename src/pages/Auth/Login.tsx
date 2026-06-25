@@ -188,7 +188,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const sendFn = httpsCallable(functions, 'sendEmailOTP');
+      const sendFn = httpsCallable(functions, 'sendAuthOtpEmail');
       await sendFn({ email: email.trim().toLowerCase() });
       setOtp('');
       setCanResend(false);
@@ -196,7 +196,7 @@ export default function Login() {
       setStep('otp');
     } catch (err: any) {
       const msg = err?.details?.message || err?.message || 'Failed to send OTP.';
-      setError(msg.replace('Error: ', '').replace('[sendEmailOTP] ', ''));
+      setError(msg.replace('Error: ', '').replace('[sendAuthOtpEmail] ', ''));
     } finally {
       setIsLoading(false);
     }
@@ -211,7 +211,7 @@ export default function Login() {
     setIsSigningIn(true);
 
     try {
-      const verifyFn = httpsCallable(functions, 'verifyEmailOTP');
+      const verifyFn = httpsCallable(functions, 'verifyAuthOtpEmail');
       const result: any = await verifyFn({ email: email.trim().toLowerCase(), otp });
 
       if (!result.data?.customToken) {
