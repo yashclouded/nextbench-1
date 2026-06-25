@@ -49,7 +49,18 @@ export const db = createFirestore();
 
 export const auth = getAuth(app);
 export const functions = getFunctions(app);
-export const storage = getStorage(app);
+// Guard storage initialization — only available when storageBucket env var is set.
+let _storage: ReturnType<typeof getStorage> | null = null;
+try {
+  if (firebaseConfig.storageBucket) {
+    _storage = getStorage(app);
+  } else {
+    console.warn('[Firebase] VITE_FIREBASE_STORAGE_BUCKET is not set. Video uploads will be disabled.');
+  }
+} catch (e) {
+  console.warn('[Firebase] Storage initialization failed:', e);
+}
+export const storage = _storage;
 
 // Initialize Messaging only if supported by the browser.
 // We keep the `messaging` export for backward compat (non-critical reads)
