@@ -20,6 +20,7 @@ import ReportModal from '../../components/ui/ReportModal';
 import ProfileSettings from '../../components/ui/ProfileSettings';
 import SEO from '../../components/seo/SEO';
 import { PdfPreview } from '../../components/ui/PdfViewer';
+import VideoPlayer from '../../components/ui/VideoPlayer';
 
 
 interface UserProduct {
@@ -1289,12 +1290,9 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                 <div key={post.id} onClick={() => navigate(`/community?postId=${post.id}`)} className="theme-card rounded-2xl overflow-hidden transition-all hover:scale-[1.005] cursor-pointer group">
                   {post.videoUrl && (
                     <div className="relative w-full aspect-video overflow-hidden bg-black" onClick={(e) => e.stopPropagation()}>
-                      <video
+                      <VideoPlayer
                         src={post.videoUrl}
-                        controls
-                        preload="metadata"
                         className="w-full h-full object-contain"
-                        playsInline
                       />
                       <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none">
                         <Film size={10} /> Video

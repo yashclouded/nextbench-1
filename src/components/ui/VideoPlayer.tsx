@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, RotateCcw } from 'lucide-react';
+import { useVideoPrefs } from '../../lib/VideoPrefsContext';
 
 interface VideoPlayerProps {
   src: string;
@@ -19,8 +20,9 @@ export default function VideoPlayer({ src, className = '' }: VideoPlayerProps) {
   const progressRef = useRef<HTMLDivElement>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const { globalMuted, setGlobalMuted } = useVideoPrefs();
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(globalMuted);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
@@ -67,14 +69,19 @@ export default function VideoPlayer({ src, className = '' }: VideoPlayerProps) {
     const onLoadedMetadata = () => {
       setDuration(video.duration);
       setIsLoading(false);
-      // Autoplay muted
+      // Autoplay: always start muted so browsers allow it, then
+      // immediately switch to the user's global preference.
       video.muted = true;
-      setIsMuted(true);
       video.play().then(() => {
         setHasStarted(true);
+        // After autoplay succeeds, honour the global mute pref.
+        video.muted = globalMuted;
+        setIsMuted(globalMuted);
       }).catch(() => {
         // Autoplay blocked by browser — show play button
         setHasStarted(false);
+        video.muted = globalMuted;
+        setIsMuted(globalMuted);
       });
     };
     const onPlay = () => { setIsPlaying(true); setHasEnded(false); };
@@ -118,6 +125,37 @@ export default function VideoPlayer({ src, className = '' }: VideoPlayerProps) {
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
+  // ─── Pause on scroll out of view ───────────────────
+  useEffect(() => {
+    const video = videoRef.current;
+    const container = containerRef.current;
+    if (!video || !container) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) {
+          video.pause();
+        }
+      },
+      { threshold: 0.4 } // pause when less than 40% visible
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  // ─── Pause when browser tab is hidden ───────────────
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      const video = videoRef.current;
+      if (document.hidden && video && !video.paused) {
+        video.pause();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
   // ─── Controls ──────────────────────────────────────
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -141,9 +179,20 @@ export default function VideoPlayer({ src, className = '' }: VideoPlayerProps) {
     e.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
-    video.muted = !video.muted;
-    setIsMuted(video.muted);
+    const nextMuted = !video.muted;
+    video.muted = nextMuted;
+    setIsMuted(nextMuted);
+    // Propagate to all other video players
+    setGlobalMuted(nextMuted);
   };
+
+  // Sync whenever another video player changes the global mute preference
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = globalMuted;
+    setIsMuted(globalMuted);
+  }, [globalMuted]);
 
   const toggleFullscreen = (e: React.MouseEvent) => {
     e.stopPropagation();

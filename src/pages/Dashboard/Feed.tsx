@@ -23,6 +23,7 @@ import PollDisplay from '../../components/ui/PollDisplay';
 import LinkifiedText from '../../components/ui/LinkifiedText';
 import MentionInput from '../../components/ui/MentionInput';
 import { useScrollLock } from '../../hooks/useScrollLock';
+import VideoPlayer from '../../components/ui/VideoPlayer';
 import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import { getPersonaDisplay } from '../../lib/confessions';
 import { togglePostReaction, getUserReaction, REACTION_TYPES, REACTION_KEYS, ReactionType } from '../../lib/reactions';
@@ -503,13 +504,9 @@ function PostDetailModal({
           {/* Video */}
           {(post as any).videoUrl && (
             <div className="relative mb-6 w-full rounded-2xl overflow-hidden bg-black">
-              <video
+              <VideoPlayer
                 src={(post as any).videoUrl}
-                controls
-                playsInline
-                preload="metadata"
                 className="w-full h-auto max-h-[60vh] object-contain"
-                onClick={(e) => e.stopPropagation()}
               />
             </div>
           )}
@@ -2714,7 +2711,7 @@ export default function Feed() {
                         <Paperclip size={22} />
                         <input
                           type="file"
-                          accept="image/*,application/pdf,video/mp4,video/webm,video/quicktime"
+                          accept="image/*,application/pdf,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/x-m4v,video/3gpp,video/3gpp2,video/ogg,video/x-flv,video/x-ms-wmv,video/*"
                           multiple
                           onChange={(e) => {
                             if (!e.target.files) return;

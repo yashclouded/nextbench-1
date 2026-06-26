@@ -157,19 +157,24 @@ export default function App() {
               <Route path="/community"  element={<Feed />} />
               <Route path="/search"     element={<Search />} />
               <Route path="/product/:id" element={<ProtectedRoute requireAuth><ProductDetail /></ProtectedRoute>} />
+              {/* Listing items on marketplace — requires verification */}
               <Route path="/sell"       element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
               <Route path="/edit-item/:id" element={<ProtectedRoute requireAuth requireVerified><SellItem /></ProtectedRoute>} />
+              {/* Profile — auth only */}
               <Route path="/profile"    element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
               <Route path="/profile/:userId" element={<ProtectedRoute requireAuth><Profile /></ProtectedRoute>} />
-              <Route path="/wishlist"   element={<ProtectedRoute requireAuth requireVerified><Wishlist /></ProtectedRoute>} />
-              <Route path="/notifications" element={<ProtectedRoute requireAuth requireVerified><Notifications /></ProtectedRoute>} />
+              {/* Wishlist & Notifications — auth only (no verification needed) */}
+              <Route path="/wishlist"   element={<ProtectedRoute requireAuth><Wishlist /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute requireAuth><Notifications /></ProtectedRoute>} />
+              {/* Messaging verified students — requires verification */}
               <Route path="/messages"   element={<ProtectedRoute requireAuth requireVerified><MessagesLayout /></ProtectedRoute>} />
               <Route path="/messages/:roomId" element={<ProtectedRoute requireAuth requireVerified><MessagesLayout /></ProtectedRoute>} />
               <Route path="/chat/:roomId" element={<ProtectedRoute requireAuth requireVerified><ChatRoomPage /></ProtectedRoute>} />
               <Route path="/admin"      element={<ProtectedRoute requireAuth requireAdmin><AdminPanel /></ProtectedRoute>} />
-              <Route path="/club/join/:inviteCode" element={<ProtectedRoute requireAuth requireVerified><ClubJoin /></ProtectedRoute>} />
-              <Route path="/club/:clubId"          element={<ProtectedRoute requireAuth requireVerified><ClubChat /></ProtectedRoute>} />
-              <Route path="/club/:clubId/settings" element={<ProtectedRoute requireAuth requireVerified><ClubSettings /></ProtectedRoute>} />
+              {/* Club features — auth only (no verification gate) */}
+              <Route path="/club/join/:inviteCode" element={<ProtectedRoute requireAuth><ClubJoin /></ProtectedRoute>} />
+              <Route path="/club/:clubId"          element={<ProtectedRoute requireAuth><ClubChat /></ProtectedRoute>} />
+              <Route path="/club/:clubId/settings" element={<ProtectedRoute requireAuth><ClubSettings /></ProtectedRoute>} />
               <Route path="/invite"     element={<ProtectedRoute requireAuth><Invite /></ProtectedRoute>} />
               <Route path="/u/:username" element={<ProtectedRoute requireAuth><UsernameProfile /></ProtectedRoute>} />
             </Route>
