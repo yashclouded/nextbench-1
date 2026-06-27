@@ -1,5 +1,5 @@
 import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 
 export type NotificationType = 'user_approved' | 'listing_approved' | 'listing_rejected' | 'new_message' | 'new_post' | 'item_reserved' | 'item_sold' | 'new_review' | 'admin_promoted' | 'mention';
 
@@ -38,12 +38,21 @@ export async function createNotification({ userId, type, title, message, link, p
     if (userDoc.exists()) {
       const fcmTokens = userDoc.data()?.fcmTokens || [];
       if (fcmTokens.length > 0) {
+        // Get the current user's ID token to authenticate the API request
+        const currentUser = auth.currentUser;
+        const idToken = currentUser ? await currentUser.getIdToken() : null;
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (idToken) {
+          headers['Authorization'] = `Bearer ${idToken}`;
+        }
+
         // Trigger push notification via Vercel serverless function
         fetch('/api/send-notification', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({
             tokens: fcmTokens,
             title,
