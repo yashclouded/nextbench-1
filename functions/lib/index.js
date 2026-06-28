@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.rateLimitReply = exports.rateLimitMessage = exports.rateLimitPost = exports.onUserUpdated = exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
+exports.createNotification = exports.rateLimitReply = exports.rateLimitMessage = exports.rateLimitPost = exports.onUserUpdated = exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -1075,5 +1075,44 @@ exports.rateLimitReply = (0, firestore_1.onDocumentCreated)({ document: "post_re
         console.warn(`User ${uid} exceeded reply rate limit. Deleting reply ${event.params.replyId}.`);
         await snapshot.ref.delete();
     }
+});
+exports.createNotification = (0, https_1.onCall)({ invoker: "public", cors: true }, async (request) => {
+    var _a, _b, _c;
+    const uid = (_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid;
+    if (!uid)
+        throw new https_1.HttpsError("unauthenticated", "Must be logged in.");
+    const { userId, type, title, message, link, postId } = request.data;
+    if (!userId || !type || !title || !message) {
+        throw new https_1.HttpsError("invalid-argument", "Missing required fields.");
+    }
+    // Rate Limiting (max 15 notification creations/minute per user)
+    const allowed = await enforceRateLimit(uid, 'notif_create', 15, 60000);
+    if (!allowed) {
+        throw new https_1.HttpsError("resource-exhausted", "Rate limit exceeded. Max 15 notifications per minute.");
+    }
+    // Restrict administrative/sensitive notification types to actual admin users
+    const adminNotifTypes = ['listing_approved', 'listing_rejected', 'admin_promoted', 'user_approved'];
+    if (adminNotifTypes.includes(type)) {
+        if (((_c = (_b = request.auth) === null || _b === void 0 ? void 0 : _b.token) === null || _c === void 0 ? void 0 : _c.admin) !== true) {
+            throw new https_1.HttpsError("permission-denied", "Only admins can trigger administrative notifications.");
+        }
+    }
+    // Check that the recipient user document exists
+    const userSnap = await db.collection("users").doc(userId).get();
+    if (!userSnap.exists) {
+        throw new https_1.HttpsError("not-found", "Recipient user not found.");
+    }
+    // Add the notification document
+    const notifRef = await db.collection("notifications").add({
+        userId,
+        type,
+        title,
+        message,
+        link: link || null,
+        postId: postId || null,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true, id: notifRef.id };
 });
 //# sourceMappingURL=index.js.map

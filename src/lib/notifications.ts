@@ -1,5 +1,6 @@
-import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, auth, functions } from './firebase';
 
 export type NotificationType = 'user_approved' | 'listing_approved' | 'listing_rejected' | 'new_message' | 'new_post' | 'item_reserved' | 'item_sold' | 'new_review' | 'admin_promoted' | 'mention';
 
@@ -22,15 +23,14 @@ interface CreateNotificationParams {
  */
 export async function createNotification({ userId, type, title, message, link, postId }: CreateNotificationParams) {
   try {
-    await addDoc(collection(db, 'notifications'), {
+    const createNotifCallable = httpsCallable(functions, 'createNotification');
+    await createNotifCallable({
       userId,
       type,
       title,
       message,
       link: link || null,
       postId: postId || null,
-      read: false,
-      createdAt: serverTimestamp(),
     });
 
     // Fetch user document to get FCM tokens

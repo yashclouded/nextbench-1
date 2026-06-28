@@ -322,11 +322,8 @@ service cloud.firestore {
       // resource.data is not available on list queries in security rules.
       allow list: if isSignedIn();
 
-      allow create: if isSignedIn()
-        && incoming().userId is string
-        && incoming().type is string
-        && incoming().title is string
-        && incoming().read == false;
+      // Notification creation is server-side only (via Cloud Functions) to prevent client-side spamming.
+      allow create: if false;
 
       allow update: if isSignedIn()
         && resource.data.userId == request.auth.uid

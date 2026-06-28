@@ -1223,3 +1223,55 @@ export const rateLimitReply = onDocumentCreated(
   }
 );
 
+export const createNotification = onCall({ invoker: "public", cors: true }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Must be logged in.");
+
+  const { userId, type, title, message, link, postId } = request.data as {
+    userId: string;
+    type: string;
+    title: string;
+    message: string;
+    link?: string;
+    postId?: string;
+  };
+
+  if (!userId || !type || !title || !message) {
+    throw new HttpsError("invalid-argument", "Missing required fields.");
+  }
+
+  // Rate Limiting (max 15 notification creations/minute per user)
+  const allowed = await enforceRateLimit(uid, 'notif_create', 15, 60000);
+  if (!allowed) {
+    throw new HttpsError("resource-exhausted", "Rate limit exceeded. Max 15 notifications per minute.");
+  }
+
+  // Restrict administrative/sensitive notification types to actual admin users
+  const adminNotifTypes = ['listing_approved', 'listing_rejected', 'admin_promoted', 'user_approved'];
+  if (adminNotifTypes.includes(type)) {
+    if (request.auth?.token?.admin !== true) {
+      throw new HttpsError("permission-denied", "Only admins can trigger administrative notifications.");
+    }
+  }
+
+  // Check that the recipient user document exists
+  const userSnap = await db.collection("users").doc(userId).get();
+  if (!userSnap.exists) {
+    throw new HttpsError("not-found", "Recipient user not found.");
+  }
+
+  // Add the notification document
+  const notifRef = await db.collection("notifications").add({
+    userId,
+    type,
+    title,
+    message,
+    link: link || null,
+    postId: postId || null,
+    read: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+
+  return { success: true, id: notifRef.id };
+});
+
