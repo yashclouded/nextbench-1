@@ -30,6 +30,8 @@ export interface ImageModerationResult {
   confidence?: number;
   /** Raw classification breakdown (useful for debugging / logging). */
   classifications?: Record<string, number>;
+  /** Indicates if the safety check failed due to engine unavailability. */
+  isUnavailable?: boolean;
 }
 
 // ─── Configuration ──────────────────────────────────────────────────────────
@@ -138,14 +140,15 @@ export async function checkImageSafety(file: File): Promise<ImageModerationResul
 
     return { isSafe: true, classifications };
   } catch (err) {
-    console.error('[imageModeration] NSFW check failed, auto-approving to prevent false flags:', err);
-    // If the model fails to load (e.g. adblocker blocking the CDN, CORS issue), we fail open
-    // so that normal users aren't penalized and have their images blocked.
+    console.error('[imageModeration] NSFW check failed, failing closed:', err);
+    // If the model fails to load (e.g. adblocker blocking the CDN, CORS issue), we fail closed
+    // so that we don't auto-approve potentially unsafe content.
     return {
-      isSafe: true,
-      reason: 'Image moderation unavailable — auto-approved.',
+      isSafe: false,
+      reason: 'Image moderation service is temporarily unavailable.',
       confidence: undefined,
-    };
+      isUnavailable: true
+    } as any;
   }
 }
 

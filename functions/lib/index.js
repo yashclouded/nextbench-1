@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
+exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -860,5 +860,112 @@ exports.unsubscribeFromEmails = (0, https_1.onCall)({ invoker: "public", cors: t
         throw new https_1.HttpsError("invalid-argument", "uid required.");
     await db.collection("users").doc(uid).update({ emailOptOut: true });
     return { success: true };
+});
+// ─── Content Moderation Triggers ──────────────────────────────────────────────
+const BANNED_KEYWORDS = [
+    "porn", "nsfw", "sex", "nude", "hentai", "fuck", "shit", "bitch",
+    "asshole", "cunt", "dick", "pussy", "bastard", "slut", "whore", "moderatorbypass"
+];
+function normalizeText(text) {
+    let normalized = text.toLowerCase();
+    const homoglyphs = {
+        "@": "a", "4": "a", "3": "e", "1": "i", "!": "i", "|": "i",
+        "0": "o", "5": "s", "$": "s", "7": "t", "+": "t", "8": "b",
+        "vv": "w", "uu": "w", "9": "g", "6": "g"
+    };
+    normalized = normalized.split("").map(char => homoglyphs[char] || char).join("");
+    return normalized.replace(/[^a-z]/g, "");
+}
+function isTextSafeFallback(text) {
+    if (!text)
+        return true;
+    const clean = normalizeText(text);
+    for (const word of BANNED_KEYWORDS) {
+        if (clean.includes(word))
+            return false;
+    }
+    return true;
+}
+async function moderateTextContent(text) {
+    // Use natural language API key or fallback to gemini api key if available
+    const apiKey = process.env.NATURAL_LANGUAGE_API_KEY || process.env.GEMINI_API_KEY || process.env.VITE_FIREBASE_API_KEY;
+    if (apiKey) {
+        try {
+            const url = `https://language.googleapis.com/v1/documents:moderateText?key=${apiKey}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    document: {
+                        type: 'PLAIN_TEXT',
+                        content: text,
+                    },
+                }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const categories = data.moderationCategories || [];
+                const flaggedCategories = ['Toxic', 'Insult', 'Profanity', 'Sexual', 'Violent', 'Harassment', 'Hate Speech'];
+                for (const cat of categories) {
+                    if (flaggedCategories.some(fc => cat.name.includes(fc)) && cat.confidence > 0.65) {
+                        return {
+                            isSafe: false,
+                            reason: `Flagged by AI: ${cat.name} (${Math.round(cat.confidence * 100)}%)`,
+                        };
+                    }
+                }
+            }
+        }
+        catch (err) {
+            console.error('Error calling Natural Language API:', err);
+        }
+    }
+    // Fallback keyword-based check
+    if (!isTextSafeFallback(text)) {
+        return { isSafe: false, reason: 'Flagged by content blacklist.' };
+    }
+    return { isSafe: true };
+}
+exports.moderatePost = (0, firestore_1.onDocumentCreated)({ document: "posts/{postId}" }, async (event) => {
+    const snapshot = event.data;
+    if (!snapshot)
+        return;
+    const data = snapshot.data();
+    // Skip if already pending/moderated (prevent loop)
+    if (data.status === 'pending' && data.moderationFlagged)
+        return;
+    const title = data.title || "";
+    const content = data.content || "";
+    const fullText = `${title} ${content}`;
+    const moderation = await moderateTextContent(fullText);
+    if (!moderation.isSafe) {
+        console.log(`Post ${event.params.postId} flagged: ${moderation.reason}. Marking as pending.`);
+        await snapshot.ref.update({
+            status: 'pending',
+            moderationFlagged: true,
+            moderationReason: moderation.reason,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    }
+});
+exports.moderateReply = (0, firestore_1.onDocumentCreated)({ document: "post_replies/{replyId}" }, async (event) => {
+    const snapshot = event.data;
+    if (!snapshot)
+        return;
+    const data = snapshot.data();
+    // Skip if already flagged/moderated (prevent loop)
+    if (data.moderationFlagged)
+        return;
+    const content = data.content || "";
+    const moderation = await moderateTextContent(content);
+    if (!moderation.isSafe) {
+        console.log(`Reply ${event.params.replyId} flagged: ${moderation.reason}. Redacting content.`);
+        await snapshot.ref.update({
+            content: '[This comment was flagged for containing sensitive words.]',
+            moderationFlagged: true,
+            moderationReason: moderation.reason,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    }
 });
 //# sourceMappingURL=index.js.map

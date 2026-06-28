@@ -4,7 +4,7 @@
  * and avoid requiring a credit card for the Firebase Blaze plan.
  */
 
-import { storage } from './firebase';
+import { storage, auth } from './firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -13,7 +13,39 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 export type UploadProgressCallback = (progress: number, loaded: number, total: number) => void;
 
 /**
- * Generic upload function to Cloudinary via unauthenticated REST API.
+ * Fetches Cloudinary signature credentials from server.
+ */
+async function fetchCloudinarySignature(folder: string): Promise<{
+  signature: string;
+  timestamp: number;
+  apiKey: string;
+  cloudName: string;
+  folder: string;
+}> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('User must be logged in to upload files.');
+  }
+  const token = await user.getIdToken();
+  const res = await fetch('/api/sign-cloudinary', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ folder })
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Failed to sign Cloudinary request: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+/**
+ * Generic upload function to Cloudinary via authenticated/signed REST API.
  * Accepts an optional onProgress callback (0–100) using XHR for real progress events.
  */
 export async function uploadToCloudinary(
@@ -22,14 +54,17 @@ export async function uploadToCloudinary(
   onProgress?: UploadProgressCallback,
   resourceType: 'auto' | 'image' | 'video' | 'raw' = 'auto'
 ): Promise<string> {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error('Cloudinary environment variables are missing.');
-  }
+  const sigCreds = await fetchCloudinarySignature(folder);
 
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('upload_preset', UPLOAD_PRESET);
-  formData.append('folder', folder);
+  formData.append('api_key', sigCreds.apiKey);
+  formData.append('timestamp', sigCreds.timestamp.toString());
+  formData.append('signature', sigCreds.signature);
+  formData.append('folder', sigCreds.folder);
+  if (UPLOAD_PRESET) {
+    formData.append('upload_preset', UPLOAD_PRESET);
+  }
 
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -64,7 +99,7 @@ export async function uploadToCloudinary(
     xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
     xhr.addEventListener('abort', () => reject(new Error('Upload was aborted.')));
 
-    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${sigCreds.cloudName}/${resourceType}/upload`);
     xhr.send(formData);
   });
 }
@@ -112,17 +147,21 @@ export async function uploadPostImage(file: File, onProgress?: UploadProgressCal
  * Cloudinary's pg_N transformation — no external PDF viewer needed.
  */
 export async function uploadPostPdf(file: File, onProgress?: UploadProgressCallback): Promise<{ url: string; pages: number }> {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error('Cloudinary environment variables are missing.');
-  }
-
   const randomId = Math.random().toString(36).substring(2, 15);
+  const folder = `nextbench/posts/pdf_${randomId}`;
+
+  const sigCreds = await fetchCloudinarySignature(folder);
 
   return new Promise<{ url: string; pages: number }>((resolve, reject) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', UPLOAD_PRESET);
-    formData.append('folder', `nextbench/posts/pdf_${randomId}`);
+    formData.append('api_key', sigCreds.apiKey);
+    formData.append('timestamp', sigCreds.timestamp.toString());
+    formData.append('signature', sigCreds.signature);
+    formData.append('folder', sigCreds.folder);
+    if (UPLOAD_PRESET) {
+      formData.append('upload_preset', UPLOAD_PRESET);
+    }
 
     const xhr = new XMLHttpRequest();
 
@@ -155,7 +194,7 @@ export async function uploadPostPdf(file: File, onProgress?: UploadProgressCallb
     xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
     xhr.addEventListener('abort', () => reject(new Error('Upload aborted.')));
 
-    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`);
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${sigCreds.cloudName}/image/upload`);
     xhr.send(formData);
   });
 }

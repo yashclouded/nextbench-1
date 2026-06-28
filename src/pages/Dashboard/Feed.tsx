@@ -56,6 +56,7 @@ interface Post {
   downvotesCount?: number;
   repliesCount: number;
   feedScore?: number;
+  isHot?: boolean;
   poll?: {
     choices: string[];
     expiresAt: any;
@@ -478,7 +479,7 @@ function PostDetailModal({
                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${post.type === 'confession' ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
                   {POST_TYPES.find(t => t.id === post.type)?.label || post.type}
                 </span>
-                {post.feedScore && post.feedScore > 10 && (
+                {post.isHot && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 text-amber-500 rounded-full text-[9px] font-bold uppercase tracking-widest">
                     <Flame size={10} /> Hot
                   </span>
@@ -1008,8 +1009,7 @@ export default function Feed() {
     fetchInitialPosts();
   }, []);
 
-  // Feed scoring — runs in useMemo, instant re-computation when follows/userData change.
-  // This never creates or destroys Firestore listeners.
+  // Feed scoring — Instagram-style curated algorithm
   const posts = useMemo(() => {
     const now = Date.now();
     const authorPostCount: Record<string, number> = {};
@@ -1018,18 +1018,33 @@ export default function Feed() {
       const postTime = post.createdAt?.toMillis() || now;
       const hoursPassed = Math.max(0, (now - postTime) / (1000 * 60 * 60));
 
-      const baseHype = ((post.upvotesCount || 0) * 2) + ((post.repliesCount || 0) * 3);
-      const timePenalty = hoursPassed * 0.5;
-      const cityBoost = (userData?.city && post.city === userData.city) ? 10 : 0;
-      const schoolBoost = (userData?.school && post.school === userData.school) ? 15 : 0;
-      const followBoost = followingIds.has(post.authorId) ? 20 : 0;
-      const friendBoost = friendIds.has(post.authorId) ? 30 : 0;
+      // 1. Base Engagement (Hype)
+      const baseHype = 1 + (post.upvotesCount || 0) * 2 + (post.repliesCount || 0) * 3;
 
+      // 2. Exponential Time Decay (Gravity)
+      // (hours + 2)^1.5 creates a smooth curve where fresh content is boosted 
+      // but highly engaging older content can still surface
+      const timeFactor = Math.pow(hoursPassed + 2, 1.5);
+
+      // 3. Affinity Multipliers (Relevance)
+      let affinityMultiplier = 1.0;
+      if (userData?.city && post.city === userData.city) affinityMultiplier += 0.1;
+      if (userData?.school && post.school === userData.school) affinityMultiplier += 0.2;
+      if (followingIds.has(post.authorId)) affinityMultiplier += 0.5;
+      if (friendIds.has(post.authorId)) affinityMultiplier += 0.8;
+
+      // 4. Diversity Penalty (Anti-Spam)
       authorPostCount[post.authorId] = (authorPostCount[post.authorId] || 0) + 1;
-      const diversityPenalty = authorPostCount[post.authorId] > 2 ? (authorPostCount[post.authorId] - 2) * 10 : 0;
+      // 0.6x multiplier for each subsequent post by the same author in this batch
+      const diversityMultiplier = Math.pow(0.6, Math.max(0, authorPostCount[post.authorId] - 1));
 
-      const feedScore = baseHype - timePenalty + cityBoost + schoolBoost + followBoost + friendBoost - diversityPenalty;
-      return { ...post, feedScore };
+      // Final Score Calculation
+      const feedScore = (baseHype / timeFactor) * affinityMultiplier * diversityMultiplier;
+
+      // Hot status: High base hype relative to its age
+      const isHot = baseHype >= 15 && hoursPassed < 48;
+
+      return { ...post, feedScore, isHot };
     });
 
     scored.sort((a, b) => {
@@ -1617,18 +1632,20 @@ export default function Feed() {
 
       const isTextClean = isTextSafe(title) && isTextSafe(content);
       let areImagesSafe = true;
+      let isImageModerationUnavailable = false;
 
       if (imageUrls.length > 0 && isTextClean) {
         // Only run NSFW scan if text is already clean (otherwise post goes to pending anyway)
         setSubmittingStatus('Scanning images for safety...');
         const moderationResult = await checkAllImagesSafety(imageFiles);
         areImagesSafe = moderationResult.isSafe;
+        isImageModerationUnavailable = !!moderationResult.isUnavailable;
         if (!areImagesSafe) {
           console.log('[Feed] Image flagged:', moderationResult.reason);
         }
       }
 
-      const shouldAutoApprove = isTextClean && areImagesSafe;
+      const shouldAutoApprove = isTextClean && areImagesSafe && !isImageModerationUnavailable;
       const initialStatus = shouldAutoApprove ? 'approved' : 'pending';
       setSubmittingStatus('Publishing...');
 
@@ -1684,6 +1701,8 @@ export default function Feed() {
       } else {
         if (!isTextClean) {
           showToast('Post flagged for containing sensitive words. Submitted for review.', 'warning');
+        } else if (isImageModerationUnavailable) {
+          showToast('Image verification is temporarily offline. Post submitted for manual admin review.', 'warning');
         } else if (!areImagesSafe) {
           showToast('Image flagged by safety check. Submitted for manual review.', 'warning');
         } else {
@@ -1944,7 +1963,11 @@ export default function Feed() {
         setIsUploadingReplyImage(true);
         const safety = await checkImageSafety(replyImageFile);
         if (!safety.isSafe) {
-          showToast('Image flagged by safety check. Please choose a different image.', 'error');
+          if (safety.isUnavailable) {
+            showToast('Image verification is temporarily offline. Please try again later.', 'error');
+          } else {
+            showToast('Image flagged by safety check. Please choose a different image.', 'error');
+          }
           setIsUploadingReplyImage(false);
           setIsSubmitting(false);
           return;
