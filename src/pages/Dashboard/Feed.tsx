@@ -188,7 +188,8 @@ function Comment({ reply, repliesMap, onReply, onDeleteReply, onEditReply, onUpv
           <Link to={`/profile/${reply.authorId}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <div className="w-6 h-6 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-[10px] shrink-0 overflow-hidden">
               {avatarUrl ? (
-                <img src={getOptimizedImageUrl(avatarUrl)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img src={getOptimizedImageUrl(avatarUrl)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+
               ) : reply.authorName[0]?.toUpperCase()}
             </div>
             <div>
@@ -2284,7 +2285,8 @@ export default function Feed() {
         <div className="border-b px-4 py-3 flex items-center gap-3" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-card)' }}>
           <div className="w-9 h-9 rounded-full bg-surface-soft flex items-center justify-center overflow-hidden shrink-0">
             {userData?.profilePicture ? (
-              <img src={getOptimizedImageUrl(userData.profilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src={getOptimizedImageUrl(userData.profilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+
             ) : (
               <span className="text-brand-teal font-semibold text-sm">{(userData?.name || 'U')[0].toUpperCase()}</span>
             )}
@@ -2570,7 +2572,8 @@ export default function Feed() {
                   <div className="flex items-center gap-3 mb-6 px-1">
                     <div className="w-10 h-10 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-sm overflow-hidden shrink-0">
                       {userData?.profilePicture ? (
-                        <img src={getOptimizedImageUrl(userData.profilePicture)} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={getOptimizedImageUrl(userData.profilePicture)} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+
                       ) : (
                         userData?.name?.[0]?.toUpperCase() || <Users size={16} />
                       )}
@@ -2986,7 +2989,8 @@ function HorizontalDiscoverClubs() {
           >
             <div className="w-16 h-16 rounded-full bg-surface-soft flex items-center justify-center overflow-hidden mb-3 border-[3px] border-surface-card shadow-sm ring-1 ring-luxury-ink/5">
               {club.avatar ? (
-                <img src={getOptimizedImageUrl(club.avatar)} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                <img src={getOptimizedImageUrl(club.avatar)} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" loading="lazy" />
+
               ) : (
                 <Users size={20} className="text-brand-teal/50" />
               )}

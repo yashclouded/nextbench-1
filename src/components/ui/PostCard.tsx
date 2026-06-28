@@ -36,6 +36,7 @@ interface Post {
   downvotesCount?: number;
   repliesCount: number;
   feedScore?: number;
+  isHot?: boolean;
   city?: string;
   createdAt: any;
   poll?: {
@@ -190,7 +191,8 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
             {/* Avatar */}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold overflow-hidden shrink-0 ${displayInfo.isAnonymous ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
               {!displayInfo.isAnonymous && liveProfilePicture ? (
-                <img src={getOptimizedImageUrl(liveProfilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <img src={getOptimizedImageUrl(liveProfilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+
               ) : displayInfo.name[0]?.toUpperCase()}
             </div>
             
@@ -203,7 +205,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              {post.feedScore && post.feedScore > 10 && (
+              {post.isHot && (
                 <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[10px] font-bold uppercase tracking-wide">
                   <Flame size={10} /> Hot
                 </span>
@@ -245,7 +247,9 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
               className="w-full h-auto pointer-events-none"
               referrerPolicy="no-referrer"
               draggable={false}
+              loading="lazy"
             />
+
 
             {postImageUrls.length > 1 && (
               <>
