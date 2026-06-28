@@ -15,9 +15,10 @@ export default defineConfig(() => {
           // Precache all assets so the cached index.html always has its required JS/CSS chunks.
           // This prevents white-screen 404s when a new deployment deletes old chunks on the server.
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-          // Exclude TensorFlow.js model shards from precaching (loaded on-demand)
-          globIgnores: ['**/group1-shard*', '**/nsfwjs-*', '**/tensorflow-*'],
-          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+          // Only exclude third-party CDN resources from precache
+          globIgnores: ['**/node_modules/**'],
+          maximumFileSizeToCacheInBytes: 2 * 1024 * 1024, // 2 MB cap — TF.js removed
+
           // SPA: serve index.html for all navigation requests
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/(api|__)/],
@@ -100,15 +101,19 @@ export default defineConfig(() => {
       })
     ],
     build: {
-      chunkSizeWarningLimit: 6000, // Suppress warnings for TF.js model shards
+      chunkSizeWarningLimit: 500, // Vite default — warn if chunk exceeds 500 KB
+
       rollupOptions: {
         output: {
           manualChunks(id: string) {
-            if (id.includes('@tensorflow') || id.includes('nsfwjs')) {
-              return 'nsfwjs';
-            }
             if (id.includes('firebase')) {
               return 'firebase';
+            }
+            if (id.includes('motion') || id.includes('framer-motion')) {
+              return 'motion';
+            }
+            if (id.includes('react-easy-crop')) {
+              return 'cropper';
             }
           },
         },
