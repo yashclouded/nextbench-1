@@ -1274,4 +1274,3 @@ export const createNotification = onCall({ invoker: "public", cors: true }, asyn
 
   return { success: true, id: notifRef.id };
 });
-

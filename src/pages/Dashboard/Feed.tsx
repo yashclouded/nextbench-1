@@ -1821,6 +1821,25 @@ export default function Feed() {
       });
     }
 
+    setRawPosts(prev => prev.map(p => {
+      if (p.id === post.id) {
+        return {
+          ...p,
+          upvotesCount: isUpvoted ? Math.max(0, (p.upvotesCount || 0) - 1) : (p.upvotesCount || 0) + 1,
+          downvotesCount: (!isUpvoted && isDownvoted) ? Math.max(0, (p.downvotesCount || 0) - 1) : (p.downvotesCount || 0)
+        };
+      }
+      return p;
+    }));
+
+    if (selectedPost?.id === post.id) {
+      setSelectedPost(prev => prev ? {
+        ...prev,
+        upvotesCount: isUpvoted ? Math.max(0, (prev.upvotesCount || 0) - 1) : (prev.upvotesCount || 0) + 1,
+        downvotesCount: (!isUpvoted && isDownvoted) ? Math.max(0, (prev.downvotesCount || 0) - 1) : (prev.downvotesCount || 0)
+      } : null);
+    }
+
     try {
       if (isUpvoted) {
         const upvoteId = upvoteMap[post.id];
@@ -1865,6 +1884,12 @@ export default function Feed() {
           return next;
         });
       }
+      setRawPosts(prev => prev.map(p => 
+        p.id === post.id ? { ...p, upvotesCount: post.upvotesCount, downvotesCount: post.downvotesCount } : p
+      ));
+      if (selectedPost?.id === post.id) {
+        setSelectedPost(prev => prev ? { ...prev, upvotesCount: post.upvotesCount, downvotesCount: post.downvotesCount } : null);
+      }
       handleFirestoreError(e, OperationType.UPDATE, 'posts');
     }
   };
@@ -1896,6 +1921,25 @@ export default function Feed() {
         next.delete(post.id);
         return next;
       });
+    }
+
+    setRawPosts(prev => prev.map(p => {
+      if (p.id === post.id) {
+        return {
+          ...p,
+          downvotesCount: isDownvoted ? Math.max(0, (p.downvotesCount || 0) - 1) : (p.downvotesCount || 0) + 1,
+          upvotesCount: (!isDownvoted && isUpvoted) ? Math.max(0, (p.upvotesCount || 0) - 1) : (p.upvotesCount || 0)
+        };
+      }
+      return p;
+    }));
+
+    if (selectedPost?.id === post.id) {
+      setSelectedPost(prev => prev ? {
+        ...prev,
+        downvotesCount: isDownvoted ? Math.max(0, (prev.downvotesCount || 0) - 1) : (prev.downvotesCount || 0) + 1,
+        upvotesCount: (!isDownvoted && isUpvoted) ? Math.max(0, (prev.upvotesCount || 0) - 1) : (prev.upvotesCount || 0)
+      } : null);
     }
 
     try {
@@ -1941,6 +1985,12 @@ export default function Feed() {
           next.add(post.id);
           return next;
         });
+      }
+      setRawPosts(prev => prev.map(p => 
+        p.id === post.id ? { ...p, upvotesCount: post.upvotesCount, downvotesCount: post.downvotesCount } : p
+      ));
+      if (selectedPost?.id === post.id) {
+        setSelectedPost(prev => prev ? { ...prev, upvotesCount: post.upvotesCount, downvotesCount: post.downvotesCount } : null);
       }
       handleFirestoreError(e, OperationType.UPDATE, 'posts');
     }
