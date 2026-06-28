@@ -47,8 +47,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if true;
-      allow list: if true;
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
       
       allow create: if isVerified() 
         && isValidId(userId)
@@ -127,7 +127,7 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow get: if true;
-      allow list: if true;
+      allow list: if resource.data.status in ['available', 'reserved', 'sold'] || isAdmin() || (isSignedIn() && resource.data.sellerId == request.auth.uid);
       
       allow create: if isVerified() 
         && isValidId(productId)
@@ -362,9 +362,9 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      // Anyone can read posts, but the client will filter by status == 'approved' for public feed
+      // Anyone can read individual posts, but list queries must filter by status == 'approved'
       allow get: if true;
-      allow list: if true;
+      allow list: if resource.data.status == 'approved' || isAdmin();
 
       allow create: if isVerified()
         && isValidId(postId)
@@ -444,8 +444,8 @@ service cloud.firestore {
 
     // === POST REPLIES ===
     match /post_replies/{replyId} {
-      allow read: if true;
-      allow list: if true;
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
       allow create: if isVerified() 
         && incoming().postId is string
         && incoming().authorId == request.auth.uid
