@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film, Pencil } from 'lucide-react';
 import { collection, onSnapshot, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, orderBy, limit, documentId, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
@@ -16,6 +16,7 @@ import { createNotification } from '../../lib/notifications';
 import ShareModal from '../../components/ui/ShareModal';
 import { Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 // Lazy-load heavy components — only bundled/parsed when actually needed
 const ImageCropper = lazy(() => import('../../components/ui/ImageCropper'));
 const VideoPlayer = lazy(() => import('../../components/ui/VideoPlayer'));
@@ -2331,6 +2332,69 @@ export default function Feed() {
     return Array.from(map.values()).slice(0, 10);
   }, [posts]);
 
+  // ─── Feed virtualization (window scroll) ─────────────────
+  // Only visible rows + overscan are kept in the DOM. The feed scrolls with
+  // the window (sticky header above), so we use the window virtualizer and
+  // pass the list's document offset as scrollMargin.
+  const feedListRef = useRef<HTMLDivElement>(null);
+  const [feedListOffset, setFeedListOffset] = useState(0);
+
+  useLayoutEffect(() => {
+    const measureOffset = () => {
+      if (feedListRef.current) {
+        const rect = feedListRef.current.getBoundingClientRect();
+        setFeedListOffset(rect.top + window.scrollY);
+      }
+    };
+    measureOffset();
+    window.addEventListener('resize', measureOffset);
+    return () => window.removeEventListener('resize', measureOffset);
+  }, [loading, user, userData?.verified]);
+
+  const feedVirtualizer = useWindowVirtualizer({
+    count: combinedFeed.length,
+    estimateSize: () => 450,
+    overscan: 5,
+    scrollMargin: feedListOffset,
+  });
+
+  // Renders a single feed row (post or product card), injecting the "Clubs for
+  // you" row after the 3rd item just like the original non-virtualized list.
+  const renderFeedItem = (item: any, index: number) => {
+    const isProduct = item._kind === 'product';
+    const card = isProduct ? (
+      <ProductCard
+        product={item as Product}
+        isWishlisted={wishlisted.has(item.id)}
+        wishlistDocId={wishlistMap[item.id]}
+        onShare={handleShareProduct}
+      />
+    ) : (
+      <PostCard
+        post={item as Post}
+        hasUpvoted={upvotedPostIds.has(item.id)}
+        hasDownvoted={downvotedPostIds.has(item.id)}
+        hasSaved={savedPostIds.has(item.id)}
+        onClick={() => setSelectedPost(item as Post)}
+        onUpvote={handleUpvote}
+        onDownvote={handleDownvote}
+        onShare={handleShare}
+        onSave={handleSavePost}
+      />
+    );
+
+    const showClubs = index === 2 || (combinedFeed.length <= 2 && index === combinedFeed.length - 1);
+    if (showClubs) {
+      return (
+        <>
+          {card}
+          <HorizontalDiscoverClubs />
+        </>
+      );
+    }
+    return card;
+  };
+
   return (
     <div className="pb-20 w-full overflow-x-hidden">
       <SEO 
@@ -2429,48 +2493,28 @@ export default function Feed() {
         </div>
       ) : (
         <>
-          <div className="flex flex-col w-full min-w-0">
-            <AnimatePresence>
-              {combinedFeed.map((item, index) => {
-                const isProduct = item._kind === 'product';
-                
-                const card = isProduct ? (
-                  <ProductCard 
-                    key={`prod-${item.id}`} 
-                    product={item as Product} 
-                    isWishlisted={wishlisted.has(item.id)} 
-                    wishlistDocId={wishlistMap[item.id]} 
-                    onShare={handleShareProduct}
-                  />
-                ) : (
-                  <PostCard 
-                    key={`post-${item.id}`} 
-                    post={item as Post} 
-                    hasUpvoted={upvotedPostIds.has(item.id)} 
-                    hasDownvoted={downvotedPostIds.has(item.id)}
-                    hasSaved={savedPostIds.has(item.id)}
-                    onClick={() => setSelectedPost(item as Post)}
-                    onUpvote={handleUpvote}
-                    onDownvote={handleDownvote}
-                    onShare={handleShare}
-                    onSave={handleSavePost}
-                  />
-                );
-
-                const showClubs = index === 2 || (combinedFeed.length <= 2 && index === combinedFeed.length - 1);
-
-                if (showClubs) {
-                  return (
-                    <React.Fragment key={`feed-item-${item.id}`}>
-                      {card}
-                      <HorizontalDiscoverClubs />
-                    </React.Fragment>
-                  );
-                }
-
-                return card;
-              })}
-            </AnimatePresence>
+          <div ref={feedListRef} className="flex flex-col w-full min-w-0">
+            {/* Virtualized feed — only visible rows + 5 overscan are in the DOM */}
+            {combinedFeed.length > 0 && (
+              <div style={{ height: `${feedVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                {feedVirtualizer.getVirtualItems().map((virtualRow) => (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={feedVirtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start - feedVirtualizer.options.scrollMargin}px)`,
+                    }}
+                  >
+                    {renderFeedItem(combinedFeed[virtualRow.index], virtualRow.index)}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Infinite scroll sentinel — triggers Firestore pagination */}
             {(hasMorePosts || hasMoreProducts) && (
