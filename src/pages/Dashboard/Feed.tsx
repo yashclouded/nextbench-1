@@ -958,17 +958,14 @@ function uploadReducer(state: UploadState, action: UploadAction): UploadState {
 
 export default function Feed() {
   const [privacy, setPrivacy] = useState('public');
-  const [showPostOptions, setShowPostOptions] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [submittingStatus, setSubmittingStatus] = useState('Posting...');
   const [contentType, setContentType] = useState<'all' | 'posts' | 'marketplace'>('all');
-  const [shareModalData, setShareModalData] = useState<{isOpen: boolean, url: string, title: string, sharedPost?: any}>({isOpen: false, url: '', title: ''});
 
   const { user, userData } = useAuth();
   const { showToast } = useToast();
@@ -1012,12 +1009,32 @@ export default function Feed() {
   const [replyingTo, setReplyingTo] = useState<{id: string, name: string} | null>(null);
   const [replyGifUrl, setReplyGifUrl] = useState<string | null>(null);
 
-  // Confirm dialog state (replaces window.confirm everywhere in this component)
-  const [confirmDialog, setConfirmDialog] = useState<{
-    title: string;
-    message: string;
-    onConfirm: () => void;
-  } | null>(null);
+  // ─── Consolidated modal-visibility state ───────────────────────────────
+  // One object for every composer/dialog flag instead of five useState hooks.
+  // Same-named destructured values + setter adapters keep all call sites
+  // unchanged. (Local type names avoid clashing with the ConfirmDialog component.)
+  type ConfirmDialogState = { title: string; message: string; onConfirm: () => void } | null;
+  type ShareModalState = { isOpen: boolean; url: string; title: string; sharedPost?: any };
+  const [modalState, setModalState] = useState<{
+    isModalOpen: boolean;
+    showPostOptions: boolean;
+    showPollCreator: boolean;
+    confirmDialog: ConfirmDialogState;
+    shareModalData: ShareModalState;
+  }>({
+    isModalOpen: false,
+    showPostOptions: false,
+    showPollCreator: false,
+    confirmDialog: null,
+    shareModalData: { isOpen: false, url: '', title: '' },
+  });
+  const { isModalOpen, showPostOptions, showPollCreator, confirmDialog, shareModalData } = modalState;
+  const setIsModalOpen = (v: boolean) => setModalState(s => ({ ...s, isModalOpen: v }));
+  const setShowPostOptions = (v: boolean) => setModalState(s => ({ ...s, showPostOptions: v }));
+  const setShowPollCreator = (v: boolean) => setModalState(s => ({ ...s, showPollCreator: v }));
+  const setConfirmDialog = (v: ConfirmDialogState) => setModalState(s => ({ ...s, confirmDialog: v }));
+  const setShareModalData = (v: ShareModalState | ((prev: ShareModalState) => ShareModalState)) =>
+    setModalState(s => ({ ...s, shareModalData: typeof v === 'function' ? v(s.shareModalData) : v }));
 
   const askConfirm = (title: string, message: string, onConfirm: () => void) => {
     setConfirmDialog({ title, message, onConfirm });
@@ -1076,8 +1093,7 @@ export default function Feed() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedPostType, setSelectedPostType] = useState('info');
 
-  // Poll state
-  const [showPollCreator, setShowPollCreator] = useState(false);
+  // Poll state — showPollCreator lives in modalState (see above).
   // Consolidated poll-composer state — one object instead of four useState hooks.
   const [pollState, setPollState] = useState<{ choices: string[]; days: number; hours: number; minutes: number }>({
     choices: ['', ''],
