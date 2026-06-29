@@ -1078,10 +1078,18 @@ export default function Feed() {
 
   // Poll state
   const [showPollCreator, setShowPollCreator] = useState(false);
-  const [pollChoices, setPollChoices] = useState<string[]>(['', '']);
-  const [pollDays, setPollDays] = useState(1);
-  const [pollHours, setPollHours] = useState(0);
-  const [pollMinutes, setPollMinutes] = useState(0);
+  // Consolidated poll-composer state — one object instead of four useState hooks.
+  const [pollState, setPollState] = useState<{ choices: string[]; days: number; hours: number; minutes: number }>({
+    choices: ['', ''],
+    days: 1,
+    hours: 0,
+    minutes: 0,
+  });
+  const { choices: pollChoices, days: pollDays, hours: pollHours, minutes: pollMinutes } = pollState;
+  const setPollChoices = (v: string[]) => setPollState(s => ({ ...s, choices: v }));
+  const setPollDays = (v: number) => setPollState(s => ({ ...s, days: v }));
+  const setPollHours = (v: number) => setPollState(s => ({ ...s, hours: v }));
+  const setPollMinutes = (v: number) => setPollState(s => ({ ...s, minutes: v }));
 
   // Firestore listener — stable subscription, no dependency on followingIds/friendIds.
   // This listener only fires when Firestore posts actually change,
