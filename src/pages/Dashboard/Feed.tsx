@@ -907,26 +907,68 @@ function interactionReducer(state: InteractionState, action: InteractionAction):
   }
 }
 
+// ─── Consolidated post-composer upload / crop / pre-upload state ────────────
+// Replaces 10 separate useState hooks (selected/cropped image files, crop flow
+// position, upload progress, and the background pre-upload results) with one
+// reducer. PATCH merges any subset of fields in a single update; the image-file
+// list also supports a functional updater so append/remove stay race-free.
+interface UploadProgress { pct: number; loaded: number; total: number; }
+interface PreUploadedPdf { url: string; pages: number; }
+
+interface UploadState {
+  imageFiles: File[];
+  pendingFiles: File[];
+  cropImageSrc: string | null;
+  currentCropIndex: number;
+  uploadProgress: UploadProgress | null;
+  isPreUploading: boolean;
+  preUploadLabel: string;
+  preUploadedImageUrls: string[];
+  preUploadedVideoUrl: string | null;
+  preUploadedPdfData: PreUploadedPdf | null;
+}
+
+const initialUploadState: UploadState = {
+  imageFiles: [],
+  pendingFiles: [],
+  cropImageSrc: null,
+  currentCropIndex: 0,
+  uploadProgress: null,
+  isPreUploading: false,
+  preUploadLabel: '',
+  preUploadedImageUrls: [],
+  preUploadedVideoUrl: null,
+  preUploadedPdfData: null,
+};
+
+type UploadAction =
+  | { type: 'PATCH'; patch: Partial<UploadState> }
+  | { type: 'UPDATE_IMAGE_FILES'; updater: (prev: File[]) => File[] };
+
+function uploadReducer(state: UploadState, action: UploadAction): UploadState {
+  switch (action.type) {
+    case 'PATCH':
+      return { ...state, ...action.patch };
+    case 'UPDATE_IMAGE_FILES':
+      return { ...state, imageFiles: action.updater(state.imageFiles) };
+    default:
+      return state;
+  }
+}
+
 export default function Feed() {
   const [privacy, setPrivacy] = useState('public');
   const [showPostOptions, setShowPostOptions] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [submittingStatus, setSubmittingStatus] = useState('Posting...');
-  const [uploadProgress, setUploadProgress] = useState<{ pct: number; loaded: number; total: number } | null>(null);
   const [contentType, setContentType] = useState<'all' | 'posts' | 'marketplace'>('all');
   const [shareModalData, setShareModalData] = useState<{isOpen: boolean, url: string, title: string, sharedPost?: any}>({isOpen: false, url: '', title: ''});
-
-  // Image cropper state
-  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [currentCropIndex, setCurrentCropIndex] = useState(0);
 
   const { user, userData } = useAuth();
   const { showToast } = useToast();
@@ -937,6 +979,26 @@ export default function Feed() {
   // Consolidated like/dislike/save state (see interactionReducer above).
   const [interactionState, dispatchInteraction] = useReducer(interactionReducer, initialInteractionState);
   const { upvotedPostIds, downvotedPostIds, savedPostIds, replyUpvotedIds, upvoteMap, downvoteMap, replyUpvoteMap } = interactionState;
+
+  // Consolidated upload / crop / pre-upload state (see uploadReducer above).
+  // Thin same-named adapters keep every existing call site untouched while all
+  // state lives in one reducer.
+  const [uploadState, dispatchUpload] = useReducer(uploadReducer, initialUploadState);
+  const { imageFiles, pendingFiles, cropImageSrc, currentCropIndex, uploadProgress, isPreUploading, preUploadLabel, preUploadedImageUrls, preUploadedVideoUrl, preUploadedPdfData } = uploadState;
+  const patchUpload = (patch: Partial<UploadState>) => dispatchUpload({ type: 'PATCH', patch });
+  const setImageFiles = (v: File[] | ((prev: File[]) => File[])) =>
+    typeof v === 'function'
+      ? dispatchUpload({ type: 'UPDATE_IMAGE_FILES', updater: v })
+      : patchUpload({ imageFiles: v });
+  const setPendingFiles = (v: File[]) => patchUpload({ pendingFiles: v });
+  const setCropImageSrc = (v: string | null) => patchUpload({ cropImageSrc: v });
+  const setCurrentCropIndex = (v: number) => patchUpload({ currentCropIndex: v });
+  const setUploadProgress = (v: UploadProgress | null) => patchUpload({ uploadProgress: v });
+  const setIsPreUploading = (v: boolean) => patchUpload({ isPreUploading: v });
+  const setPreUploadLabel = (v: string) => patchUpload({ preUploadLabel: v });
+  const setPreUploadedImageUrls = (v: string[]) => patchUpload({ preUploadedImageUrls: v });
+  const setPreUploadedVideoUrl = (v: string | null) => patchUpload({ preUploadedVideoUrl: v });
+  const setPreUploadedPdfData = (v: PreUploadedPdf | null) => patchUpload({ preUploadedPdfData: v });
 
   const [wishlisted, setWishlisted] = useState<Set<string>>(new Set());
   const [wishlistMap, setWishlistMap] = useState<Record<string, string>>({});
@@ -983,13 +1045,6 @@ export default function Feed() {
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-
-  // ─── Pre-upload state ─────────────────────────────────────
-  const [preUploadedVideoUrl, setPreUploadedVideoUrl] = useState<string | null>(null);
-  const [preUploadedPdfData, setPreUploadedPdfData] = useState<{ url: string; pages: number } | null>(null);
-  const [preUploadedImageUrls, setPreUploadedImageUrls] = useState<string[]>([]);
-  const [isPreUploading, setIsPreUploading] = useState(false);
-  const [preUploadLabel, setPreUploadLabel] = useState('');
 
   const [searchParams, setSearchParams] = useSearchParams();
   const postIdFromUrl = searchParams.get('postId');
