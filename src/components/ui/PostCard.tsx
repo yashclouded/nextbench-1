@@ -228,18 +228,18 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
           </div>
         </div>
 
-        {/* Title — Playfair Display, editorial */}
+        {/* Title */}
         {post.title && (
-          <h3 className="font-serif text-[21px] md:text-[25px] font-semibold text-luxury-ink leading-[1.25] tracking-[-0.01em] mb-2.5 wrap-break-word">
+          <h3 className="text-[17px] md:text-[19px] font-semibold text-luxury-ink/90 leading-snug tracking-normal mb-2 wrap-break-word">
             {post.title}
           </h3>
         )}
 
-        {/* Content Preview — Source Serif 4, comfortable reading rhythm */}
+        {/* Content Preview */}
         <div className="mb-5">
           <LinkifiedText
             text={post.content}
-            className="font-reading text-[17px] md:text-[18px] text-luxury-ink/75 leading-[1.7] font-normal line-clamp-5 wrap-break-word overflow-wrap-anywhere block"
+            className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-5 wrap-break-word overflow-wrap-anywhere block"
           />
         </div>
 

@@ -53,10 +53,8 @@ brand
 
 ## Typography
 
-- **Sans-serif**: Inter (weights 300, 400, 500, 600, 700). Used for UI chrome, navigation, labels, tabs, buttons, action counts, and metadata.
-- **Display serif**: Playfair Display (weights 400, 600, 700, italic 400). Used for hero headlines, section titles, editorial emphasis, and **feed post titles**.
-- **Reading serif**: Source Serif 4 (weights 400, 500, 600, italic 400). A sturdy text-serif for longform reading — used for **feed post body copy**. Exposed as the `--font-reading` token / `font-reading` utility. Playfair is a high-contrast display face whose thin strokes vanish at body size, so paragraph text uses Source Serif 4 instead.
-- **Principle**: serif for *content* (titles, post bodies), sans for *controls* (everything interactive or chrome).
+- **Sans-serif**: Inter (weights 300, 400, 500, 600, 700). Used for body, UI, navigation, labels.
+- **Serif**: Playfair Display (weights 400, 700, italic 400). Used for hero headlines, section titles, editorial emphasis.
 - **Body line length**: Capped at 65-75ch via `max-w-md`, `max-w-lg`, `max-w-xl`.
 - **Scale**: Large heading steps use 1.25 ratio. Small UI text uses 11-13px with heavy tracking.
 

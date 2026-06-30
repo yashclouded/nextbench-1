@@ -145,7 +145,7 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
             </div>
           </div>
 
-          <h3 className="font-serif text-[17px] font-semibold text-luxury-ink mb-3 truncate">{product.title}</h3>
+          <h3 className="text-[15px] font-semibold text-luxury-ink mb-3 truncate">{product.title}</h3>
 
           <div
             className="aspect-4/3 overflow-hidden relative mb-4 rounded-xl group/carousel"

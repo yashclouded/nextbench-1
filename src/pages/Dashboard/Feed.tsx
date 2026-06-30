@@ -1712,7 +1712,7 @@ export default function Feed() {
           {!user && combinedFeed.length > 0 && !hasMorePosts && !hasMoreProducts && (
             <div className="py-12 px-6 flex flex-col items-center justify-center text-center border-t mt-4 relative z-10" style={{ borderColor: 'var(--color-border)' }}>
               <Lock className="w-12 h-12 text-luxury-ink/20 mb-4" strokeWidth={1.75} />
-              <h3 className="font-serif text-2xl font-semibold text-luxury-ink mb-2">You've reached the end of your preview</h3>
+              <h3 className="text-xl font-bold text-luxury-ink mb-2">You've reached the end of your preview</h3>
               <p className="text-luxury-ink/50 text-sm max-w-sm mb-6">
                 Sign up for free to unlock unlimited posts, full marketplace access, and join the community.
               </p>
@@ -1725,7 +1725,7 @@ export default function Feed() {
           {!loading && combinedFeed.length === 0 && (
             <div className="py-20 text-center px-4">
               <GraduationCap className="mx-auto text-luxury-ink/10 mb-4" size={48} strokeWidth={1.5} />
-              <p className="font-serif text-xl text-luxury-ink/70 mb-1.5">
+              <p className="text-luxury-ink/50 text-base mb-1">
                 {contentType === 'marketplace' ? 'No items listed yet.' : 'No posts yet.'}
               </p>
               <p className="text-sm text-luxury-ink/40">
