@@ -169,11 +169,11 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
   return (
     <>
       <motion.article
-        layout
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0 }}
-        className={`post-card-clean relative p-4 sm:p-6 md:p-8 flex flex-col w-full min-w-0 overflow-x-hidden ${post.type === 'confession' ? 'is-confession' : ''}`}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className={`post-card-clean relative p-5 sm:p-6 md:p-8 flex flex-col w-full min-w-0 overflow-x-hidden ${post.type === 'confession' ? 'is-confession' : ''}`}
         onDoubleClick={handleDoubleClick}
       >
         {/* Big center heart burst, Instagram-style double-tap feedback */}
@@ -208,11 +208,11 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
             </div>
             
             <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
-              <span className="text-[13px] sm:text-[14px] font-semibold text-luxury-ink hover:underline cursor-pointer truncate max-w-30 sm:max-w-180px">{displayInfo.name}</span>
+              <span className="text-[13px] sm:text-[14px] font-semibold text-luxury-ink hover:underline cursor-pointer truncate max-w-[7.5rem] sm:max-w-[11rem]">{displayInfo.name}</span>
               <span className="text-[13px] text-luxury-ink/40">·</span>
               <span className="text-[13px] sm:text-[14px] text-luxury-ink/50 font-medium shrink-0">{timeAgo(post.createdAt)}</span>
               <span className="text-[13px] text-luxury-ink/40 hidden sm:inline">·</span>
-              <span className="text-[13px] sm:text-[14px] text-luxury-ink/50 font-medium truncate max-w-100px sm:max-w-180px hidden sm:inline">{displayInfo.school}</span>
+              <span className="text-[13px] sm:text-[14px] text-luxury-ink/50 font-medium truncate max-w-[6rem] sm:max-w-[11rem] hidden sm:inline">{displayInfo.school}</span>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
