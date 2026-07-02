@@ -495,12 +495,26 @@ export const verifyAuthOtpEmail = onCall(
       }
     }
 
-    // Bypass createCustomToken by setting a strong random password 
-    // and letting the client log in via Email/Password. This avoids IAM signBlob permission issues.
-    const loginPassword = crypto.randomBytes(32).toString("hex");
-    await admin.auth().updateUser(uid, { password: loginPassword });
-
-    return { loginPassword, email: rawEmail, isNewUser };
+    // Preferred path: mint a custom token so the client can sign in without
+    // touching the user's password. This requires the function's service account
+    // to have the "Service Account Token Creator" role (iam.serviceAccounts.signBlob).
+    try {
+      const customToken = await admin.auth().createCustomToken(uid);
+      return { customToken, email: rawEmail, isNewUser };
+    } catch (tokenErr) {
+      // Fallback (legacy behavior): if custom-token signing is unavailable (missing
+      // IAM signBlob permission), rotate to a strong random password and let the
+      // client log in via Email/Password. Kept so login never breaks while the IAM
+      // role is being provisioned. See thingstofix.md 8.1.
+      console.error(
+        "[verifyAuthOtpEmail] createCustomToken failed, falling back to password login. " +
+        "Grant the function service account the 'Service Account Token Creator' role to remove this fallback.",
+        tokenErr
+      );
+      const loginPassword = crypto.randomBytes(32).toString("hex");
+      await admin.auth().updateUser(uid, { password: loginPassword });
+      return { loginPassword, email: rawEmail, isNewUser };
+    }
   }
 );
 

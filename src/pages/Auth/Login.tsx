@@ -9,6 +9,7 @@ import {
   GoogleAuthProvider,
   signOut,
   signInWithEmailAndPassword,
+  signInWithCustomToken,
 } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { doc, getDoc } from 'firebase/firestore';
@@ -214,11 +215,15 @@ export default function Login() {
       const verifyFn = httpsCallable(functions, 'verifyAuthOtpEmail');
       const result: any = await verifyFn({ email: email.trim().toLowerCase(), otp });
 
-      if (!result.data?.loginPassword || !result.data?.email) {
+      // Preferred: custom token (no password mutation). Fall back to the legacy
+      // email/password path if the backend couldn't mint a token (IAM not yet set).
+      if (result.data?.customToken) {
+        await signInWithCustomToken(auth, result.data.customToken);
+      } else if (result.data?.loginPassword && result.data?.email) {
+        await signInWithEmailAndPassword(auth, result.data.email, result.data.loginPassword);
+      } else {
         throw new Error('Authentication failed.');
       }
-      
-      await signInWithEmailAndPassword(auth, result.data.email, result.data.loginPassword);
 
       // Check Firestore profile exists
       const authUser = auth.currentUser;
