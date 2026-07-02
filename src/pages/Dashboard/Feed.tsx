@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, useReducer, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, X, Search, MapPin, School, GraduationCap, Calendar, FileText, Info, ArrowBigUp, MessageSquare, Flame, Share2, Image as ImageIcon, Trash2, Heart, Users, Grid3X3, UserCheck, Bookmark, MoreHorizontal, Globe, Lock, Settings, BarChart3, ChevronLeft, ChevronRight, Paperclip, Film, Pencil } from 'lucide-react';
-import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, orderBy, limit, startAfter, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
@@ -27,7 +27,7 @@ import { useBlockedIds, useBlockedByIds } from '../../lib/blocks';
 import { usePublicClubs, joinClub } from '../../lib/clubs';
 import { savePost, unsavePost } from '../../lib/saves';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
-import { deletePostCascade, getDiscoveryFeed } from '../../lib/discovery';
+import { deletePostCascade } from '../../lib/discovery';
 
 // Minimal spinner used as Suspense fallback for lazy components
 const LazyFallback = () => (
@@ -414,20 +414,39 @@ export default function Feed() {
   const setPollHours = (v: number) => setPollState(s => ({ ...s, hours: v }));
   const setPollMinutes = (v: number) => setPollState(s => ({ ...s, minutes: v }));
 
-  // Discovery feed is served through a callable so block relationships are
-  // enforced before posts/listings reach the client.
+  // Fetch feed directly from Firestore — avoids Cloud Function cold starts,
+  // CORS issues on localhost, and GCP quota failures during deployment.
   useEffect(() => {
     let cancelled = false;
 
     const fetchInitialFeed = async () => {
       try {
-        const data = await getDiscoveryFeed();
+        const [postSnap, productSnap] = await Promise.all([
+          getDocs(query(
+            collection(db, 'posts'),
+            where('status', '==', 'approved'),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          )),
+          getDocs(query(
+            collection(db, 'products'),
+            where('status', 'in', ['available', 'sold']),
+            orderBy('createdAt', 'desc'),
+            limit(10)
+          )),
+        ]);
         if (cancelled) return;
-        setRawPosts(data.posts as Post[]);
-        setProducts(data.products as Product[]);
-        setFeedCursor(data.nextCursor || {});
-        setHasMorePosts(data.hasMorePosts);
-        setHasMoreProducts(data.hasMoreProducts);
+        setRawPosts(postSnap.docs.map(d => ({ id: d.id, ...d.data() } as Post)));
+        setProducts(productSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
+        // Store cursor as millis for next page
+        const lastPost = postSnap.docs[postSnap.docs.length - 1];
+        const lastProduct = productSnap.docs[productSnap.docs.length - 1];
+        setFeedCursor({
+          postCreatedAt: lastPost?.data().createdAt?.toMillis?.(),
+          productCreatedAt: lastProduct?.data().createdAt?.toMillis?.(),
+        });
+        setHasMorePosts(postSnap.size === 20);
+        setHasMoreProducts(productSnap.size === 10);
       } catch (err) {
         console.error('Error fetching feed:', err);
       } finally {
@@ -493,12 +512,45 @@ export default function Feed() {
     setIsLoadingMore(true);
 
     try {
-      const data = await getDiscoveryFeed(feedCursor);
-      setRawPosts(prev => [...prev, ...(data.posts as Post[])]);
-      setProducts(prev => [...prev, ...(data.products as Product[])]);
-      setFeedCursor(data.nextCursor || {});
-      setHasMorePosts(data.hasMorePosts);
-      setHasMoreProducts(data.hasMoreProducts);
+      const queries: Promise<any>[] = [];
+
+      if (hasMorePosts && feedCursor.postCreatedAt) {
+        queries.push(getDocs(query(
+          collection(db, 'posts'),
+          where('status', '==', 'approved'),
+          orderBy('createdAt', 'desc'),
+          startAfter(Timestamp.fromMillis(feedCursor.postCreatedAt)),
+          limit(20)
+        )));
+      } else {
+        queries.push(Promise.resolve(null));
+      }
+
+      if (hasMoreProducts && feedCursor.productCreatedAt) {
+        queries.push(getDocs(query(
+          collection(db, 'products'),
+          where('status', 'in', ['available', 'sold']),
+          orderBy('createdAt', 'desc'),
+          startAfter(Timestamp.fromMillis(feedCursor.productCreatedAt)),
+          limit(10)
+        )));
+      } else {
+        queries.push(Promise.resolve(null));
+      }
+
+      const [postSnap, productSnap] = await Promise.all(queries);
+      if (postSnap) {
+        setRawPosts(prev => [...prev, ...postSnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Post))]);
+        const lastPost = postSnap.docs[postSnap.docs.length - 1];
+        setHasMorePosts(postSnap.size === 20);
+        setFeedCursor(prev => ({ ...prev, postCreatedAt: lastPost?.data().createdAt?.toMillis?.() }));
+      }
+      if (productSnap) {
+        setProducts(prev => [...prev, ...productSnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Product))]);
+        const lastProduct = productSnap.docs[productSnap.docs.length - 1];
+        setHasMoreProducts(productSnap.size === 10);
+        setFeedCursor(prev => ({ ...prev, productCreatedAt: lastProduct?.data().createdAt?.toMillis?.() }));
+      }
     } catch (err) {
       console.error('Error loading more feed items:', err);
     } finally {
