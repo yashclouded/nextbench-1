@@ -86,6 +86,10 @@ export interface DiscoveryReview {
   createdAt: any;
 }
 
+export interface BlockedUser extends DiscoveryUser {
+  blockDocId: string;
+}
+
 export async function getDiscoveryFeed(cursor?: { postCreatedAt?: number; productCreatedAt?: number } | null) {
   const callable = httpsCallable<
     { postCreatedAt?: number; productCreatedAt?: number },
@@ -117,6 +121,12 @@ export async function getPublicUsers(userIds: string[]) {
   if (ids.length === 0) return [];
   const callable = httpsCallable<{ userIds: string[] }, { users: DiscoveryUser[] }>(functions, 'getPublicUsers');
   const result = await callable({ userIds: ids });
+  return result.data.users;
+}
+
+export async function getBlockedUsers() {
+  const callable = httpsCallable<Record<string, never>, { users: BlockedUser[] }>(functions, 'getBlockedUsers');
+  const result = await callable({});
   return result.data.users;
 }
 

@@ -11,6 +11,7 @@ import { useToast } from '../../lib/ToastContext';
 import { claimUsername, validateUsername } from '../../lib/usernames';
 import { PERSONA_NAMES } from '../../lib/confessions';
 import { Link, useNavigate } from 'react-router-dom';
+import { getBlockedUsers } from '../../lib/discovery';
 
 interface ProfileSettingsProps {
   isOpen: boolean;
@@ -146,17 +147,7 @@ export default function ProfileSettings({ isOpen, onClose }: ProfileSettingsProp
     if (!user) return;
     setLoadingBlocked(true);
     try {
-      const q = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
-      const snap = await getDocs(q);
-      const users: any[] = [];
-      for (const d of snap.docs) {
-        const blockData = d.data();
-        const userDoc = await getDoc(doc(db, 'users', blockData.blockedId));
-        if (userDoc.exists()) {
-          users.push({ blockDocId: d.id, id: userDoc.id, ...userDoc.data() });
-        }
-      }
-      setBlockedUsers(users);
+      setBlockedUsers(await getBlockedUsers());
     } catch (err) {
       console.error(err);
     } finally {

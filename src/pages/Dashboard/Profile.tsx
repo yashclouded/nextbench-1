@@ -22,7 +22,7 @@ import ProfileSettings from '../../components/ui/ProfileSettings';
 import SEO from '../../components/seo/SEO';
 import { PdfPreview } from '../../components/ui/PdfViewer';
 import VideoPlayer from '../../components/ui/VideoPlayer';
-import { createInviteCode, deletePostCascade, getPublicProfileContent } from '../../lib/discovery';
+import { createInviteCode, deletePostCascade, getPublicProfileContent, getPublicUsers } from '../../lib/discovery';
 
 
 interface UserProduct {
@@ -618,13 +618,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
   const loadFollowList = async (userIds: string[]) => {
     setLoadingFollowList(true);
     try {
-      const promises = userIds.slice(0, 50).map(async (uid) => {
-        const docSnap = await getDoc(doc(db, 'users', uid));
-        if (docSnap.exists()) return { id: docSnap.id, ...docSnap.data() };
-        return null;
-      });
-      const results = await Promise.all(promises);
-      setFollowListUsers(results.filter(Boolean));
+      setFollowListUsers(await getPublicUsers(userIds.slice(0, 50)));
     } catch (err) {
       console.error('Error loading follow list:', err);
     } finally {

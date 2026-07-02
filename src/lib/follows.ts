@@ -7,6 +7,7 @@ import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { getDoc, doc } from 'firebase/firestore';
 import { isBlockRelationship } from './blocks';
+import { getPublicUsers } from './discovery';
 
 // ─── Follow / Unfollow ───────────────────────────────────
 
@@ -196,8 +197,12 @@ export function useMutualFollowers(targetUserId: string | undefined) {
 
         // 3. Fetch details for up to 3 mutual followers
         const displayIds = mutualIds.slice(0, 3);
-        const userDocs = await Promise.all(displayIds.map(id => getDoc(doc(db, 'users', id))));
-        const mutualUsers = userDocs.map(d => ({ id: d.id, name: d.data()?.name || 'User', profilePicture: d.data()?.profilePicture }));
+        const publicUsers = await getPublicUsers(displayIds);
+        const userById = new Map(publicUsers.map(u => [u.id, u]));
+        const mutualUsers = displayIds
+          .map(id => userById.get(id))
+          .filter(Boolean)
+          .map(u => ({ id: u!.id, name: u!.name || 'User', profilePicture: u!.profilePicture }));
 
         setMutuals({ users: mutualUsers, totalCount: mutualIds.length, mutualIds });
       } catch (err) {
