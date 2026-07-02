@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
@@ -1850,3 +1850,53 @@ export const createNotification = onCall({ invoker: "public", cors: CORS_ORIGINS
 
   return { success: true, id: notifRef.id };
 });
+
+// ─────────────────────────────────────────────────────────────
+// Stories foundation: mirror `follows` (auto-ID docs) into deterministic
+// `follow_edges/{followerId}_{followingId}` docs so Firestore security rules can
+// exists()-check a follow relationship (used by the followers/closeFriends story tiers).
+// This is the single writer of follow_edges; clients may only read them.
+// ─────────────────────────────────────────────────────────────
+
+function followEdgeId(followerId: string, followingId: string): string {
+  return `${followerId}_${followingId}`;
+}
+
+export const mirrorFollowEdgeOnCreate = onDocumentCreated(
+  { document: "follows/{followId}" },
+  async (event) => {
+    const data = event.data?.data();
+    const followerId = data?.followerId;
+    const followingId = data?.followingId;
+    if (!followerId || !followingId) return;
+
+    const edgeRef = db.collection("follow_edges").doc(followEdgeId(followerId, followingId));
+    await edgeRef.set({
+      followerId,
+      followingId,
+      createdAt: data.createdAt ?? admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+);
+
+export const mirrorFollowEdgeOnDelete = onDocumentDeleted(
+  { document: "follows/{followId}" },
+  async (event) => {
+    const data = event.data?.data();
+    const followerId = data?.followerId;
+    const followingId = data?.followingId;
+    if (!followerId || !followingId) return;
+
+    // Only remove the edge if no other follow doc still represents this pair
+    // (defends against duplicate follow docs).
+    const remaining = await db
+      .collection("follows")
+      .where("followerId", "==", followerId)
+      .where("followingId", "==", followingId)
+      .limit(1)
+      .get();
+    if (!remaining.empty) return;
+
+    await db.collection("follow_edges").doc(followEdgeId(followerId, followingId)).delete();
+  }
+);

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createNotification = exports.rateLimitReply = exports.rateLimitMessage = exports.rateLimitPost = exports.deletePostCascade = exports.getLandingStats = exports.getProductReviews = exports.getPostReplies = exports.searchDiscovery = exports.getDiscoveryFeed = exports.isReferralCodeAvailable = exports.lookupReferralCode = exports.searchPublicUsers = exports.getPublicProfileContent = exports.getPublicProfile = exports.getBlockedUsers = exports.getPublicUsers = exports.onUserUpdated = exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
+exports.mirrorFollowEdgeOnDelete = exports.mirrorFollowEdgeOnCreate = exports.createNotification = exports.rateLimitReply = exports.rateLimitMessage = exports.rateLimitPost = exports.deletePostCascade = exports.getLandingStats = exports.getProductReviews = exports.getPostReplies = exports.searchDiscovery = exports.getDiscoveryFeed = exports.isReferralCodeAvailable = exports.lookupReferralCode = exports.searchPublicUsers = exports.getPublicProfileContent = exports.getPublicProfile = exports.getBlockedUsers = exports.getPublicUsers = exports.onUserUpdated = exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -1634,5 +1634,47 @@ exports.createNotification = (0, https_1.onCall)({ invoker: "public", cors: CORS
         createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     return { success: true, id: notifRef.id };
+});
+// ─────────────────────────────────────────────────────────────
+// Stories foundation: mirror `follows` (auto-ID docs) into deterministic
+// `follow_edges/{followerId}_{followingId}` docs so Firestore security rules can
+// exists()-check a follow relationship (used by the followers/closeFriends story tiers).
+// This is the single writer of follow_edges; clients may only read them.
+// ─────────────────────────────────────────────────────────────
+function followEdgeId(followerId, followingId) {
+    return `${followerId}_${followingId}`;
+}
+exports.mirrorFollowEdgeOnCreate = (0, firestore_1.onDocumentCreated)({ document: "follows/{followId}" }, async (event) => {
+    var _a, _b;
+    const data = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
+    const followerId = data === null || data === void 0 ? void 0 : data.followerId;
+    const followingId = data === null || data === void 0 ? void 0 : data.followingId;
+    if (!followerId || !followingId)
+        return;
+    const edgeRef = db.collection("follow_edges").doc(followEdgeId(followerId, followingId));
+    await edgeRef.set({
+        followerId,
+        followingId,
+        createdAt: (_b = data.createdAt) !== null && _b !== void 0 ? _b : admin.firestore.FieldValue.serverTimestamp(),
+    });
+});
+exports.mirrorFollowEdgeOnDelete = (0, firestore_1.onDocumentDeleted)({ document: "follows/{followId}" }, async (event) => {
+    var _a;
+    const data = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
+    const followerId = data === null || data === void 0 ? void 0 : data.followerId;
+    const followingId = data === null || data === void 0 ? void 0 : data.followingId;
+    if (!followerId || !followingId)
+        return;
+    // Only remove the edge if no other follow doc still represents this pair
+    // (defends against duplicate follow docs).
+    const remaining = await db
+        .collection("follows")
+        .where("followerId", "==", followerId)
+        .where("followingId", "==", followingId)
+        .limit(1)
+        .get();
+    if (!remaining.empty)
+        return;
+    await db.collection("follow_edges").doc(followEdgeId(followerId, followingId)).delete();
 });
 //# sourceMappingURL=index.js.map
