@@ -264,12 +264,10 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow get: if canAccessProduct(resource.data);
-      // Sellers can list their own products; admins can list all.
-      // Signed-in users can browse marketplace listings (available/sold)
-      // — query must include where('status', 'in', ['available','sold']).
+      // Public marketplace browsing is served by getDiscoveryFeed/searchDiscovery
+      // so block relationships can be filtered server-side.
       allow list: if isAdmin()
-        || (isSignedIn() && resource.data.sellerId == request.auth.uid)
-        || (isSignedIn() && resource.data.status in ['available', 'sold']);
+        || (isSignedIn() && resource.data.sellerId == request.auth.uid);
       
       allow create: if isVerified() 
         && isValidId(productId)
@@ -543,17 +541,11 @@ service cloud.firestore {
 
     match /posts/{postId} {
       allow get: if canAccessPost(resource.data);
-      // list: allow public approved posts to any signed-in user.
-      // Authors can list their own posts of any status (e.g. profile page).
-      // Block filtering is done client-side in Feed/Search/Profile using
-      // the useAllBlockedUserIds() hook — canAccessPost() calls hasBlockRelationship()
-      // which makes two exists() calls per doc; that is too expensive for list rules
-      // and causes permission-denied on bulk queries.
+      // Public feed/search/profile browsing is served by block-aware callables.
+      // Direct list remains only for admins and a user's own profile posts.
       allow list: if isSignedIn()
         && (isAdmin()
-          || request.auth.uid == resource.data.authorId
-          || (resource.data.status == 'approved'
-            && resource.data.get('privacy', 'public') != 'private'));
+          || request.auth.uid == resource.data.authorId);
 
       allow create: if isVerified()
         && isValidId(postId)

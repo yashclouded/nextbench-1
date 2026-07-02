@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { getDiscoveryFeed } from '../lib/discovery';
 import {
   TrendablePost,
   TrendableProduct,
@@ -19,6 +18,13 @@ interface TrendingData {
   trendingProduct: ScoredProduct | null;
   activeToday: number;
   loading: boolean;
+}
+
+function trendTimestamp(value: any) {
+  if (typeof value === 'number') {
+    return { toMillis: () => value };
+  }
+  return value;
 }
 
 export function useTrending(): TrendingData {
@@ -41,72 +47,49 @@ export function useTrending(): TrendingData {
     let cancelled = false;
     setLoading(true);
 
-    // Direct Firestore queries — faster than Cloud Function (no cold start),
-    // no CORS risk, and works regardless of function deployment status.
-    const postsQuery = query(
-      collection(db, 'posts'),
-      where('status', '==', 'approved'),
-      orderBy('createdAt', 'desc'),
-      limit(40)
-    );
-    const productsQuery = query(
-      collection(db, 'products'),
-      where('status', 'in', ['available', 'sold']),
-      orderBy('createdAt', 'desc'),
-      limit(30)
-    );
-
-    Promise.all([getDocs(postsQuery), getDocs(productsQuery)])
-      .then(([postSnap, productSnap]) => {
+    getDiscoveryFeed()
+      .then(({ posts, products }) => {
         if (cancelled) return;
 
-        setRawPosts(postSnap.docs.map(d => {
-          const data = d.data();
-          const createdAtMillis = data.createdAt?.toMillis?.() ?? 0;
-          return {
-            id: d.id,
-            title: data.title || '',
-            content: data.content || '',
-            authorId: data.authorId || '',
-            authorName: data.authorName || 'Unknown',
-            authorProfilePicture: data.authorProfilePicture || undefined,
-            authorUsername: data.authorUsername || null,
-            school: data.school || '',
-            city: data.city,
-            type: data.type || 'others',
-            imageUrl: data.imageUrl,
-            imageUrls: data.imageUrls,
-            upvotesCount: data.upvotesCount || 0,
-            repliesCount: data.repliesCount || 0,
-            sharesCount: data.sharesCount || 0,
-            createdAt: { toMillis: () => createdAtMillis },
-          } as TrendablePost;
-        }));
+        setRawPosts(posts.map((post) => ({
+          id: post.id,
+          title: post.title || '',
+          content: post.content || '',
+          authorId: post.authorId || '',
+          authorName: post.authorName || 'Unknown',
+          authorProfilePicture: post.authorProfilePicture || undefined,
+          authorUsername: (post as any).authorUsername || null,
+          school: post.school || '',
+          city: post.city,
+          type: post.type || 'others',
+          imageUrl: post.imageUrl,
+          imageUrls: post.imageUrls,
+          upvotesCount: post.upvotesCount || 0,
+          repliesCount: post.repliesCount || 0,
+          sharesCount: (post as any).sharesCount || 0,
+          createdAt: trendTimestamp(post.createdAt),
+        } as TrendablePost)));
 
-        setRawProducts(productSnap.docs.map(d => {
-          const data = d.data();
-          const createdAtMillis = data.createdAt?.toMillis?.() ?? 0;
-          return {
-            id: d.id,
-            title: data.title || '',
-            price: data.price || 0,
-            category: data.category || '',
-            condition: data.condition || '',
-            image: data.image || data.imageUrl || '',
-            status: data.status || 'available',
-            sellerId: data.sellerId || '',
-            sellerName: data.sellerName || 'Unknown',
-            sellerSchool: data.sellerSchool || '',
-            city: data.city,
-            createdAt: { toMillis: () => createdAtMillis },
-            wishlistCount: data.wishlistCount || 0,
-            inquiryCount: data.inquiryCount || 0,
-          } as TrendableProduct;
-        }));
+        setRawProducts(products.map((product) => ({
+          id: product.id,
+          title: product.title || '',
+          price: product.price || 0,
+          category: product.category || '',
+          condition: product.condition || '',
+          image: product.image || '',
+          status: product.status || 'available',
+          sellerId: product.sellerId || '',
+          sellerName: product.sellerName || 'Unknown',
+          sellerSchool: product.sellerSchool || '',
+          city: product.city,
+          createdAt: trendTimestamp(product.createdAt),
+          wishlistCount: (product as any).wishlistCount || 0,
+          inquiryCount: (product as any).inquiryCount || 0,
+        } as TrendableProduct)));
       })
       .catch((error) => {
         if (!cancelled) {
-          console.error('Trending: Error fetching data:', error);
+          console.error('Trending: Error fetching discovery feed:', error);
           setRawPosts([]);
           setRawProducts([]);
         }
