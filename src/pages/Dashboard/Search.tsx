@@ -109,39 +109,19 @@ export default function Search() {
             setProducts(fetchedProducts);
             setClubs(fetchedClubs);
           } catch (fnErr) {
-            // Cloud Function unavailable (CORS, cold-start timeout, quota).
-            // Fall back to direct Firestore so the search page isn't empty.
-            console.warn('searchDiscovery unavailable, falling back to direct Firestore:', fnErr);
+            console.warn('searchDiscovery unavailable:', fnErr);
             try {
-              const [postSnap, productSnap, clubsSnap] = await Promise.all([
-                getDocs(query(
-                  collection(db, 'posts'),
-                  where('status', '==', 'approved'),
-                  limit(20)
-                )),
-                getDocs(query(
-                  collection(db, 'products'),
-                  where('status', 'in', ['available', 'sold']),
-                  limit(10)
-                )),
-                getDocs(query(collection(db, 'clubs'), where('type', '==', 'public'), limit(5))),
-              ]);
-
-              const fallbackPosts = postSnap.docs
-                .map(d => ({ id: d.id, ...d.data() } as any))
-                .filter((p: any) => !allBlockedIds.has(p.authorId));
-              const fallbackProducts = productSnap.docs
-                .map(d => ({ id: d.id, ...d.data() } as any))
-                .filter((p: any) => !allBlockedIds.has(p.sellerId));
+              const clubsSnap = await getDocs(query(collection(db, 'clubs'), where('type', '==', 'public'), limit(5)));
               const fallbackClubs = clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
-              setSuggestedPosts(fallbackPosts);
-              setSuggestedProducts(fallbackProducts);
+              setSuggestedUsers([]);
+              setSuggestedPosts([]);
+              setSuggestedProducts([]);
               setSuggestedClubs(fallbackClubs);
-              setPosts(fallbackPosts);
-              setProducts(fallbackProducts);
+              setUsers([]);
+              setPosts([]);
+              setProducts([]);
               setClubs(fallbackClubs);
-              // Users section stays empty — can't list users directly via Firestore rules
             } catch (err) {
               console.error('Failed to load suggestions:', err);
             }

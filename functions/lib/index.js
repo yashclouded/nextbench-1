@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createNotification = exports.rateLimitReply = exports.rateLimitMessage = exports.rateLimitPost = exports.deletePostCascade = exports.getLandingStats = exports.getProductReviews = exports.getPostReplies = exports.searchDiscovery = exports.getDiscoveryFeed = exports.isReferralCodeAvailable = exports.lookupReferralCode = exports.searchPublicUsers = exports.getPublicProfileContent = exports.getPublicProfile = exports.getBlockedUsers = exports.getPublicUsers = exports.onUserUpdated = exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
+exports.notifyOnFirstStory = exports.mirrorFollowEdgeOnDelete = exports.mirrorFollowEdgeOnCreate = exports.createNotification = exports.rateLimitReply = exports.rateLimitMessage = exports.rateLimitPost = exports.deletePostCascade = exports.getLandingStats = exports.getProductReviews = exports.getPostReplies = exports.searchDiscovery = exports.getDiscoveryFeed = exports.isReferralCodeAvailable = exports.lookupReferralCode = exports.searchPublicUsers = exports.getPublicProfileContent = exports.getPublicProfile = exports.getBlockedUsers = exports.getPublicUsers = exports.onUserUpdated = exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -1634,5 +1634,113 @@ exports.createNotification = (0, https_1.onCall)({ invoker: "public", cors: CORS
         createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     return { success: true, id: notifRef.id };
+});
+// ─────────────────────────────────────────────────────────────
+// Stories foundation: mirror `follows` (auto-ID docs) into deterministic
+// `follow_edges/{followerId}_{followingId}` docs so Firestore security rules can
+// exists()-check a follow relationship (used by the followers/closeFriends story tiers).
+// This is the single writer of follow_edges; clients may only read them.
+// ─────────────────────────────────────────────────────────────
+function followEdgeId(followerId, followingId) {
+    return `${followerId}_${followingId}`;
+}
+exports.mirrorFollowEdgeOnCreate = (0, firestore_1.onDocumentCreated)({ document: "follows/{followId}" }, async (event) => {
+    var _a, _b;
+    const data = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
+    const followerId = data === null || data === void 0 ? void 0 : data.followerId;
+    const followingId = data === null || data === void 0 ? void 0 : data.followingId;
+    if (!followerId || !followingId)
+        return;
+    const edgeRef = db.collection("follow_edges").doc(followEdgeId(followerId, followingId));
+    await edgeRef.set({
+        followerId,
+        followingId,
+        createdAt: (_b = data.createdAt) !== null && _b !== void 0 ? _b : admin.firestore.FieldValue.serverTimestamp(),
+    });
+});
+exports.mirrorFollowEdgeOnDelete = (0, firestore_1.onDocumentDeleted)({ document: "follows/{followId}" }, async (event) => {
+    var _a;
+    const data = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
+    const followerId = data === null || data === void 0 ? void 0 : data.followerId;
+    const followingId = data === null || data === void 0 ? void 0 : data.followingId;
+    if (!followerId || !followingId)
+        return;
+    // Only remove the edge if no other follow doc still represents this pair
+    // (defends against duplicate follow docs).
+    const remaining = await db
+        .collection("follows")
+        .where("followerId", "==", followerId)
+        .where("followingId", "==", followingId)
+        .limit(1)
+        .get();
+    if (!remaining.empty)
+        return;
+    await db.collection("follow_edges").doc(followEdgeId(followerId, followingId)).delete();
+});
+// ─────────────────────────────────────────────────────────────
+// Stories: notify followers when a user posts their FIRST story after being inactive
+// (no story in the prior 3 days, or ever). The inactivity gap is the anti-spam guard —
+// stories posted in a burst won't re-notify. In-app notifications only; blocked skipped.
+// ─────────────────────────────────────────────────────────────
+const STORY_INACTIVITY_GAP_MS = 3 * 24 * 60 * 60 * 1000;
+exports.notifyOnFirstStory = (0, firestore_1.onDocumentCreated)({ document: "stories/{storyId}" }, async (event) => {
+    var _a, _b, _c;
+    const snap = event.data;
+    if (!snap)
+        return;
+    const story = snap.data();
+    const authorId = story === null || story === void 0 ? void 0 : story.authorId;
+    const createdAt = story === null || story === void 0 ? void 0 : story.createdAt;
+    if (!authorId || !createdAt)
+        return;
+    // Find the author's previous story (most recent before this one).
+    const prev = await db
+        .collection("stories")
+        .where("authorId", "==", authorId)
+        .where("createdAt", "<", createdAt)
+        .orderBy("createdAt", "desc")
+        .limit(1)
+        .get();
+    if (!prev.empty) {
+        const prevCreatedAt = prev.docs[0].data().createdAt;
+        const gap = createdAt.toMillis() - ((_a = prevCreatedAt === null || prevCreatedAt === void 0 ? void 0 : prevCreatedAt.toMillis()) !== null && _a !== void 0 ? _a : 0);
+        if (gap < STORY_INACTIVITY_GAP_MS)
+            return; // recently active → don't notify
+    }
+    const authorSnap = await db.collection("users").doc(authorId).get();
+    const authorName = ((_b = authorSnap.data()) === null || _b === void 0 ? void 0 : _b.name) || ((_c = authorSnap.data()) === null || _c === void 0 ? void 0 : _c.username) || "Someone";
+    const followsSnap = await db.collection("follows").where("followingId", "==", authorId).get();
+    const followerIds = Array.from(new Set(followsSnap.docs.map((d) => d.data().followerId).filter(Boolean)));
+    if (followerIds.length === 0)
+        return;
+    let batch = db.batch();
+    let inBatch = 0;
+    let notified = 0;
+    for (const followerId of followerIds) {
+        if (followerId === authorId)
+            continue;
+        if (await hasBlockRelationship(authorId, followerId))
+            continue;
+        const ref = db.collection("notifications").doc();
+        batch.set(ref, {
+            userId: followerId,
+            type: "story_posted",
+            title: "New story",
+            message: `${authorName} just posted a story.`,
+            link: "/community",
+            read: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        inBatch++;
+        notified++;
+        if (inBatch >= 450) {
+            await batch.commit();
+            batch = db.batch();
+            inBatch = 0;
+        }
+    }
+    if (inBatch > 0)
+        await batch.commit();
+    console.log(`[story notif] ${authorId} first-after-gap → notified ${notified} followers`);
 });
 //# sourceMappingURL=index.js.map

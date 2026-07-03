@@ -96,6 +96,55 @@ service cloud.firestore {
             && !hasBlockRelationship(request.auth.uid, data.followingId)));
     }
 
+    // ─── Stories helpers ───────────────────────────────────
+    function storyDoc(storyId) {
+      return /databases/$(database)/documents/stories/$(storyId);
+    }
+    function followEdgeDoc(followerId, followingId) {
+      return /databases/$(database)/documents/follow_edges/$(followerId + '_' + followingId);
+    }
+    // A story is "active" iff not removed and posted within the last 24h.
+    // Expiry is derived from createdAt (kept-forever archive model).
+    function isActiveStory(d) {
+      return d.status == 'active'
+        && d.createdAt is timestamp
+        && d.createdAt > request.time - duration.value(24, 'h');
+    }
+    function isPublicStory(d) {
+      return d.get('privacy', 'public') == 'public';
+    }
+    // Owner always sees own (incl. expired archive). Others need an active story that is
+    // either public, or a followers/closeFriends tier they hold a follow-edge for.
+    function canViewStory(d) {
+      return isSignedIn()
+        && !hasBlockRelationship(request.auth.uid, d.authorId)
+        && (request.auth.uid == d.authorId
+          || (isActiveStory(d)
+            && (isPublicStory(d)
+              || (d.privacy in ['followers', 'closeFriends']
+                && exists(followEdgeDoc(request.auth.uid, d.authorId))))));
+    }
+    function isValidStoryCreate(d, storyId) {
+      return isValidId(storyId)
+        && d.authorId == request.auth.uid
+        && d.keys().hasAll(['authorId', 'authorUsername', 'authorPhotoURL', 'mediaType', 'mediaUrl', 'mediaPath', 'posterUrl', 'posterPath', 'width', 'height', 'layers', 'privacy', 'status', 'createdAt', 'expiresAt'])
+        && d.keys().hasOnly(['authorId', 'authorUsername', 'authorPhotoURL', 'mediaType', 'mediaUrl', 'mediaPath', 'posterUrl', 'posterPath', 'width', 'height', 'durationMs', 'layers', 'privacy', 'status', 'createdAt', 'expiresAt'])
+        && d.mediaType in ['image', 'video']
+        && d.mediaUrl is string && d.mediaUrl.size() > 0 && d.mediaUrl.size() <= 2000
+        && d.mediaPath is string && d.mediaPath.size() > 0 && d.mediaPath.size() <= 500
+        && (d.posterUrl == null || (d.posterUrl is string && d.posterUrl.size() <= 2000))
+        && (d.posterPath == null || (d.posterPath is string && d.posterPath.size() <= 500))
+        && (d.authorPhotoURL == null || (d.authorPhotoURL is string && d.authorPhotoURL.size() <= 2000))
+        && d.authorUsername is string && d.authorUsername.size() <= 100
+        && d.width is number && d.height is number
+        && (!d.keys().hasAny(['durationMs']) || d.durationMs is number)
+        && d.layers is list && d.layers.size() <= 30
+        && d.privacy in ['public', 'followers', 'closeFriends']
+        && d.status == 'active'
+        && d.createdAt == request.time
+        && d.expiresAt is timestamp;
+    }
+
     function isValidUser(data) {
       return data.keys().hasAll(["name", "email", "school", "verified", "createdAt", "updatedAt"])
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
@@ -184,6 +233,11 @@ service cloud.firestore {
           && request.auth.uid == referredId
           && incoming().timestamp == request.time;
       }
+
+      // Private per-user documents (e.g. storySeen ring state). Owner-only.
+      match /private/{docId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
     }
 
     function isValidProduct(data) {
@@ -210,12 +264,10 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow get: if canAccessProduct(resource.data);
-      // Sellers can list their own products; admins can list all.
-      // Signed-in users can browse marketplace listings (available/sold)
-      // — query must include where('status', 'in', ['available','sold']).
+      // Public marketplace browsing is served by getDiscoveryFeed/searchDiscovery
+      // so block relationships can be filtered server-side.
       allow list: if isAdmin()
-        || (isSignedIn() && resource.data.sellerId == request.auth.uid)
-        || (isSignedIn() && resource.data.status in ['available', 'sold']);
+        || (isSignedIn() && resource.data.sellerId == request.auth.uid);
       
       allow create: if isVerified() 
         && isValidId(productId)
@@ -489,17 +541,11 @@ service cloud.firestore {
 
     match /posts/{postId} {
       allow get: if canAccessPost(resource.data);
-      // list: allow public approved posts to any signed-in user.
-      // Authors can list their own posts of any status (e.g. profile page).
-      // Block filtering is done client-side in Feed/Search/Profile using
-      // the useAllBlockedUserIds() hook — canAccessPost() calls hasBlockRelationship()
-      // which makes two exists() calls per doc; that is too expensive for list rules
-      // and causes permission-denied on bulk queries.
+      // Public feed/search/profile browsing is served by block-aware callables.
+      // Direct list remains only for admins and a user's own profile posts.
       allow list: if isSignedIn()
         && (isAdmin()
-          || request.auth.uid == resource.data.authorId
-          || (resource.data.status == 'approved'
-            && resource.data.get('privacy', 'public') != 'private'));
+          || request.auth.uid == resource.data.authorId);
 
       allow create: if isVerified()
         && isValidId(postId)
@@ -654,6 +700,68 @@ service cloud.firestore {
           || (resource.data.followingId == request.auth.uid
             && exists(blockDoc(request.auth.uid, resource.data.followerId)))
           || isAdmin());
+    }
+
+    // === STORIES ===
+    match /stories/{storyId} {
+      // Tray/list queries are scoped to authorId in {self + followees}, so every
+      // matched doc passes canViewStory. Public stories short-circuit before any
+      // exists() call, keeping list within Firestore's per-query lookup limit.
+      allow get: if canViewStory(resource.data);
+      allow list: if canViewStory(resource.data);
+
+      allow create: if isVerified() && isValidStoryCreate(incoming(), storyId);
+
+      // Owner may edit only status/privacy/layers; media + provenance are immutable.
+      allow update: if isVerified()
+        && existing().authorId == request.auth.uid
+        && incoming().authorId == existing().authorId
+        && incoming().createdAt == existing().createdAt
+        && incoming().mediaPath == existing().mediaPath
+        && incoming().mediaUrl == existing().mediaUrl
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'privacy', 'layers'])
+        && incoming().status in ['active', 'removed']
+        && incoming().privacy in ['public', 'followers', 'closeFriends']
+        && incoming().layers is list && incoming().layers.size() <= 30;
+
+      allow delete: if isVerified()
+        && (existing().authorId == request.auth.uid || isAdmin());
+
+      // Per-viewer view records. Doc id IS the viewer uid → once-per-viewer dedup.
+      match /views/{viewerId} {
+        allow get: if isSignedIn()
+          && (viewerId == request.auth.uid
+            || (exists(storyDoc(storyId)) && get(storyDoc(storyId)).data.authorId == request.auth.uid));
+        // Owner-only list of viewers.
+        allow list: if isSignedIn()
+          && exists(storyDoc(storyId))
+          && get(storyDoc(storyId)).data.authorId == request.auth.uid;
+
+        allow create: if isVerified()
+          && viewerId == request.auth.uid
+          && exists(storyDoc(storyId))
+          && get(storyDoc(storyId)).data.authorId != request.auth.uid
+          && canViewStory(get(storyDoc(storyId)).data)
+          && incoming().keys().hasOnly(['viewerId', 'firstViewedAt', 'lastViewedAt'])
+          && incoming().viewerId == request.auth.uid
+          && incoming().firstViewedAt == request.time
+          && incoming().lastViewedAt == request.time;
+
+        allow update: if isVerified()
+          && viewerId == request.auth.uid
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lastViewedAt'])
+          && incoming().lastViewedAt == request.time;
+      }
+    }
+
+    // === FOLLOW EDGES ===
+    // Deterministic mirror of `follows` (auto-ID docs can't be path-looked-up in rules).
+    // Written exclusively by the admin-SDK `mirrorFollowEdge` Cloud Function.
+    match /follow_edges/{edgeId} {
+      allow get, list: if isSignedIn()
+        && (resource.data.followerId == request.auth.uid
+          || resource.data.followingId == request.auth.uid);
+      allow write: if false;
     }
 
     // === SCHOOL REQUESTS ===
