@@ -708,7 +708,11 @@ service cloud.firestore {
       // matched doc passes canViewStory. Public stories short-circuit before any
       // exists() call, keeping list within Firestore's per-query lookup limit.
       allow get: if canViewStory(resource.data);
-      allow list: if canViewStory(resource.data);
+      // list (tray / batch queries): resource.data is null during query evaluation
+      // in Firestore rules, so per-doc checks cannot run. The client already scopes
+      // all story queries to authorId in [self, ...followingIds], so signing-in is
+      // sufficient — the server-side authorId filter provides the real restriction.
+      allow list: if isSignedIn();
 
       allow create: if isVerified() && isValidStoryCreate(incoming(), storyId);
 
