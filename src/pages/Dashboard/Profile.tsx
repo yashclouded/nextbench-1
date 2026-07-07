@@ -655,6 +655,17 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
 
   // ─── Derived listing/post data (must run before any early return) ─────
 
+  // Safely extract milliseconds from a timestamp value that may be either
+  // a Firestore Timestamp (own-profile onSnapshot) or a plain number
+  // (other-profile data returned by the getPublicProfileContent cloud function).
+  const tsMs = (ts: any): number => {
+    if (!ts) return 0;
+    if (typeof ts === 'number') return ts;
+    if (typeof ts?.toMillis === 'function') return ts.toMillis();
+    if (typeof ts?.seconds === 'number') return ts.seconds * 1000;
+    return 0;
+  };
+
   const activeListings = myListings.filter(p => p.status === 'available');
   const pendingListings = myListings.filter(p => p.status === 'pending');
   const soldListings = myListings.filter(p => p.status === 'sold');
@@ -664,7 +675,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     const arr = [...displayedListings];
     switch (listingSort) {
       case 'oldest':
-        arr.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+        arr.sort((a, b) => tsMs(a.createdAt) - tsMs(b.createdAt));
         break;
       case 'price-asc':
         arr.sort((a, b) => (a.price || 0) - (b.price || 0));
@@ -673,7 +684,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
         arr.sort((a, b) => (b.price || 0) - (a.price || 0));
         break;
       default:
-        arr.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+        arr.sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
     }
     return arr;
   }, [displayedListings, listingSort]);
@@ -682,7 +693,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     const arr = myPosts.filter(post => post.privacy !== 'private' || isFriend || isOwnProfile);
     switch (postSort) {
       case 'oldest':
-        arr.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
+        arr.sort((a, b) => tsMs(a.createdAt) - tsMs(b.createdAt));
         break;
       case 'most-liked':
         arr.sort((a, b) => (b.upvotesCount || 0) - (a.upvotesCount || 0));
@@ -691,7 +702,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
         arr.sort((a, b) => (b.repliesCount || 0) - (a.repliesCount || 0));
         break;
       default:
-        arr.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+        arr.sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
     }
     return arr;
   }, [myPosts, isFriend, isOwnProfile, postSort]);
