@@ -309,7 +309,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         {(post as any).videoUrl && (
           <div className="relative mt-2 mb-6 w-full">
             <Suspense fallback={<LazyFallback />}>
-              <VideoPlayer src={(post as any).videoUrl} />
+              <VideoPlayer src={(post as any).videoUrl} poster={post.imageUrls?.[0] || post.imageUrl} />
             </Suspense>
           </div>
         )}

@@ -569,6 +569,7 @@ export default function PostDetailModal({
               <Suspense fallback={<LazyFallback />}>
                 <VideoPlayer
                   src={(post as any).videoUrl}
+                  poster={postImageUrls?.[0] || (post as any).imageUrl}
                   className="w-full h-auto max-h-[60vh] object-contain"
                 />
               </Suspense>
