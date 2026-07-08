@@ -1293,6 +1293,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
                     <div className="relative w-full aspect-video overflow-hidden bg-black" onClick={(e) => e.stopPropagation()}>
                       <VideoPlayer
                         src={post.videoUrl}
+                        poster={postImageUrls?.[0]}
                         className="w-full h-full object-contain"
                       />
                       <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none">
