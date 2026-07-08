@@ -7,7 +7,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import SEO from '../../components/seo/SEO';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
-import { uploadPostImage, uploadPostPdf, uploadPostVideo } from '../../lib/storage';
+import { uploadPostImage, uploadPostPdf, uploadPostVideo, extractVideoThumbnail, uploadVideoThumbnail } from '../../lib/storage';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useFollowingIds } from '../../lib/follows';
 import { isTextSafe } from '../../lib/moderation';
@@ -238,6 +238,7 @@ interface UploadState {
   preUploadLabel: string;
   preUploadedImageUrls: string[];
   preUploadedVideoUrl: string | null;
+  preUploadedVideoThumbnail: string | null;
   preUploadedPdfData: PreUploadedPdf | null;
 }
 
@@ -251,6 +252,7 @@ const initialUploadState: UploadState = {
   preUploadLabel: '',
   preUploadedImageUrls: [],
   preUploadedVideoUrl: null,
+  preUploadedVideoThumbnail: null,
   preUploadedPdfData: null,
 };
 
@@ -294,7 +296,7 @@ export default function Feed() {
   // Thin same-named adapters keep every existing call site untouched while all
   // state lives in one reducer.
   const [uploadState, dispatchUpload] = useReducer(uploadReducer, initialUploadState);
-  const { imageFiles, pendingFiles, cropImageSrc, currentCropIndex, uploadProgress, isPreUploading, preUploadLabel, preUploadedImageUrls, preUploadedVideoUrl, preUploadedPdfData } = uploadState;
+  const { imageFiles, pendingFiles, cropImageSrc, currentCropIndex, uploadProgress, isPreUploading, preUploadLabel, preUploadedImageUrls, preUploadedVideoUrl, preUploadedVideoThumbnail, preUploadedPdfData } = uploadState;
   const patchUpload = (patch: Partial<UploadState>) => dispatchUpload({ type: 'PATCH', patch });
   const setImageFiles = (v: File[] | ((prev: File[]) => File[])) =>
     typeof v === 'function'
@@ -308,6 +310,7 @@ export default function Feed() {
   const setPreUploadLabel = (v: string) => patchUpload({ preUploadLabel: v });
   const setPreUploadedImageUrls = (v: string[]) => patchUpload({ preUploadedImageUrls: v });
   const setPreUploadedVideoUrl = (v: string | null) => patchUpload({ preUploadedVideoUrl: v });
+  const setPreUploadedVideoThumbnail = (v: string | null) => patchUpload({ preUploadedVideoThumbnail: v });
   const setPreUploadedPdfData = (v: PreUploadedPdf | null) => patchUpload({ preUploadedPdfData: v });
 
   const [wishlisted, setWishlisted] = useState<Set<string>>(new Set());
@@ -963,7 +966,7 @@ export default function Feed() {
               userId: followerId, 
               type: 'new_post', 
               title: 'New Post', 
-              message: `${authorName} just posted: "${title}"`, 
+              message: title?.trim() ? `${authorName} just posted: "${title}"` : `${authorName} just shared a new post`, 
               link: `/post/${postDocRef.id}`,
               postId: postDocRef.id
             });
@@ -1753,15 +1756,15 @@ export default function Feed() {
                     <input
                       name="title"
                       type="text"
-                      required
-                      placeholder="Title"
+                      required={imageFiles.length === 0 && !pdfFile && !videoFile}
+                      placeholder={imageFiles.length > 0 ? 'Title (optional)' : 'Title'}
                       className="w-full bg-transparent text-3xl font-bold text-luxury-ink placeholder-luxury-ink/30 focus:outline-none"
                     />
 
                     <textarea
                       name="content"
-                      required
-                      placeholder="What's on your mind?"
+                      required={imageFiles.length === 0 && !pdfFile && !videoFile}
+                      placeholder={imageFiles.length > 0 ? 'Caption (optional)...' : "What's on your mind?"}
                       className="w-full flex-1 bg-transparent text-[16px] leading-relaxed text-luxury-ink/80 placeholder-luxury-ink/40 focus:outline-none resize-none min-h-75"
                     ></textarea>
 

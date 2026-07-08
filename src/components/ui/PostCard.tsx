@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import PollDisplay from './PollDisplay';
 import { useNavigate } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Flag, Flame, ChevronLeft, ChevronRight, FileText, X, Users as UsersIcon } from 'lucide-react';
 // Lazy-load heavy renderers — only needed for posts with PDF or video content
 const PdfViewer = lazy(() => import('./PdfViewer'));
 const PdfPreview = lazy(() => import('./PdfViewer').then(m => ({ default: m.PdfPreview })));
@@ -13,14 +13,144 @@ import { getPersonaDisplay } from '../../lib/confessions';
 import ReportModal from './ReportModal';
 import LinkifiedText from './LinkifiedText';
 import { useToast } from '../../lib/ToastContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { createPortal } from 'react-dom';
 
 const LazyFallback = () => (
   <div className="flex items-center justify-center p-4">
     <div className="w-4 h-4 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
   </div>
 );
+
+// ─── Liked By Modal ─────────────────────────────────────────
+interface LikerUser {
+  uid: string;
+  name: string;
+  profilePicture?: string;
+  username?: string;
+}
+
+function LikedByModal({ postId, count, onClose }: { postId: string; count: number; onClose: () => void }) {
+  const [likers, setLikers] = useState<LikerUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchLikers = async () => {
+      try {
+        const q = query(
+          collection(db, 'post_upvotes'),
+          where('postId', '==', postId),
+          limit(100)
+        );
+        const snap = await getDocs(q);
+        const userIds = snap.docs.map(d => d.data().userId as string).filter(Boolean);
+        // Batch fetch user profiles
+        const users = await Promise.all(
+          userIds.map(async (uid) => {
+            try {
+              const userSnap = await getDoc(doc(db, 'users', uid));
+              if (userSnap.exists()) {
+                const data = userSnap.data();
+                return { uid, name: data.name || 'User', profilePicture: data.profilePicture, username: data.username };
+              }
+            } catch {}
+            return { uid, name: 'User' };
+          })
+        );
+        if (!cancelled) setLikers(users);
+      } catch {}
+      if (!cancelled) setLoading(false);
+    };
+    fetchLikers();
+    return () => { cancelled = true; };
+  }, [postId]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-luxury-ink/30 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0, y: 10 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-surface-card w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-luxury-ink/8">
+          <div className="flex items-center gap-2">
+            <Heart size={18} className="fill-brand-pink text-brand-pink" />
+            <span className="font-bold text-luxury-ink text-[15px]">
+              {count > 0 ? `${count} Like${count !== 1 ? 's' : ''}` : 'Likes'}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-luxury-ink/8 hover:bg-luxury-ink/15 text-luxury-ink/50 hover:text-luxury-ink transition-all"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="max-h-80 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-6 h-6 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : likers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <UsersIcon size={28} className="text-luxury-ink/20" />
+              <p className="text-[13px] text-luxury-ink/40 font-medium">No likes yet</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-luxury-ink/5">
+              {likers.map(liker => (
+                <li key={liker.uid}>
+                  <button
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface-soft transition-colors text-left"
+                    onClick={() => {
+                      onClose();
+                      navigate(liker.username ? `/u/${liker.username}` : `/profile/${liker.uid}`);
+                    }}
+                  >
+                    <div className="w-9 h-9 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-sm overflow-hidden shrink-0">
+                      {liker.profilePicture ? (
+                        <img src={getOptimizedImageUrl(liker.profilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                      ) : liker.name[0]?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-semibold text-luxury-ink truncate">{liker.name}</p>
+                      {liker.username && (
+                        <p className="text-[11px] text-luxury-ink/40 font-medium">@{liker.username}</p>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
 
 interface Post {
   id: string;
@@ -144,6 +274,9 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
   const profileLink = displayInfo.isAnonymous ? '#' : (post.authorUsername ? `/u/${post.authorUsername}` : `/profile/${post.authorId}`);
 
   const typeLabel = POST_TYPES.find(t => t.id === post.type)?.label || post.type;
+
+  // Liked-by modal
+  const [showLikedBy, setShowLikedBy] = useState(false);
 
   const handleProfileClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -339,16 +472,19 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
                 </motion.span>
               </motion.span>
               <AnimatePresence mode="popLayout">
-                <motion.span
+                <motion.button
                   key={post.upvotesCount || 0}
                   initial={{ y: -6, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: 6, opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="tabular-nums pr-1.5"
+                  className="tabular-nums pr-1.5 hover:underline cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); if ((post.upvotesCount || 0) > 0) setShowLikedBy(true); }}
+                  aria-label="See who liked this post"
+                  type="button"
                 >
                   {post.upvotesCount || 0}
-                </motion.span>
+                </motion.button>
               </AnimatePresence>
             </button>
 
@@ -428,6 +564,17 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         contentType="post"
         contentId={post.id}
       />
+
+      {/* Liked By Modal */}
+      <AnimatePresence>
+        {showLikedBy && (
+          <LikedByModal
+            postId={post.id}
+            count={post.upvotesCount || 0}
+            onClose={() => setShowLikedBy(false)}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
