@@ -61,9 +61,15 @@ export default function StoryViewer({ tray, initialAuthorIndex, currentUid, curr
   const [viewersOpen, setViewersOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
 
   const entry = tray[cursor.authorIndex];
   const story = entry?.stories[cursor.storyIndex];
+
+  // Reset mediaLoaded whenever the active story changes so the loader shows again.
+  useEffect(() => {
+    setMediaLoaded(false);
+  }, [story?.id]);
 
   // ── close lifecycle (history entry so hardware/browser back closes the viewer) ──
   const closedRef = useRef(false);
@@ -132,8 +138,8 @@ export default function StoryViewer({ tray, initialAuthorIndex, currentUid, curr
   );
 
   // Story is effectively paused while held OR while the viewers sheet is open.
-  // Story is effectively paused while held, viewers sheet is open, or reply input is focused.
-  const effectivePaused = paused || viewersOpen || inputFocused;
+  // Story is effectively paused while held, viewers sheet is open, input focused, or media still loading.
+  const effectivePaused = paused || viewersOpen || inputFocused || !mediaLoaded;
 
   // Keep latest handlers in refs for the rAF/keyboard closures.
   const pausedRef = useRef(effectivePaused);
@@ -305,12 +311,21 @@ export default function StoryViewer({ tray, initialAuthorIndex, currentUid, curr
           muted={muted}
           onProgress={setProgress}
           onEnded={goAdvance}
+          onLoaded={() => setMediaLoaded(true)}
           onError={() => {
             // Don't let a broken story wedge the viewer.
+            setMediaLoaded(true); // dismiss loader on error too
             window.setTimeout(() => advanceRef.current(), 600);
           }}
           onRequireMute={() => setMuted(true)}
         />
+
+        {/* Loading spinner — shown until the image/video is fully loaded */}
+        {!mediaLoaded && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black">
+            <div className="w-8 h-8 border-[3px] border-white/30 border-t-white rounded-full animate-spin" />
+          </div>
+        )}
 
         {/* Top scrim + chrome */}
         <div className="absolute top-0 inset-x-0 p-3 pb-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">

@@ -402,7 +402,7 @@ export default function Feed() {
   
   // Confession state
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [selectedPostType, setSelectedPostType] = useState('info');
+  const [selectedPostType, setSelectedPostType] = useState('others');
 
   // Poll state — showPollCreator lives in modalState (see above).
   // Consolidated poll-composer state — one object instead of four useState hooks.
@@ -995,7 +995,7 @@ export default function Feed() {
       setVideoFile(null);
       setPendingFiles([]);
       setIsAnonymous(false);
-      setSelectedPostType('info');
+      setSelectedPostType('others');
       setShowPollCreator(false);
       setPollChoices(['', '']);
       setPollDays(1);
