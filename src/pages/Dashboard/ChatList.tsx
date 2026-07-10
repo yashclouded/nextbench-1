@@ -362,7 +362,7 @@ export default function ChatList() {
                     key={`chat-${room.id}`}
                     className="block group px-2 md:px-0"
                   >
-                  <div className={`flex items-center gap-4 py-3 rounded-2xl px-2 transition-colors cursor-pointer ${isUnread ? 'bg-brand-teal/5 hover:bg-brand-teal/10' : 'group-hover:bg-surface-soft'}`}>
+                  <div className={`flex items-center gap-4 py-3 rounded-2xl px-2 transition-colors cursor-pointer ${isUnread ? 'bg-brand-teal/10 hover:bg-brand-teal/15' : 'group-hover:bg-surface-soft'}`}>
                     <div className="relative shrink-0">
                       <div className="w-14 h-14 rounded-full bg-brand-teal/5 flex items-center justify-center overflow-hidden">
                         {room.otherUser?.profilePicture ? (
@@ -419,7 +419,7 @@ export default function ChatList() {
                   key={`club-${club.id}`}
                   className="block group px-2 md:px-0"
                 >
-                  <div className={`flex items-center gap-4 py-3 rounded-2xl px-2 transition-colors cursor-pointer ${isUnread ? 'bg-brand-teal/5 hover:bg-brand-teal/10' : 'group-hover:bg-surface-soft'}`}>
+                  <div className={`flex items-center gap-4 py-3 rounded-2xl px-2 transition-colors cursor-pointer ${isUnread ? 'bg-brand-teal/10 hover:bg-brand-teal/15' : 'group-hover:bg-surface-soft'}`}>
                     <div className="relative shrink-0">
                       <div className="w-14 h-14 rounded-xl bg-linear-to-br from-brand-teal/15 to-brand-pink/15 flex items-center justify-center overflow-hidden border border-luxury-ink/5">
                         {club.avatar ? (
@@ -437,11 +437,11 @@ export default function ChatList() {
 
                     <div className="flex-1 min-w-0 py-1 border-b border-luxury-ink/5 group-hover:border-transparent transition-colors">
                       <div className="flex items-center justify-between mb-0.5">
-                        <h3 className="truncate text-base font-semibold text-luxury-ink flex items-center gap-1.5">
+                        <h3 className={`truncate text-base flex items-center gap-1.5 ${isUnread ? 'font-bold text-brand-teal' : 'font-semibold text-luxury-ink'}`}>
                           {club.name}
                           {club.leadId === user?.uid && <Crown size={12} className="text-amber-500 shrink-0" />}
                         </h3>
-                        <span className="text-xs whitespace-nowrap ml-2 text-luxury-ink/40">
+                        <span className={`text-xs whitespace-nowrap ml-2 ${isUnread ? 'text-brand-teal font-bold' : 'text-luxury-ink/40'}`}>
                           {club.updatedAt?.toDate?.()?.toLocaleDateString([], { month: 'short', day: 'numeric' }) || ''}
                         </span>
                       </div>
