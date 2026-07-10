@@ -414,9 +414,9 @@ service cloud.firestore {
           // code, add/remove members, transfer leadership)
           (request.auth.uid == existing().leadId || request.auth.uid in existing().get('coLeadIds', []))
           ||
-          // Member: update last-message preview / pinned message only
+          // Member: update last-message preview / pinned message / unread badge
           (request.auth.uid in existing().memberIds
-            && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'lastSenderName', 'pinnedMessageId', 'pinnedMessageText', 'updatedAt']))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'lastSenderName', 'pinnedMessageId', 'pinnedMessageText', 'updatedAt', 'unreadBy']))
           ||
           // Member: leave the club — may remove only themselves
           (request.auth.uid in existing().memberIds
