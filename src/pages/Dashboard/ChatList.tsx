@@ -445,13 +445,16 @@ export default function ChatList() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-4">
-                        <p className="text-sm truncate flex-1 text-luxury-ink/60">
+                        <p className={`text-sm truncate flex-1 ${club.unreadBy?.includes(user?.uid || '') ? 'text-luxury-ink font-semibold' : 'text-luxury-ink/60'}`}>
                           {club.lastSenderName ? (
                             <>{club.lastSenderId === user?.uid ? 'You' : club.lastSenderName}: {club.lastMessage || ''}</>
                           ) : (
                             <span className="italic text-luxury-ink/30">No messages yet</span>
                           )}
                         </p>
+                        {club.unreadBy?.includes(user?.uid || '') && (
+                          <div className="w-2.5 h-2.5 bg-brand-teal rounded-full shrink-0 mt-1 shadow-sm"></div>
+                        )}
                         <span className="text-[10px] font-bold text-luxury-ink/20 shrink-0">
                           {club.memberCount} <Users size={10} className="inline" />
                         </span>

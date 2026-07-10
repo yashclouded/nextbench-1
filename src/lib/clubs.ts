@@ -45,6 +45,7 @@ export interface ClubData {
   school?: string;
   city?: string;
   tags?: string[];
+  unreadBy?: string[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────
