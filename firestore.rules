@@ -325,11 +325,12 @@ service cloud.firestore {
 
     function isValidMessage(data) {
       return data.keys().hasAll(['senderId', 'createdAt'])
-        && (data.keys().hasAny(['text', 'image', 'sharedPost', 'postId']))
+        && (data.keys().hasAny(['text', 'image', 'sharedPost', 'postId', 'audioUrl']))
         && (!data.keys().hasAny(['text']) || (data.text is string && data.text.size() <= 2000))
         && (!data.keys().hasAny(['image']) || (data.image is string && data.image.size() <= 2000))
         && (!data.keys().hasAny(['sharedPost']) || (data.sharedPost is map))
-        && (!data.keys().hasAny(['postId']) || (data.postId is string));
+        && (!data.keys().hasAny(['postId']) || (data.postId is string))
+        && (!data.keys().hasAny(['audioUrl']) || (data.audioUrl is string && data.audioUrl.size() <= 2000));
     }
 
     match /chatRooms/{roomId} {
@@ -347,7 +348,7 @@ service cloud.firestore {
         || (isSignedIn()
           && isValidId(roomId)
           && canAccessRoom(existing())
-          && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt', 'pinnedMessageId', 'pinnedMessageText', 'unreadBy', 'status', 'requestedBy', 'mutedBy', 'pinnedBy', 'deletedBy' ]));
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt', 'pinnedMessageId', 'pinnedMessageText', 'unreadBy', 'status', 'requestedBy', 'mutedBy', 'pinnedBy', 'deletedBy', 'lastMessageType' ]));
 
       allow delete: if isVerified() && isValidId(roomId)
         && request.auth.uid in existing().participants

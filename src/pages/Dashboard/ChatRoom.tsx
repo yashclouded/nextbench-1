@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Flag, Camera, X, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2, Download, SmilePlus ,Zap } from 'lucide-react';
+import { Send, ArrowLeft, MoreVertical, ShieldCheck, User, Package, Flag, Camera, X, CornerDownRight, Pin, CheckCircle2, Circle, Copy, Trash2, Download, SmilePlus, Zap, Mic } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, getDoc, getDocs, where, writeBatch, arrayUnion, arrayRemove, limit, deleteField } from 'firebase/firestore';
@@ -17,12 +17,22 @@ import ReportModal from '../../components/ui/ReportModal';
 import MessageText from '../../components/ui/MessageText';
 import MessageReactions from '../../components/ui/MessageReactions';
 import { useUserPresence } from '../../lib/presence';
+import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+import { stopAllVoicePlayback } from '../../hooks/useVoicePlayer';
+import VoiceRecordingControls from '../../components/ui/VoiceRecordingControls';
+import VoiceMessageBubble from '../../components/ui/VoiceMessageBubble';
+import { uploadVoiceMessage, sendVoiceMessage } from '../../lib/voiceMessage';
 
 interface Message {
   id: string;
   senderId: string;
   text?: string;
   image?: string;
+  type?: 'voice' | 'text';
+  audioUrl?: string;
+  duration?: number;
+  fileSize?: number;
+  mimeType?: string;
   createdAt: any;
   deletedFor?: string[];
   isDeletedForEveryone?: boolean;
@@ -96,6 +106,17 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
+
+  // Voice messaging state
+  const [voiceUploading, setVoiceUploading] = useState(false);
+  const [voiceUploadProgress, setVoiceUploadProgress] = useState(0);
+  const [voiceUploadError, setVoiceUploadError] = useState<string | null>(null);
+
+  const {
+    isRecording, duration: recordingDuration, audioBlob,
+    error: recorderError, permissionDenied,
+    startRecording, stopRecording, cancelRecording, clearBlob,
+  } = useVoiceRecorder();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -301,6 +322,104 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
       sendMessage(newMessage);
     }
   };
+
+  // ── Voice message handling ──
+  const handleStartRecording = useCallback(async () => {
+    stopAllVoicePlayback(); // Stop any playing voice message
+    setVoiceUploadError(null);
+    await startRecording();
+  }, [startRecording]);
+
+  const handleStopRecording = useCallback(() => {
+    stopRecording();
+  }, [stopRecording]);
+
+  const handleCancelRecording = useCallback(() => {
+    cancelRecording();
+    setVoiceUploadError(null);
+  }, [cancelRecording]);
+
+  // Process recorded audio blob → upload → Firestore
+  useEffect(() => {
+    if (!audioBlob || !user || !roomId) return;
+
+    const processVoiceMessage = async () => {
+      setVoiceUploading(true);
+      setVoiceUploadProgress(0);
+      setVoiceUploadError(null);
+
+      try {
+        // Upload to Firebase Storage
+        const { downloadUrl, storagePath } = await uploadVoiceMessage(
+          audioBlob,
+          roomId,
+          (progress) => setVoiceUploadProgress(progress)
+        );
+
+        // Write to Firestore
+        await sendVoiceMessage({
+          senderId: user.uid,
+          senderName: userData?.name || 'Someone',
+          chatId: roomId,
+          audioUrl: downloadUrl,
+          duration: recordingDuration,
+          fileSize: audioBlob.size,
+          mimeType: audioBlob.type || 'audio/webm',
+          storagePath,
+        });
+
+        clearBlob();
+      } catch (err: any) {
+        console.error('Voice message failed:', err);
+        setVoiceUploadError(err.message || 'Failed to send voice message.');
+      } finally {
+        setVoiceUploading(false);
+      }
+    };
+
+    processVoiceMessage();
+  }, [audioBlob, user, roomId, userData?.name, recordingDuration, clearBlob]);
+
+  // Show recorder errors as toasts
+  useEffect(() => {
+    if (recorderError) {
+      showToast(recorderError, 'error');
+    }
+  }, [recorderError, showToast]);
+
+  const handleRetryVoiceUpload = useCallback(() => {
+    if (audioBlob && user && roomId) {
+      setVoiceUploadError(null);
+      // Re-trigger by clearing and re-setting the blob
+      const blob = audioBlob;
+      clearBlob();
+      // Small delay to allow the effect to re-trigger
+      setTimeout(() => {
+        // We need to manually trigger since the blob reference is the same
+        // Just retry the upload directly
+        (async () => {
+          setVoiceUploading(true);
+          setVoiceUploadProgress(0);
+          try {
+            const { downloadUrl, storagePath } = await uploadVoiceMessage(
+              blob, roomId, (p) => setVoiceUploadProgress(p)
+            );
+            await sendVoiceMessage({
+              senderId: user.uid, senderName: userData?.name || 'Someone',
+              chatId: roomId, audioUrl: downloadUrl,
+              duration: recordingDuration, fileSize: blob.size,
+              mimeType: blob.type || 'audio/webm', storagePath,
+            });
+            clearBlob();
+          } catch (err: any) {
+            setVoiceUploadError(err.message || 'Failed to send voice message.');
+          } finally {
+            setVoiceUploading(false);
+          }
+        })();
+      }, 50);
+    }
+  }, [audioBlob, user, roomId, userData?.name, recordingDuration, clearBlob]);
 
   const handleDeleteForMe = async (msgId: string) => {
     if (!user || !roomId) return;
@@ -655,9 +774,17 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
                         </Link>
                       )}
                       {msg.text && <MessageText text={msg.text} />}
+                      {/* Voice message */}
+                      {msg.type === 'voice' && msg.audioUrl && (
+                        <VoiceMessageBubble
+                          audioUrl={msg.audioUrl}
+                          duration={msg.duration || 0}
+                          isSent={isMe}
+                        />
+                      )}
                     </>
                   )}
-                 {(msg.text || isDeleted) && (
+                 {(msg.text || msg.type === 'voice' || isDeleted) && (
                   <div className={`text-[10px] mt-1.5 opacity-30 ${isMe ? 'text-right' : 'text-left'}`}>
                     {msg.createdAt?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) || '...'}
                   </div>
@@ -828,59 +955,113 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
               </div>
             )}
 
-            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-              <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || hasSentPendingMessage}
-                className="p-3 rounded-full bg-surface-card border border-luxury-ink/10 text-brand-teal hover:bg-brand-teal/10 transition-all shrink-0 disabled:opacity-50 shadow-md"
-                title="Send Image"
-              >
-                {isUploading ? (
-                  <div className="w-5 h-5 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Camera size={20} />
-                )}
-              </button>
-
-              <div className="flex-1 flex items-center gap-1 bg-surface-card rounded-full border border-luxury-ink/10 shadow-md px-3 relative" style={{ borderColor: 'var(--color-border)' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowQuickReplies(!showQuickReplies)}
-                  className={`p-2 rounded-full transition-all shrink-0 text-base ${showQuickReplies ? 'text-brand-teal' : 'text-luxury-ink/40 hover:text-brand-teal'}`}
-                  title="Quick replies"
-                >
-                  <Zap size={16} fill={showQuickReplies ? 'currentColor' : 'none'} />
-                </button>
-
-                <MentionInput
-                  id="chat-input"
-                  value={newMessage}
-                  onChange={(val) => setNewMessage(val)}
-                  onKeyDown={(e) => {
-                    // Paste event not directly on MentionInput, need to handle paste elsewhere or skip it for now. MentionInput handles onKeyDown.
-                  }}
-                  placeholder={
-                    pendingImageFile ? 'Add a caption (optional)...' :
-                    hasSentPendingMessage ? 'Request pending...' :
-                    isUploading ? 'Uploading...' :
-                    'Type your message...'
-                  }
-                  disabled={isUploading || hasSentPendingMessage}
-                  className="w-full bg-transparent py-3.5 text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
+            <AnimatePresence mode="wait">
+              {isRecording ? (
+                <VoiceRecordingControls
+                  key="recording"
+                  duration={recordingDuration}
+                  onStop={handleStopRecording}
+                  onCancel={handleCancelRecording}
                 />
-              </div>
+              ) : voiceUploading ? (
+                <motion.div
+                  key="voice-uploading"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  className="flex items-center gap-3 px-4 py-3 bg-surface-card rounded-2xl border shadow-md"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
+                  <div className="w-5 h-5 border-2 border-brand-teal border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-luxury-ink/60">Sending voice message... {voiceUploadProgress}%</p>
+                    <div className="voice-upload-track mt-1.5">
+                      <div className="voice-upload-fill" style={{ width: `${voiceUploadProgress}%` }} />
+                    </div>
+                  </div>
+                </motion.div>
+              ) : voiceUploadError ? (
+                <motion.div
+                  key="voice-error"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  className="flex items-center justify-between gap-3 px-4 py-3 bg-red-50 dark:bg-red-950/20 rounded-2xl border border-red-200 dark:border-red-800/30 shadow-md"
+                >
+                  <p className="text-xs font-bold text-red-500">Failed to send voice message</p>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setVoiceUploadError(null)} className="text-xs font-bold text-luxury-ink/50 hover:text-luxury-ink transition-colors">Dismiss</button>
+                    <button onClick={handleRetryVoiceUpload} className="voice-retry-btn">Retry</button>
+                  </div>
+                </motion.div>
+              ) : (
+                <form key="input-form" onSubmit={handleSendMessage} className="flex items-center gap-2">
+                  <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
 
-              <button
-                type="submit"
-                disabled={(!newMessage.trim() && !pendingImageFile) || isUploading || hasSentPendingMessage}
-                className="p-3 bg-brand-teal text-white rounded-full hover:opacity-90 transition-all shadow-md disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-              >
-                <Send size={18} />
-              </button>
-            </form>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading || hasSentPendingMessage}
+                    className="p-3 rounded-full bg-surface-card border border-luxury-ink/10 text-brand-teal hover:bg-brand-teal/10 transition-all shrink-0 disabled:opacity-50 shadow-md"
+                    title="Send Image"
+                  >
+                    {isUploading ? (
+                      <div className="w-5 h-5 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Camera size={20} />
+                    )}
+                  </button>
+
+                  <div className="flex-1 flex items-center gap-1 bg-surface-card rounded-full border border-luxury-ink/10 shadow-md px-3 relative" style={{ borderColor: 'var(--color-border)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickReplies(!showQuickReplies)}
+                      className={`p-2 rounded-full transition-all shrink-0 text-base ${showQuickReplies ? 'text-brand-teal' : 'text-luxury-ink/40 hover:text-brand-teal'}`}
+                      title="Quick replies"
+                    >
+                      <Zap size={16} fill={showQuickReplies ? 'currentColor' : 'none'} />
+                    </button>
+
+                    <MentionInput
+                      id="chat-input"
+                      value={newMessage}
+                      onChange={(val) => setNewMessage(val)}
+                      onKeyDown={(e) => {
+                        // Paste event not directly on MentionInput, need to handle paste elsewhere or skip it for now. MentionInput handles onKeyDown.
+                      }}
+                      placeholder={
+                        pendingImageFile ? 'Add a caption (optional)...' :
+                        hasSentPendingMessage ? 'Request pending...' :
+                        isUploading ? 'Uploading...' :
+                        'Type your message...'
+                      }
+                      disabled={isUploading || hasSentPendingMessage}
+                      className="w-full bg-transparent py-3.5 text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
+                    />
+                  </div>
+
+                  {/* Microphone button */}
+                  <button
+                    type="button"
+                    onClick={handleStartRecording}
+                    disabled={isUploading || hasSentPendingMessage || voiceUploading}
+                    className="voice-mic-btn"
+                    aria-label="Record voice message"
+                    title="Voice message"
+                  >
+                    <Mic size={18} />
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={(!newMessage.trim() && !pendingImageFile) || isUploading || hasSentPendingMessage}
+                    className="p-3 bg-brand-teal text-white rounded-full hover:opacity-90 transition-all shadow-md disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                  >
+                    <Send size={18} />
+                  </button>
+                </form>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
