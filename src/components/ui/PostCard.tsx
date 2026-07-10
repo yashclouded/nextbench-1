@@ -209,35 +209,47 @@ function timeAgo(date: any): string {
   return date.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/** Truncated content preview with a "more" button when text is long. */
-function ContentPreview({ text, onClick }: { text: string; onClick: () => void }) {
-  const textRef = useRef<HTMLSpanElement>(null);
-  const [isClamped, setIsClamped] = useState(false);
+/**
+ * Truncated content preview with a "... more" link when text is long.
+ * Uses JS-based truncation (char + line limit) instead of CSS line-clamp
+ * so it works reliably regardless of the CSS framework.
+ */
+const PREVIEW_CHAR_LIMIT = 300;
+const PREVIEW_LINE_LIMIT = 5;
 
-  useEffect(() => {
-    const el = textRef.current;
-    if (!el) return;
-    // Compare the rendered height to the scroll height to detect clamping
-    const check = () => setIsClamped(el.scrollHeight > el.clientHeight + 2);
-    check();
-    // Re-check on resize (font-size / container width may change)
-    const ro = new ResizeObserver(check);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [text]);
+function ContentPreview({ text, onClick }: { text: string; onClick: () => void }) {
+  if (!text) return null;
+
+  // Find the truncation point: whichever limit is hit first
+  let cutoff = text.length;
+  // Limit by character count
+  if (cutoff > PREVIEW_CHAR_LIMIT) cutoff = PREVIEW_CHAR_LIMIT;
+  // Limit by number of newlines (lines)
+  let newlineCount = 0;
+  for (let i = 0; i < cutoff; i++) {
+    if (text[i] === '\n') {
+      newlineCount++;
+      if (newlineCount >= PREVIEW_LINE_LIMIT) {
+        cutoff = i;
+        break;
+      }
+    }
+  }
+
+  const isTruncated = cutoff < text.length;
+  const displayText = isTruncated ? text.slice(0, cutoff).trimEnd() : text;
 
   return (
     <>
       <LinkifiedText
-        ref={textRef}
-        text={text}
-        className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-5 wrap-break-word overflow-wrap-anywhere block"
+        text={displayText + (isTruncated ? '…' : '')}
+        className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal wrap-break-word overflow-wrap-anywhere whitespace-pre-wrap"
       />
-      {isClamped && (
+      {isTruncated && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onClick(); }}
-          className="text-[14px] font-semibold text-luxury-ink/40 hover:text-brand-teal mt-1 transition-colors"
+          className="text-[14px] font-semibold text-luxury-ink/40 hover:text-brand-teal ml-1 transition-colors inline"
         >
           more
         </button>
