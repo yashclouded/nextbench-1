@@ -760,6 +760,38 @@ service cloud.firestore {
           && incoming().diff(existing()).affectedKeys().hasOnly(['lastViewedAt'])
           && incoming().lastViewedAt == request.time;
       }
+
+      // Per-viewer like records. Doc id IS the liker uid → one like per user.
+      match /likes/{userId} {
+        allow get: if isSignedIn();
+        allow list: if isSignedIn();
+
+        allow create: if isVerified()
+          && userId == request.auth.uid
+          && exists(storyDoc(storyId))
+          && incoming().keys().hasOnly(['userId', 'createdAt'])
+          && incoming().userId == request.auth.uid
+          && incoming().createdAt == request.time;
+
+        allow delete: if isVerified()
+          && userId == request.auth.uid;
+      }
+
+      // Story replies — viewers can send text replies to the story owner.
+      match /replies/{replyId} {
+        allow get, list: if isSignedIn()
+          && exists(storyDoc(storyId))
+          && (get(storyDoc(storyId)).data.authorId == request.auth.uid
+              || incoming().authorId == request.auth.uid);
+
+        allow create: if isVerified()
+          && exists(storyDoc(storyId))
+          && incoming().keys().hasOnly(['storyId', 'authorId', 'authorUsername', 'content', 'createdAt'])
+          && incoming().authorId == request.auth.uid
+          && incoming().storyId == storyId
+          && incoming().content is string && incoming().content.size() > 0 && incoming().content.size() <= 500
+          && incoming().createdAt == request.time;
+      }
     }
 
     // === FOLLOW EDGES ===

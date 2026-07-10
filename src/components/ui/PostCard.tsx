@@ -209,6 +209,55 @@ function timeAgo(date: any): string {
   return date.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/**
+ * Truncated content preview with a "... more" link when text is long.
+ * Uses JS-based truncation (char + line limit) instead of CSS line-clamp
+ * so it works reliably regardless of the CSS framework.
+ */
+const PREVIEW_CHAR_LIMIT = 300;
+const PREVIEW_LINE_LIMIT = 5;
+
+function ContentPreview({ text, onClick }: { text: string; onClick: () => void }) {
+  if (!text) return null;
+
+  // Find the truncation point: whichever limit is hit first
+  let cutoff = text.length;
+  // Limit by character count
+  if (cutoff > PREVIEW_CHAR_LIMIT) cutoff = PREVIEW_CHAR_LIMIT;
+  // Limit by number of newlines (lines)
+  let newlineCount = 0;
+  for (let i = 0; i < cutoff; i++) {
+    if (text[i] === '\n') {
+      newlineCount++;
+      if (newlineCount >= PREVIEW_LINE_LIMIT) {
+        cutoff = i;
+        break;
+      }
+    }
+  }
+
+  const isTruncated = cutoff < text.length;
+  const displayText = isTruncated ? text.slice(0, cutoff).trimEnd() : text;
+
+  return (
+    <>
+      <LinkifiedText
+        text={displayText + (isTruncated ? '…' : '')}
+        className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal wrap-break-word overflow-wrap-anywhere whitespace-pre-wrap"
+      />
+      {isTruncated && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onClick(); }}
+          className="text-[14px] font-semibold text-luxury-ink/40 hover:text-brand-teal ml-1 transition-colors inline"
+        >
+          more
+        </button>
+      )}
+    </>
+  );
+}
+
 export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onClick, onUpvote, onDownvote, onShare, onSave }: PostCardProps) {
   const { showToast } = useToast();
 
@@ -370,10 +419,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
 
         {/* Content Preview */}
         <div className="mb-5">
-          <LinkifiedText
-            text={post.content}
-            className="text-[15px] md:text-[16px] text-luxury-ink/60 leading-relaxed font-normal line-clamp-5 wrap-break-word overflow-wrap-anywhere block"
-          />
+          <ContentPreview text={post.content} onClick={onClick} />
         </div>
 
         {/* Poll */}

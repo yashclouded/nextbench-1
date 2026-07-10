@@ -17,6 +17,7 @@
 import {
   collection,
   doc,
+  addDoc,
   getDoc,
   getDocs,
   setDoc,
@@ -430,4 +431,72 @@ export async function getStoryViewers(storyId: string): Promise<StoryViewer[]> {
 export async function getStoryViewCount(storyId: string): Promise<number> {
   const agg = await getCountFromServer(collection(db, 'stories', storyId, 'views'));
   return agg.data().count;
+}
+
+// ─── Likes ───────────────────────────────────────────────
+
+function likeRef(storyId: string, userId: string) {
+  return doc(db, 'stories', storyId, 'likes', userId);
+}
+
+/** Toggle like on a story. Returns the new liked state. */
+export async function toggleStoryLike(storyId: string, userId: string): Promise<boolean> {
+  if (!userId) return false;
+  const lRef = likeRef(storyId, userId);
+  const existing = await getDoc(lRef);
+  if (existing.exists()) {
+    await deleteDoc(lRef);
+    return false;
+  } else {
+    await setDoc(lRef, {
+      userId,
+      createdAt: serverTimestamp(),
+    });
+    return true;
+  }
+}
+
+/** Check if a user has liked a story. */
+export async function hasLikedStory(storyId: string, userId: string): Promise<boolean> {
+  if (!userId) return false;
+  const snap = await getDoc(likeRef(storyId, userId));
+  return snap.exists();
+}
+
+/** Get total like count for a story. */
+export async function getStoryLikeCount(storyId: string): Promise<number> {
+  const agg = await getCountFromServer(collection(db, 'stories', storyId, 'likes'));
+  return agg.data().count;
+}
+
+// ─── Replies (DM-style messages on stories) ──────────────
+
+export interface StoryReply {
+  id: string;
+  storyId: string;
+  authorId: string;
+  authorUsername: string;
+  content: string;
+  createdAt: number;
+}
+
+/**
+ * Send a text reply to a story. Creates a doc in the `stories/{storyId}/replies` subcollection.
+ * The story owner can see these in a future "Replies" sheet.
+ */
+export async function sendStoryReply(
+  storyId: string,
+  authorId: string,
+  authorUsername: string,
+  content: string,
+): Promise<void> {
+  if (!content.trim()) return;
+  const repliesCol = collection(db, 'stories', storyId, 'replies');
+  await addDoc(repliesCol, {
+    storyId,
+    authorId,
+    authorUsername,
+    content: content.trim(),
+    createdAt: serverTimestamp(),
+  });
 }

@@ -35,6 +35,7 @@ export default function Stories() {
             tray={tray}
             initialAuthorIndex={openIndex}
             currentUid={user.uid}
+            currentUsername={userData?.username || userData?.name || 'You'}
             onClose={() => setOpenIndex(null)}
             onSeen={markSeenLocal}
             onDeleted={refetch}

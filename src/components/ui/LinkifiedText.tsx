@@ -6,7 +6,7 @@ interface LinkifiedTextProps {
   className?: string;
 }
 
-export default function LinkifiedText({ text, className = '' }: LinkifiedTextProps) {
+const LinkifiedText = React.forwardRef<HTMLSpanElement, LinkifiedTextProps>(function LinkifiedText({ text, className = '' }, ref) {
   if (!text) return null;
 
   // Combined regex to detect URLs and @mentions
@@ -63,5 +63,8 @@ export default function LinkifiedText({ text, className = '' }: LinkifiedTextPro
     parts.push(<span key={`text-${lastIndex}`}>{text.slice(lastIndex)}</span>);
   }
 
-  return <span className={className}>{parts}</span>;
-}
+  return <span ref={ref} className={className}>{parts}</span>;
+});
+
+export default LinkifiedText;
+

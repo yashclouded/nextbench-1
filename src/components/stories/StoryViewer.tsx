@@ -25,12 +25,14 @@ import { advance, rewind, jumpAuthor, clampCursor, type Cursor } from '../../lib
 import StoryContent from './StoryContent';
 import StoryProgressBars from './StoryProgressBars';
 import StoryOwnerBar from './StoryOwnerBar';
+import StoryInteractionBar from './StoryInteractionBar';
 import StoryViewersSheet from './StoryViewersSheet';
 
 interface Props {
   tray: TrayEntry[];
   initialAuthorIndex: number;
   currentUid: string;
+  currentUsername: string;
   onClose: () => void;
   onSeen: (authorId: string) => void;
   onDeleted?: () => void;
@@ -48,7 +50,7 @@ function timeAgo(ms: number): string {
   return `${Math.floor(diff / 86400)}d`;
 }
 
-export default function StoryViewer({ tray, initialAuthorIndex, currentUid, onClose, onSeen, onDeleted }: Props) {
+export default function StoryViewer({ tray, initialAuthorIndex, currentUid, currentUsername, onClose, onSeen, onDeleted }: Props) {
   const navAuthors = useMemo(() => tray.map((e) => ({ storyCount: e.stories.length })), [tray]);
 
   const [cursor, setCursor] = useState<Cursor>(() =>
@@ -58,9 +60,16 @@ export default function StoryViewer({ tray, initialAuthorIndex, currentUid, onCl
   const [paused, setPaused] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [mediaLoaded, setMediaLoaded] = useState(false);
 
   const entry = tray[cursor.authorIndex];
   const story = entry?.stories[cursor.storyIndex];
+
+  // Reset mediaLoaded whenever the active story changes so the loader shows again.
+  useEffect(() => {
+    setMediaLoaded(false);
+  }, [story?.id]);
 
   // ── close lifecycle (history entry so hardware/browser back closes the viewer) ──
   const closedRef = useRef(false);
@@ -129,7 +138,8 @@ export default function StoryViewer({ tray, initialAuthorIndex, currentUid, onCl
   );
 
   // Story is effectively paused while held OR while the viewers sheet is open.
-  const effectivePaused = paused || viewersOpen;
+  // Story is effectively paused while held, viewers sheet is open, input focused, or media still loading.
+  const effectivePaused = paused || viewersOpen || inputFocused || !mediaLoaded;
 
   // Keep latest handlers in refs for the rAF/keyboard closures.
   const pausedRef = useRef(effectivePaused);
@@ -301,12 +311,21 @@ export default function StoryViewer({ tray, initialAuthorIndex, currentUid, onCl
           muted={muted}
           onProgress={setProgress}
           onEnded={goAdvance}
+          onLoaded={() => setMediaLoaded(true)}
           onError={() => {
             // Don't let a broken story wedge the viewer.
+            setMediaLoaded(true); // dismiss loader on error too
             window.setTimeout(() => advanceRef.current(), 600);
           }}
           onRequireMute={() => setMuted(true)}
         />
+
+        {/* Loading spinner — shown until the image/video is fully loaded */}
+        {!mediaLoaded && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black">
+            <div className="w-8 h-8 border-[3px] border-white/30 border-t-white rounded-full animate-spin" />
+          </div>
+        )}
 
         {/* Top scrim + chrome */}
         <div className="absolute top-0 inset-x-0 p-3 pb-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
@@ -352,6 +371,18 @@ export default function StoryViewer({ tray, initialAuthorIndex, currentUid, onCl
         {/* Owner tools (own story only) */}
         {entry.authorId === currentUid && (
           <StoryOwnerBar storyId={story.id} onOpenViewers={() => setViewersOpen(true)} onDelete={handleDelete} />
+        )}
+
+        {/* Interaction bar for viewing other people's stories */}
+        {entry.authorId !== currentUid && (
+          <StoryInteractionBar
+            storyId={story.id}
+            storyAuthorId={entry.authorId}
+            currentUid={currentUid}
+            currentUsername={currentUsername}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+          />
         )}
 
         <AnimatePresence>

@@ -96,7 +96,7 @@ export async function notifyMentionedUsers(
   text: string,
   currentUserId: string,
   senderName: string,
-  context: { type: 'post_reply' | 'club_chat' | 'dm'; link: string; postId?: string }
+  context: { type: 'post_reply' | 'club_chat' | 'dm' | 'story'; link: string; postId?: string }
 ): Promise<void> {
   const usernames = parseMentions(text);
   if (usernames.length === 0) return;
@@ -106,6 +106,7 @@ export async function notifyMentionedUsers(
   const contextLabel =
     context.type === 'post_reply' ? 'a comment'
     : context.type === 'club_chat' ? 'a group chat'
+    : context.type === 'story' ? 'a story'
     : 'a message';
 
   await Promise.all(
