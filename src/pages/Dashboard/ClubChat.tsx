@@ -73,7 +73,12 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
 
     const unsub = onSnapshot(doc(db, 'clubs', clubId), (snap) => {
       if (snap.exists()) {
-        setClub({ id: snap.id, ...snap.data() } as ClubData);
+        const data = snap.data();
+        setClub({ id: snap.id, ...data } as ClubData);
+        // Clear unread badge for the current user
+        if (data.unreadBy?.includes(user?.uid)) {
+          updateDoc(doc(db, 'clubs', clubId), { unreadBy: arrayRemove(user?.uid) }).catch(console.error);
+        }
       }
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, `clubs/${clubId}`);
@@ -144,12 +149,19 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
 
       await addDoc(collection(db, 'clubs', clubId, 'messages'), msgData);
 
-      await updateDoc(doc(db, 'clubs', clubId), {
+      const otherMemberIds = club.memberIds?.filter(id => id !== user.uid) || [];
+      const updateData: any = {
         lastMessage: image ? '📷 Image' : messageText,
         lastSenderId: user.uid,
         lastSenderName: userData?.name || 'Unknown',
         updatedAt: serverTimestamp(),
-      });
+      };
+      
+      if (otherMemberIds.length > 0) {
+        updateData.unreadBy = arrayUnion(...otherMemberIds);
+      }
+
+      await updateDoc(doc(db, 'clubs', clubId), updateData);
 
       if (messageText) {
         notifyMentionedUsers(messageText, user.uid, userData?.name || 'Someone', {

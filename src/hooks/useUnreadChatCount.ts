@@ -3,37 +3,57 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export function useUnreadChatCount(userId?: string | null) {
-  const [count, setCount] = useState(0);
+  const [dmCount, setDmCount] = useState(0);
+  const [clubCount, setClubCount] = useState(0);
 
   useEffect(() => {
     if (!userId) {
-      setCount(0);
+      setDmCount(0);
+      setClubCount(0);
       return;
     }
 
-    const q = query(
+    const qDMs = query(
       collection(db, 'chatRooms'),
       where('participants', 'array-contains', userId)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let unreadRooms = 0;
-
-      snapshot.forEach((roomDoc) => {
-        const unreadBy = roomDoc.data().unreadBy;
+    const unsubDMs = onSnapshot(qDMs, (snapshot) => {
+      let unread = 0;
+      snapshot.forEach((doc) => {
+        const unreadBy = doc.data().unreadBy;
         if (Array.isArray(unreadBy) && unreadBy.includes(userId)) {
-          unreadRooms++;
+          unread++;
         }
       });
-
-      setCount(unreadRooms);
+      setDmCount(unread);
     }, (err) => {
-      console.error('Failed to subscribe to unread chats:', err);
-      setCount(0);
+      console.error('Failed to subscribe to unread DMs:', err);
     });
 
-    return () => unsubscribe();
+    const qClubs = query(
+      collection(db, 'clubs'),
+      where('memberIds', 'array-contains', userId)
+    );
+
+    const unsubClubs = onSnapshot(qClubs, (snapshot) => {
+      let unread = 0;
+      snapshot.forEach((doc) => {
+        const unreadBy = doc.data().unreadBy;
+        if (Array.isArray(unreadBy) && unreadBy.includes(userId)) {
+          unread++;
+        }
+      });
+      setClubCount(unread);
+    }, (err) => {
+      console.error('Failed to subscribe to unread clubs:', err);
+    });
+
+    return () => {
+      unsubDMs();
+      unsubClubs();
+    };
   }, [userId]);
 
-  return count;
+  return dmCount + clubCount;
 }

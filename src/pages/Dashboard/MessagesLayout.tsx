@@ -347,6 +347,7 @@ export default function MessagesLayout() {
             const isActive = item.id === activeRoomId;
             if (item.isClub) {
               const club = item as any;
+              const isUnread = club.unreadBy?.includes(user?.uid || '');
               return (
                 <button
                   key={`club-${club.id}`}
@@ -354,7 +355,7 @@ export default function MessagesLayout() {
                   className={`w-full flex items-center transition-colors cursor-pointer text-left ${
                     sidebarCollapsed ? 'justify-center py-3.5 px-2' : 'gap-3 py-3 px-4'
                   } ${
-                    isActive ? 'bg-brand-teal/8 border-r-2 border-brand-teal' : 'hover:bg-surface-soft'
+                    isActive ? 'bg-brand-teal/8 border-r-2 border-brand-teal' : isUnread ? 'bg-brand-teal/10 hover:bg-brand-teal/15' : 'hover:bg-surface-soft'
                   }`}
                   title={sidebarCollapsed ? club.name : undefined}
                 >
@@ -373,24 +374,30 @@ export default function MessagesLayout() {
                         <Lock size={7} />
                       </div>
                     )}
+                    {sidebarCollapsed && isUnread && (
+                      <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-brand-teal rounded-full border-2 border-surface-base shrink-0" />
+                    )}
                   </div>
                   {!sidebarCollapsed && (
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="truncate text-sm font-semibold text-luxury-ink flex items-center gap-1">
+                        <span className={`truncate text-sm flex items-center gap-1 ${isUnread ? 'font-bold text-brand-teal' : 'font-semibold text-luxury-ink'}`}>
                           {club.name}
                           {club.leadId === user?.uid && <Crown size={10} className="text-amber-500 shrink-0" />}
                         </span>
-                        <span className="text-[10px] text-luxury-ink/30 ml-1 shrink-0">
+                        <span className={`text-[10px] ml-1 shrink-0 ${isUnread ? 'text-brand-teal font-bold' : 'text-luxury-ink/30'}`}>
                           {club.updatedAt?.toDate?.()?.toLocaleDateString([], { month: 'short', day: 'numeric' }) || ''}
                         </span>
                       </div>
-                      <p className="text-xs truncate text-luxury-ink/50">
-                        {club.lastSenderName
-                          ? <>{club.lastSenderId === user?.uid ? 'You' : club.lastSenderName}: {club.lastMessage || ''}</>
-                          : <span className="italic text-luxury-ink/25">No messages yet</span>
-                        }
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className={`text-xs truncate flex-1 ${isUnread ? 'text-luxury-ink font-semibold' : 'text-luxury-ink/50'}`}>
+                          {club.lastSenderName
+                            ? <>{club.lastSenderId === user?.uid ? 'You' : club.lastSenderName}: {club.lastMessage || ''}</>
+                            : <span className="italic text-luxury-ink/25">No messages yet</span>
+                          }
+                        </p>
+                        {isUnread && <div className="w-2 h-2 bg-brand-teal rounded-full shrink-0" />}
+                      </div>
                     </div>
                   )}
                 </button>
@@ -406,7 +413,7 @@ export default function MessagesLayout() {
                   className={`w-full flex items-center transition-colors cursor-pointer text-left ${
                     sidebarCollapsed ? 'justify-center py-3.5 px-2' : 'gap-3 py-3 px-4'
                   } ${
-                    isActive ? 'bg-brand-teal/8 border-r-2 border-brand-teal' : 'hover:bg-surface-soft'
+                    isActive ? 'bg-brand-teal/8 border-r-2 border-brand-teal' : isUnread ? 'bg-brand-teal/10 hover:bg-brand-teal/15' : 'hover:bg-surface-soft'
                   }`}
                   title={sidebarCollapsed ? (room.otherUser?.name || 'Unknown User') : undefined}
                 >
