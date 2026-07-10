@@ -162,6 +162,23 @@ export default function StoryComposer({ onClose, onPublished }: Props) {
     setProgress(0);
     try {
       const story = await publishStory(draft, author, setProgress);
+      
+      // Notify tagged users
+      const textContents = draft.layers
+        .filter((l) => l.type === 'text')
+        .map((l) => l.text)
+        .join(' ');
+      
+      if (textContents) {
+        // dynamic import so it doesn't block bundle
+        import('../../../lib/mentions').then(({ notifyMentionedUsers }) => {
+          notifyMentionedUsers(textContents, user.uid, author.username, {
+            type: 'story',
+            link: '/community', // Stories live on the community page
+          }).catch(() => {});
+        });
+      }
+
       showToast('Story shared!', 'success');
       onPublished(story);
     } catch {
