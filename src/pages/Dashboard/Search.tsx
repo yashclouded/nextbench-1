@@ -20,6 +20,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import PostCard from '../../components/ui/PostCard';
 import ProductCard from '../../components/ui/ProductCard';
+import { ListRowSkeleton } from '../../components/ui/skeleton/Skeleton';
 import { useFollowingIds, followUser, unfollowUser } from '../../lib/follows';
 import { joinClub } from '../../lib/clubs';
 import { useAuth } from '../../lib/AuthContext';
@@ -48,6 +49,7 @@ export default function Search() {
   const [clubs, setClubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [upvotedPostIds, setUpvotedPostIds] = useState<Set<string>>(new Set());
+  const searchSequence = useRef(0);
 
   useEffect(() => {
     if (!user) return;
@@ -80,10 +82,7 @@ export default function Search() {
           setLoading(true);
           try {
             // Primary: Cloud Function gives personalised, block-filtered results.
-            const [discovery, clubsSnap] = await Promise.all([
-              searchDiscovery({ suggestions: true }),
-              getDocs(query(collection(db, 'clubs'), where('type', '==', 'public'), limit(5)))
-            ]);
+            const discovery = await searchDiscovery({ suggestions: true });
 
             const fetchedUsers = discovery.users
               .map((u: any) => {
@@ -98,7 +97,7 @@ export default function Search() {
               .slice(0, 15);
             const fetchedPosts = discovery.posts;
             const fetchedProducts = discovery.products;
-            const fetchedClubs = clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+            const fetchedClubs = (discovery.clubs || []) as any[];
 
             setSuggestedUsers(fetchedUsers);
             setSuggestedPosts(fetchedPosts);
@@ -143,24 +142,23 @@ export default function Search() {
     }
 
     const performSearch = async () => {
+      const sequence = ++searchSequence.current;
       setLoading(true);
       try {
-        const [discovery, clubsSnap] = await Promise.all([
-          searchDiscovery({ query: searchQuery, school: appliedSchool, city: appliedLocation }),
-          getDocs(query(collection(db, 'clubs'), where('type', '==', 'public'), limit(20)))
-        ]);
+        const discovery = await searchDiscovery({ query: searchQuery, school: appliedSchool, city: appliedLocation });
+        if (sequence !== searchSequence.current) return;
 
         const lowerQ = searchQuery.toLowerCase();
 
         let fetchedUsers = discovery.users;
         let fetchedPosts = discovery.posts;
         let fetchedProducts = discovery.products;
-        let fetchedClubs = clubsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter(c => 
-          (!lowerQ || 
-          (c.name && c.name.toLowerCase().includes(lowerQ)) || 
-          (c.description && c.description.toLowerCase().includes(lowerQ)) ||
-          (c.school && c.school.toLowerCase().includes(lowerQ)) ||
-          (c.city && c.city.toLowerCase().includes(lowerQ))) &&
+        let fetchedClubs = ((discovery.clubs || []) as any[]).filter(c =>
+          (!lowerQ ||
+            (c.name && c.name.toLowerCase().includes(lowerQ)) ||
+            (c.description && c.description.toLowerCase().includes(lowerQ)) ||
+            (c.school && c.school.toLowerCase().includes(lowerQ)) ||
+            (c.city && c.city.toLowerCase().includes(lowerQ))) &&
           (!appliedSchool || c.school === appliedSchool)
         );
 
@@ -185,7 +183,7 @@ export default function Search() {
       } catch (err) {
         console.error('Search error:', err);
       } finally {
-        setLoading(false);
+        if (sequence === searchSequence.current) setLoading(false);
       }
     };
 
@@ -338,8 +336,10 @@ export default function Search() {
       {/* Results Content */}
       <div className="flex-1 flex flex-col gap-8">
         {loading ? (
-          <div className="py-20 text-center">
-            <div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="flex flex-col">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ListRowSkeleton key={i} />
+            ))}
           </div>
         ) : (
           <>

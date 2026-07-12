@@ -73,6 +73,7 @@ export interface DiscoverySearchResult {
   users: DiscoveryUser[];
   posts: DiscoveryPost[];
   products: DiscoveryProduct[];
+  clubs?: Array<Record<string, unknown> & { id: string }>;
 }
 
 export interface DiscoveryReview {

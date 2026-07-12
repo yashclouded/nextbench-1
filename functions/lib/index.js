@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.notifyOnFirstStory = exports.mirrorFollowEdgeOnDelete = exports.mirrorFollowEdgeOnCreate = exports.createNotification = exports.rateLimitReply = exports.rateLimitMessage = exports.rateLimitPost = exports.deletePostCascade = exports.getLandingStats = exports.getProductReviews = exports.getPostReplies = exports.searchDiscovery = exports.getDiscoveryFeed = exports.isReferralCodeAvailable = exports.lookupReferralCode = exports.searchPublicUsers = exports.getPublicProfileContent = exports.getPublicProfile = exports.getBlockedUsers = exports.getPublicUsers = exports.onUserUpdated = exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
+exports.computeDerived = exports.aggregateSellerReputation = exports.indexClubSearchTokens = exports.indexPostSearchTokens = exports.indexProductSearchTokens = exports.indexUserSearchTokens = exports.notifyOnFirstStory = exports.mirrorFollowEdgeOnDelete = exports.mirrorFollowEdgeOnCreate = exports.createNotification = exports.rateLimitReply = exports.rateLimitMessage = exports.rateLimitPost = exports.deletePostCascade = exports.getLandingStats = exports.getProductReviews = exports.getPostReplies = exports.searchDiscovery = exports.getDiscoveryFeed = exports.isReferralCodeAvailable = exports.lookupReferralCode = exports.searchPublicUsers = exports.getPublicProfileContent = exports.getPublicProfile = exports.getBlockedUsers = exports.getPublicUsers = exports.onUserUpdated = exports.moderateReply = exports.moderatePost = exports.unsubscribeFromEmails = exports.broadcastEmail = exports.sendWeeklyDigest = exports.notifyOnProductReserved = exports.notifyOnNewMessage = exports.submitInviteCode = exports.createInviteCode = exports.verifyAuthOtpEmail = exports.sendAuthOtpEmail = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -113,6 +113,75 @@ function matchesSearch(value, term) {
 function docMillis(doc, field) {
     const value = doc.get(field);
     return value instanceof admin.firestore.Timestamp ? value.toMillis() : 0;
+}
+const SEARCH_TOKEN_LIMIT = 60;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+function searchTokens(...values) {
+    const tokens = new Set();
+    const text = values.filter((value) => typeof value === "string")
+        .join(" ")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ");
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+        for (let length = 2; length <= Math.min(10, word.length); length += 1)
+            tokens.add(word.slice(0, length));
+        if (tokens.size >= SEARCH_TOKEN_LIMIT)
+            break;
+    }
+    return Array.from(tokens).slice(0, SEARCH_TOKEN_LIMIT);
+}
+function ageDays(data) {
+    const createdAt = data.createdAt;
+    const millis = createdAt instanceof admin.firestore.Timestamp ? createdAt.toMillis() : Date.now();
+    return Math.max(0, (Date.now() - millis) / DAY_MS);
+}
+function localityMultiplier(data, school, city) {
+    if (school && (data.school === school || data.sellerSchool === school))
+        return 2;
+    if (city && data.city === city)
+        return 1.3;
+    return 1;
+}
+function textRank(data, term, fields) {
+    const normalized = normalizeSearchTerm(term.replace(/^[@#]/, ""));
+    if (!normalized)
+        return 1;
+    let score = 0;
+    for (const [field, weight] of fields) {
+        const value = Array.isArray(data[field]) ? data[field].join(" ") : data[field];
+        if (typeof value !== "string")
+            continue;
+        const text = value.toLowerCase();
+        if (text.split(/\s+/).includes(normalized))
+            score += weight * 1.5;
+        else if (text.includes(normalized))
+            score += weight;
+    }
+    return score;
+}
+function feedScore(data, school, city) {
+    const reactions = Object.values(data.reactionsCount || {}).reduce((sum, value) => sum + (typeof value === "number" ? value : 0), 0);
+    const engagement = (Number(data.upvotesCount) || 0) * 3 + reactions * 3
+        + (Number(data.repliesCount) || 0) * 5 + (Number(data.sharesCount) || 0) * 7 + (Number(data.savesCount) || 0) * 4;
+    const ageHours = ageDays(data) * 24;
+    if (data.moderationFlagged === true)
+        return -Infinity;
+    const downvotes = Number(data.downvotesCount) || 0;
+    const voteTotal = (Number(data.upvotesCount) || 0) + downvotes;
+    const gate = voteTotal > 0 && downvotes / voteTotal > 0.4 ? 0.3 : 1;
+    return (engagement / Math.pow(ageHours + 2, 1.35)) * localityMultiplier(data, school, city) * gate;
+}
+function productScore(data, school, city) {
+    const freshness = 1 / (1 + ageDays(data) / 10);
+    const demand = Math.log1p((Number(data.wishlistCount) || 0) * 4 + (Number(data.inquiryCount) || 0) * 8) / (ageDays(data) + 1);
+    const quality = (Array.isArray(data.images) && data.images.length >= 2 ? 0.5 : 0)
+        + (typeof data.description === "string" && data.description.length >= 80 ? 0.3 : 0)
+        + (Number(data.price) > 0 ? 0.2 : 0);
+    const statusMultiplier = data.status === "sold" ? 0.1 : data.status === "reserved" ? 0.6 : 1;
+    return (freshness * 30 + demand * 25 + quality * 15 + localityMultiplier(data, school, city) * 15 + (Number(data.sellerReputation) || 4.2) * 3) * statusMultiplier;
 }
 // ─── Secrets (set via: firebase functions:secrets:set SECRET_NAME) ───────────
 const EMAIL_USER = (0, params_1.defineSecret)("EMAIL_USER");
@@ -1186,7 +1255,7 @@ async function enrichPosts(docs) {
         : [];
     const authorMap = new Map(authorDocs.map((d) => [d.id, d.data() || {}]));
     return docs.map((docSnap) => {
-        const raw = docSnap.data();
+        const raw = docSnap.data() || {};
         const post = serializeDoc(docSnap);
         const isAnonymous = raw.isAnonymous === true;
         const author = isAnonymous ? {} : (authorMap.get(raw.authorId) || {});
@@ -1202,7 +1271,7 @@ async function enrichProducts(docs) {
         : [];
     const sellerMap = new Map(sellerDocs.map((d) => [d.id, d.data() || {}]));
     return docs.map((docSnap) => {
-        const raw = docSnap.data();
+        const raw = docSnap.data() || {};
         const seller = sellerMap.get(raw.sellerId) || {};
         return Object.assign(Object.assign({}, serializeDoc(docSnap)), { sellerName: seller.name || raw.sellerName || "Unknown User", sellerSchool: seller.school || raw.sellerSchool || "Unknown School", sellerProfilePicture: seller.profilePicture || raw.sellerProfilePicture || null });
     });
@@ -1344,11 +1413,35 @@ exports.isReferralCodeAvailable = (0, https_1.onCall)({ invoker: "public", cors:
     return { available: snap.empty };
 });
 exports.getDiscoveryFeed = (0, https_1.onCall)({ invoker: "public", cors: CORS_ORIGINS }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const uid = ((_a = request.auth) === null || _a === void 0 ? void 0 : _a.uid) || null;
     const [blockedIds, friendIds] = uid ? await Promise.all([blockSetFor(uid), friendSetFor(uid)]) : [new Set(), new Set()];
     const postCursor = typeof ((_b = request.data) === null || _b === void 0 ? void 0 : _b.postCreatedAt) === "number" ? request.data.postCreatedAt : null;
     const productCursor = typeof ((_c = request.data) === null || _c === void 0 ? void 0 : _c.productCreatedAt) === "number" ? request.data.productCreatedAt : null;
+    const mode = ((_d = request.data) === null || _d === void 0 ? void 0 : _d.mode) === "following" ? "following" : "for-you";
+    // The first For You page is served from a bounded materialized pool. Older
+    // client versions retain the same response shape and fall through to the
+    // chronological cursor path below for pagination.
+    if (mode === "for-you" && uid && !postCursor && !productCursor) {
+        const viewer = await db.collection("users").doc(uid).get();
+        const school = viewer.get("school");
+        if (typeof school === "string" && school) {
+            const schoolKey = crypto.createHash("sha256").update(school).digest("hex").slice(0, 24);
+            const pool = await db.collection("computed").doc(`feed_pool_${schoolKey}`).get();
+            const items = Array.isArray(pool.get("items")) ? pool.get("items") : [];
+            const postItems = items.filter((item) => item.type === "post").slice(0, 20);
+            const productItems = items.filter((item) => item.type === "product").slice(0, 10);
+            const [postDocs, productDocs] = await Promise.all([
+                postItems.length ? db.getAll(...postItems.map((item) => db.collection("posts").doc(item.id))) : Promise.resolve([]),
+                productItems.length ? db.getAll(...productItems.map((item) => db.collection("products").doc(item.id))) : Promise.resolve([]),
+            ]);
+            const visiblePosts = postDocs.filter((docSnap) => docSnap.exists && isVisiblePostData(docSnap.data() || {}, uid, blockedIds, friendIds));
+            const visibleProducts = productDocs.filter((docSnap) => docSnap.exists && !blockedIds.has(String(docSnap.get("sellerId"))));
+            const [posts, products] = await Promise.all([enrichPosts(visiblePosts), enrichProducts(visibleProducts)]);
+            if (posts.length || products.length)
+                return { posts, products, hasMorePosts: true, hasMoreProducts: true, nextCursor: {} };
+        }
+    }
     let postQuery = db.collection("posts")
         .where("status", "==", "approved")
         .orderBy("createdAt", "desc")
@@ -1391,6 +1484,8 @@ exports.searchDiscovery = (0, https_1.onCall)({ invoker: "public", cors: CORS_OR
     const city = typeof ((_d = request.data) === null || _d === void 0 ? void 0 : _d.city) === "string" ? request.data.city.trim() : "";
     const suggestions = ((_e = request.data) === null || _e === void 0 ? void 0 : _e.suggestions) === true;
     const [blockedIds, friendIds] = uid ? await Promise.all([blockSetFor(uid), friendSetFor(uid)]) : [new Set(), new Set()];
+    const queryTokens = searchTokens(term.replace(/^[@#]/, ""));
+    const token = queryTokens.length ? queryTokens[queryTokens.length - 1] : undefined;
     let userQuery = db.collection("users").limit(suggestions ? 200 : 120);
     if (term.startsWith("@")) {
         const username = term.slice(1);
@@ -1405,10 +1500,20 @@ exports.searchDiscovery = (0, https_1.onCall)({ invoker: "public", cors: CORS_OR
     else if (city) {
         userQuery = db.collection("users").where("city", "==", city).limit(120);
     }
-    const [usersSnap, postsSnap, productsSnap] = await Promise.all([
+    const postsQuery = token
+        ? db.collection("posts").where("searchTokens", "array-contains", token).limit(30)
+        : db.collection("posts").where("status", "==", "approved").orderBy("createdAt", "desc").limit(suggestions ? 20 : 80);
+    const productsQuery = token
+        ? db.collection("products").where("searchTokens", "array-contains", token).limit(30)
+        : db.collection("products").where("status", "==", "available").orderBy("createdAt", "desc").limit(suggestions ? 20 : 80);
+    const clubsQuery = token || term.startsWith("#")
+        ? db.collection("clubs").where("searchTokens", "array-contains", token || term.slice(1)).limit(30)
+        : db.collection("clubs").where("type", "==", "public").limit(suggestions ? 5 : 20);
+    const [usersSnap, postsSnap, productsSnap, clubsSnap] = await Promise.all([
         userQuery.get(),
-        db.collection("posts").where("status", "==", "approved").orderBy("createdAt", "desc").limit(suggestions ? 20 : 80).get(),
-        db.collection("products").where("status", "==", "available").orderBy("createdAt", "desc").limit(suggestions ? 20 : 80).get(),
+        postsQuery.get(),
+        productsQuery.get(),
+        clubsQuery.get(),
     ]);
     const users = [];
     usersSnap.forEach((docSnap) => {
@@ -1430,6 +1535,7 @@ exports.searchDiscovery = (0, https_1.onCall)({ invoker: "public", cors: CORS_OR
             && (!school || data.school === school)
             && (!term || matchesSearch(data.title, term) || matchesSearch(data.content, term) || matchesSearch(data.school, term));
     })
+        .sort((a, b) => (textRank(b.data(), term, [["title", 3], ["content", 1]]) * localityMultiplier(b.data(), school, city) / (1 + ageDays(b.data()) / 14)) - (textRank(a.data(), term, [["title", 3], ["content", 1]]) * localityMultiplier(a.data(), school, city) / (1 + ageDays(a.data()) / 14)))
         .slice(0, suggestions ? 5 : 20);
     const productDocs = productsSnap.docs
         .filter((d) => {
@@ -1440,9 +1546,16 @@ exports.searchDiscovery = (0, https_1.onCall)({ invoker: "public", cors: CORS_OR
             && (!city || data.city === city)
             && (!term || matchesSearch(data.title, term) || matchesSearch(data.category, term) || matchesSearch(data.sellerName, term));
     })
+        .sort((a, b) => (textRank(b.data(), term, [["title", 3], ["category", 2], ["description", 1]]) * localityMultiplier(b.data(), school, city) / (1 + ageDays(b.data()) / 14)) - (textRank(a.data(), term, [["title", 3], ["category", 2], ["description", 1]]) * localityMultiplier(a.data(), school, city) / (1 + ageDays(a.data()) / 14)))
         .slice(0, suggestions ? 5 : 20);
     const [posts, products] = await Promise.all([enrichPosts(postDocs), enrichProducts(productDocs)]);
-    return { users: users.slice(0, suggestions ? 15 : 50), posts, products };
+    const clubs = clubsSnap.docs
+        .filter((docSnap) => docSnap.get("type") === "public" && (!school || docSnap.get("school") === school))
+        .filter((docSnap) => !term || textRank(docSnap.data(), term, [["name", 3], ["tags", 2], ["school", 1]]) > 0)
+        .sort((a, b) => textRank(b.data(), term, [["name", 3], ["tags", 2], ["school", 1]]) - textRank(a.data(), term, [["name", 3], ["tags", 2], ["school", 1]]))
+        .slice(0, suggestions ? 5 : 20)
+        .map(serializeDoc);
+    return { users: users.slice(0, suggestions ? 15 : 50), posts, products, clubs };
 });
 exports.getPostReplies = (0, https_1.onCall)({ invoker: "public", cors: CORS_ORIGINS }, async (request) => {
     var _a;
@@ -1742,5 +1855,100 @@ exports.notifyOnFirstStory = (0, firestore_1.onDocumentCreated)({ document: "sto
     if (inBatch > 0)
         await batch.commit();
     console.log(`[story notif] ${authorId} first-after-gap → notified ${notified} followers`);
+});
+// ─── Discovery materialization ─────────────────────────────────────────────
+// These are deliberately server-written. A client never controls ranking inputs
+// such as search tokens, badges, or reputation aggregates.
+function tokenFields(collection, data) {
+    switch (collection) {
+        case "users": return [data.name, data.username, data.school];
+        case "products": return [data.title, data.category, typeof data.description === "string" ? data.description.slice(0, 200) : "", data.sellerSchool];
+        case "posts": return [data.title, typeof data.content === "string" ? data.content.slice(0, 200) : "", data.school];
+        case "clubs": return [data.name, ...(Array.isArray(data.tags) ? data.tags : []), data.school];
+        default: return [];
+    }
+}
+function tokenTrigger(collection) {
+    return (0, firestore_1.onDocumentWritten)({ document: `${collection}/{documentId}` }, async (event) => {
+        var _a;
+        const after = (_a = event.data) === null || _a === void 0 ? void 0 : _a.after;
+        if (!(after === null || after === void 0 ? void 0 : after.exists))
+            return;
+        const data = after.data() || {};
+        const tokens = searchTokens(...tokenFields(collection, data));
+        const current = Array.isArray(data.searchTokens) ? data.searchTokens : [];
+        if (JSON.stringify(current) === JSON.stringify(tokens))
+            return;
+        await after.ref.update({ searchTokens: tokens, searchTokensUpdatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    });
+}
+exports.indexUserSearchTokens = tokenTrigger("users");
+exports.indexProductSearchTokens = tokenTrigger("products");
+exports.indexPostSearchTokens = tokenTrigger("posts");
+exports.indexClubSearchTokens = tokenTrigger("clubs");
+exports.aggregateSellerReputation = (0, firestore_1.onDocumentWritten)({ document: "reviews/{reviewId}" }, async (event) => {
+    var _a, _b;
+    const before = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
+    const after = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
+    const sellerId = ((after === null || after === void 0 ? void 0 : after.sellerId) || (before === null || before === void 0 ? void 0 : before.sellerId));
+    if (!sellerId)
+        return;
+    const reviewsSnap = await db.collection("reviews").where("sellerId", "==", sellerId).limit(500).get();
+    const now = Date.now();
+    let weightedTotal = 0;
+    let weight = 0;
+    for (const review of reviewsSnap.docs) {
+        const rating = Number(review.get("rating"));
+        if (!Number.isFinite(rating))
+            continue;
+        const createdAt = review.get("createdAt");
+        const old = createdAt instanceof admin.firestore.Timestamp && now - createdAt.toMillis() > 180 * DAY_MS;
+        const reviewWeight = old ? 0.5 : 1;
+        weightedTotal += rating * reviewWeight;
+        weight += reviewWeight;
+    }
+    const count = reviewsSnap.size;
+    const globalMean = 4.2;
+    const displayedRating = (globalMean * 5 + weightedTotal) / (5 + weight);
+    await db.collection("users").doc(sellerId).set({
+        reviewCount: count,
+        ratingSum: weightedTotal,
+        reputation: Number(displayedRating.toFixed(2)),
+        reputationUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+});
+exports.computeDerived = (0, scheduler_1.onSchedule)({ schedule: "every 10 minutes", timeZone: "UTC", timeoutSeconds: 540, memory: "1GiB" }, async () => {
+    const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 72 * HOUR_MS);
+    const [postsSnap, productsSnap, usersSnap] = await Promise.all([
+        db.collection("posts").where("createdAt", ">=", cutoff).limit(500).get(),
+        db.collection("products").where("createdAt", ">=", cutoff).limit(500).get(),
+        db.collection("users").limit(1500).get(),
+    ]);
+    const schools = new Set();
+    usersSnap.forEach((docSnap) => { const school = docSnap.get("school"); if (typeof school === "string" && school)
+        schools.add(school); });
+    const batch = db.batch();
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const landingStats = { totalUsers: usersSnap.size, totalProducts: productsSnap.size, totalSchools: schools.size, updatedAt: now };
+    batch.set(db.collection("computed").doc("landing_stats"), landingStats);
+    for (const school of schools) {
+        const rankedPosts = postsSnap.docs
+            .filter((docSnap) => docSnap.get("status") === "approved")
+            .map((docSnap) => ({ id: docSnap.id, type: "post", score: feedScore(docSnap.data(), school, ""), createdAt: docMillis(docSnap, "createdAt"), authorId: docSnap.get("authorId") }))
+            .filter((item) => Number.isFinite(item.score))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 200);
+        const rankedProducts = productsSnap.docs
+            .filter((docSnap) => ["available", "reserved", "sold"].includes(docSnap.get("status")))
+            .map((docSnap) => ({ id: docSnap.id, type: "product", score: productScore(docSnap.data(), school, ""), createdAt: docMillis(docSnap, "createdAt"), authorId: docSnap.get("sellerId") }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 100);
+        const trending = [...rankedPosts, ...rankedProducts].sort((a, b) => b.score - a.score).slice(0, 30).map((item, index) => (Object.assign(Object.assign({}, item), { badge: index < 3 ? "HOT" : index < 8 ? "TRENDING" : item.createdAt > Date.now() - 6 * HOUR_MS ? "NEW" : "RISING" })));
+        const schoolKey = crypto.createHash("sha256").update(school).digest("hex").slice(0, 24);
+        batch.set(db.collection("computed").doc(`feed_pool_${schoolKey}`), { school, items: [...rankedPosts, ...rankedProducts].sort((a, b) => b.score - a.score).slice(0, 200), updatedAt: now });
+        batch.set(db.collection("computed").doc(`trending_${schoolKey}`), { school, items: trending, badges: Object.fromEntries(trending.map((item) => [item.id, item.badge])), updatedAt: now });
+    }
+    await batch.commit();
+    console.log("computeDerived", { posts: postsSnap.size, products: productsSnap.size, schools: schools.size });
 });
 //# sourceMappingURL=index.js.map
