@@ -186,6 +186,7 @@ service cloud.firestore {
         && isValidId(userId)
         && request.auth.uid == userId
         && isValidUser(incoming())
+        && !incoming().keys().hasAny(['searchTokens', 'searchTokensUpdatedAt', 'reviewCount', 'ratingSum', 'reputationUpdatedAt'])
         && incoming().email == request.auth.token.email
         && incoming().verified == false
         && incoming().reputation == 5.0
@@ -273,6 +274,7 @@ service cloud.firestore {
         && isValidId(productId)
         && request.auth.uid == incoming().sellerId
         && isValidProduct(incoming())
+        && !incoming().keys().hasAny(['searchTokens', 'searchTokensUpdatedAt', 'sellerReputation', 'bumpedAt'])
         && (!incoming().keys().hasAny(['reservedById']))
         && incoming().status == 'pending'
         && incoming().createdAt == request.time
@@ -483,17 +485,7 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow get: if canAccessReview(resource.data);
       allow list: if canAccessReview(resource.data);
-
-      allow create: if isSignedIn()
-        && incoming().reviewerId == request.auth.uid
-        && incoming().reviewerName is string
-        && incoming().productId is string
-        && exists(productDoc(incoming().productId))
-        && canAccessProduct(get(productDoc(incoming().productId)).data)
-        && incoming().rating is number
-        && incoming().rating >= 1
-        && incoming().rating <= 5
-        && incoming().createdAt == request.time;
+      allow write: if false;
     }
 
     // === NOTIFICATIONS ===
@@ -546,12 +538,14 @@ service cloud.firestore {
       // Direct list remains only for admins and a user's own profile posts.
       allow list: if isSignedIn()
         && (isAdmin()
-          || request.auth.uid == resource.data.authorId);
+          || request.auth.uid == resource.data.authorId
+          || resource.data.status == 'approved');
 
       allow create: if isVerified()
         && isValidId(postId)
         && request.auth.uid == incoming().authorId
         && isValidPost(incoming())
+        && !incoming().keys().hasAny(['searchTokens', 'searchTokensUpdatedAt', 'trendingBadge'])
         && (
           incoming().status == 'pending'
           ||
@@ -802,6 +796,19 @@ service cloud.firestore {
       allow get, list: if isSignedIn()
         && (resource.data.followerId == request.auth.uid
           || resource.data.followingId == request.auth.uid);
+      allow write: if false;
+    }
+
+    // Server-materialized caches. Public landing stats remain readable before
+    // sign-in; all personalized/school aggregates require authentication.
+    match /computed/{documentId} {
+      allow get: if documentId == 'landing_stats' || isSignedIn();
+      allow list: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /user_affinity/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
       allow write: if false;
     }
 

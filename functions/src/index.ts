@@ -1443,6 +1443,9 @@ async function enrichProducts(docs: admin.firestore.DocumentSnapshot[]): Promise
       sellerName: seller.name || raw.sellerName || "Unknown User",
       sellerSchool: seller.school || raw.sellerSchool || "Unknown School",
       sellerProfilePicture: seller.profilePicture || raw.sellerProfilePicture || null,
+      sellerReputation: typeof seller.reputation === "number" ? seller.reputation : null,
+      sellerReviewCount: typeof seller.reviewCount === "number" ? seller.reviewCount : 0,
+      sellerReputationBadges: Array.isArray(seller.reputationBadges) ? seller.reputationBadges : [],
     };
   });
 }
@@ -1591,33 +1594,138 @@ export const isReferralCodeAvailable = onCall({ invoker: "public", cors: CORS_OR
 export const getDiscoveryFeed = onCall({ invoker: "public", cors: CORS_ORIGINS }, async (request) => {
   const uid = request.auth?.uid || null;
   const [blockedIds, friendIds] = uid ? await Promise.all([blockSetFor(uid), friendSetFor(uid)]) : [new Set<string>(), new Set<string>()];
+  
+  const mode = request.data?.mode === "following" ? "following" : "for-you";
   const postCursor = typeof request.data?.postCreatedAt === "number" ? request.data.postCreatedAt : null;
   const productCursor = typeof request.data?.productCreatedAt === "number" ? request.data.productCreatedAt : null;
-  const mode = request.data?.mode === "following" ? "following" : "for-you";
+  const cursorIndex = typeof request.data?.cursorIndex === "number" ? request.data.cursorIndex : 0;
 
-  // The first For You page is served from a bounded materialized pool. Older
-  // client versions retain the same response shape and fall through to the
-  // chronological cursor path below for pagination.
-  if (mode === "for-you" && uid && !postCursor && !productCursor) {
+  // ─── Following Tab (Strict Chronological Posts from Followed Authors) ───
+  if (mode === "following") {
+    if (!uid) return { posts: [], products: [], hasMorePosts: false, hasMoreProducts: false, nextCursor: {} };
+    
+    // Get followed users
+    const followingSnap = await db.collection("follows").where("followerId", "==", uid).limit(100).get();
+    const followingIds = followingSnap.docs.map((docSnap) => docSnap.get("followingId")).filter((id): id is string => typeof id === "string");
+    
+    if (followingIds.length === 0) {
+      return { posts: [], products: [], hasMorePosts: false, hasMoreProducts: false, nextCursor: {} };
+    }
+
+    let queryRef = db.collection("posts")
+      .where("authorId", "in", followingIds.slice(0, 30))
+      .where("status", "==", "approved")
+      .orderBy("createdAt", "desc")
+      .limit(20);
+
+    if (postCursor) {
+      queryRef = queryRef.startAfter(admin.firestore.Timestamp.fromMillis(postCursor));
+    }
+
+    const snap = await queryRef.get();
+    const visibleDocs = snap.docs.filter((d) => isVisiblePostData(d.data(), uid, blockedIds, friendIds));
+    const posts = await enrichPosts(visibleDocs);
+
+    return {
+      posts,
+      products: [],
+      hasMorePosts: snap.size === 20,
+      hasMoreProducts: false,
+      nextCursor: {
+        postCreatedAt: snap.docs.length ? docMillis(snap.docs[snap.docs.length - 1], "createdAt") : undefined,
+      },
+    };
+  }
+
+  // ─── For You Tab (Materialized Pools + User Affinity Re-ranking) ───
+  if (mode === "for-you" && uid) {
     const viewer = await db.collection("users").doc(uid).get();
     const school = viewer.get("school");
+    
     if (typeof school === "string" && school) {
       const schoolKey = crypto.createHash("sha256").update(school).digest("hex").slice(0, 24);
-      const pool = await db.collection("computed").doc(`feed_pool_${schoolKey}`).get();
-      const items = Array.isArray(pool.get("items")) ? pool.get("items") as Array<{ id: string; type: string }> : [];
-      const postItems = items.filter((item) => item.type === "post").slice(0, 20);
-      const productItems = items.filter((item) => item.type === "product").slice(0, 10);
-      const [postDocs, productDocs] = await Promise.all([
-        postItems.length ? db.getAll(...postItems.map((item) => db.collection("posts").doc(item.id))) : Promise.resolve([]),
-        productItems.length ? db.getAll(...productItems.map((item) => db.collection("products").doc(item.id))) : Promise.resolve([]),
+      const [poolSnap, affinitySnap, followingSnap] = await Promise.all([
+        db.collection("computed").doc(`feed_pool_${schoolKey}`).get(),
+        db.collection("user_affinity").doc(uid).get(),
+        db.collection("follows").where("followerId", "==", uid).limit(150).get(),
       ]);
-      const visiblePosts = postDocs.filter((docSnap) => docSnap.exists && isVisiblePostData(docSnap.data() || {}, uid, blockedIds, friendIds));
-      const visibleProducts = productDocs.filter((docSnap) => docSnap.exists && !blockedIds.has(String(docSnap.get("sellerId"))));
-      const [posts, products] = await Promise.all([enrichPosts(visiblePosts), enrichProducts(visibleProducts)]);
-      if (posts.length || products.length) return { posts, products, hasMorePosts: true, hasMoreProducts: true, nextCursor: {} };
+
+      const poolItems = Array.isArray(poolSnap.get("items")) ? poolSnap.get("items") as Array<any> : [];
+      if (poolItems.length > 0) {
+        const following = new Set(followingSnap.docs.map((d) => d.get("followingId")).filter(Boolean));
+        const affinity = affinitySnap.data() || {};
+        const postTypes = affinity.postTypes || {};
+        const categories = affinity.categories || {};
+        const engagedAuthors = affinity.engagedAuthors || {};
+
+        // Find max values for normalization
+        const maxPostTypeVal = Math.max(0.1, ...Object.values(postTypes).map(Number).filter((v) => !isNaN(v)));
+        const maxCategoryVal = Math.max(0.1, ...Object.values(categories).map(Number).filter((v) => !isNaN(v)));
+
+        // Re-score items in pool
+        const scoredPool = poolItems
+          .filter((item) => !blockedIds.has(item.authorId))
+          .map((item) => {
+            let score = Number(item.score) || 0;
+            const authorId = item.authorId;
+
+            // Relationship boosts
+            if (following.has(authorId)) score *= 2.5;
+            if (Number(engagedAuthors[authorId]) > 0) score *= 1.5;
+
+            // Affinity boosts
+            if (item.type === "post") {
+              const val = Number(postTypes[item.postType]) || 0;
+              const typeAffinity = 0.8 + 0.6 * (val / maxPostTypeVal);
+              score *= typeAffinity;
+            } else if (item.type === "product") {
+              const val = Number(categories[item.category]) || 0;
+              const categoryAffinity = 0.8 + 0.6 * (val / maxCategoryVal);
+              score *= categoryAffinity;
+            }
+
+            return { ...item, personalizedScore: score };
+          })
+          .sort((a, b) => b.personalizedScore - a.personalizedScore);
+
+        // Slice current page
+        const start = cursorIndex;
+        const pageItems = scoredPool.slice(start, start + 20);
+
+        if (pageItems.length > 0) {
+          // Hydrate docs in a single batch
+          const docRefs = pageItems.map((item) =>
+            db.collection(item.type === "post" ? "posts" : "products").doc(item.id)
+          );
+          const docsSnap = await db.getAll(...docRefs);
+
+          const postDocs = docsSnap.filter((d) => d.exists && d.ref.parent.id === "posts");
+          const productDocs = docsSnap.filter((d) => d.exists && d.ref.parent.id === "products");
+
+          const [posts, products] = await Promise.all([
+            enrichPosts(postDocs),
+            enrichProducts(productDocs),
+          ]);
+
+          // Keep exact ordered list of items for the client to reconstruct
+          const order = pageItems.map((item) => ({ id: item.id, type: item.type }));
+
+          return {
+            posts,
+            products,
+            order,
+            hasMorePosts: start + 20 < scoredPool.length,
+            hasMoreProducts: false,
+            nextCursor: {
+              cursorIndex: start + 20,
+            },
+          };
+        }
+      }
     }
   }
 
+  // ─── Chronological Fallback (Unauthenticated / Empty Pool) ───
   let postQuery = db.collection("posts")
     .where("status", "==", "approved")
     .orderBy("createdAt", "desc")
@@ -1664,7 +1772,48 @@ export const searchDiscovery = onCall({ invoker: "public", cors: CORS_ORIGINS },
   const suggestions = request.data?.suggestions === true;
   const [blockedIds, friendIds] = uid ? await Promise.all([blockSetFor(uid), friendSetFor(uid)]) : [new Set<string>(), new Set<string>()];
   const queryTokens = searchTokens(term.replace(/^[@#]/, ""));
-  const token = queryTokens.length ? queryTokens[queryTokens.length - 1] : undefined;
+  
+  // Find longest token (most meaningful keyword)
+  let longestToken: string | undefined;
+  if (queryTokens.length > 0) {
+    longestToken = [...queryTokens].sort((a, b) => b.length - a.length)[0];
+  }
+
+  // Parse price pattern matching (e.g. "< $100", "> $50", "$30")
+  let priceMin: number | null = null;
+  let priceMax: number | null = null;
+  const cleanTerm = term.toLowerCase();
+
+  const ltMatch = cleanTerm.match(/(?:<\s*\$?|under\s*\$?|less\s+than\s*\$?)([0-9]+)/);
+  if (ltMatch) {
+    priceMax = Number(ltMatch[1]);
+  }
+  const gtMatch = cleanTerm.match(/(?:>\s*\$?|above\s*\$?|greater\s+than\s*\$?)([0-9]+)/);
+  if (gtMatch) {
+    priceMin = Number(gtMatch[1]);
+  }
+  const eqMatch = cleanTerm.match(/\$?([0-9]+)/);
+  if (eqMatch && !ltMatch && !gtMatch) {
+    const val = Number(eqMatch[1]);
+    priceMin = Math.max(0, val - 10);
+    priceMax = val + 10;
+  }
+
+  // Category boost matching
+  const categoryKeywords: Record<string, string> = {
+    iphone: "electronics", phone: "electronics", macbook: "electronics", laptop: "electronics",
+    computer: "electronics", ipad: "electronics", airpods: "electronics",
+    textbook: "education", book: "education", calculator: "education", notes: "education",
+    shirt: "clothing", pants: "clothing", hoodie: "clothing", shoes: "clothing", jacket: "clothing",
+    dorm: "dorm", chair: "dorm", desk: "dorm", lamp: "dorm", mirror: "dorm"
+  };
+  let boostedCategory: string | null = null;
+  for (const token of queryTokens) {
+    if (categoryKeywords[token.toLowerCase()]) {
+      boostedCategory = categoryKeywords[token.toLowerCase()];
+      break;
+    }
+  }
 
   let userQuery = db.collection("users").limit(suggestions ? 200 : 120);
   if (term.startsWith("@")) {
@@ -1679,14 +1828,16 @@ export const searchDiscovery = onCall({ invoker: "public", cors: CORS_ORIGINS },
     userQuery = db.collection("users").where("city", "==", city).limit(120);
   }
 
-  const postsQuery = token
-    ? db.collection("posts").where("searchTokens", "array-contains", token).limit(30)
+  const postsQuery = longestToken
+    ? db.collection("posts").where("searchTokens", "array-contains", longestToken).limit(50)
     : db.collection("posts").where("status", "==", "approved").orderBy("createdAt", "desc").limit(suggestions ? 20 : 80);
-  const productsQuery = token
-    ? db.collection("products").where("searchTokens", "array-contains", token).limit(30)
+  
+  const productsQuery = longestToken
+    ? db.collection("products").where("searchTokens", "array-contains", longestToken).limit(50)
     : db.collection("products").where("status", "==", "available").orderBy("createdAt", "desc").limit(suggestions ? 20 : 80);
-  const clubsQuery = token || term.startsWith("#")
-    ? db.collection("clubs").where("searchTokens", "array-contains", token || term.slice(1)).limit(30)
+  
+  const clubsQuery = longestToken || term.startsWith("#")
+    ? db.collection("clubs").where("searchTokens", "array-contains", longestToken || term.slice(1)).limit(30)
     : db.collection("clubs").where("type", "==", "public").limit(suggestions ? 5 : 20);
 
   const [usersSnap, postsSnap, productsSnap, clubsSnap] = await Promise.all([
@@ -1713,19 +1864,60 @@ export const searchDiscovery = onCall({ invoker: "public", cors: CORS_ORIGINS },
         && (!school || data.school === school)
         && (!term || matchesSearch(data.title, term) || matchesSearch(data.content, term) || matchesSearch(data.school, term));
     })
-    .sort((a, b) => (textRank(b.data(), term, [["title", 3], ["content", 1]]) * localityMultiplier(b.data(), school, city) / (1 + ageDays(b.data()) / 14)) - (textRank(a.data(), term, [["title", 3], ["content", 1]]) * localityMultiplier(a.data(), school, city) / (1 + ageDays(a.data()) / 14)))
+    .sort((a, b) => {
+      const dataA = a.data();
+      const dataB = b.data();
+      
+      const scoreA = textRank(dataA, term, [["title", 3], ["content", 1]])
+        * localityMultiplier(dataA, school, city)
+        * (1 / (1 + ageDays(dataA) / 14))
+        * (1 + (Number(dataA.upvotesCount) || 0) * 0.1);
+
+      const scoreB = textRank(dataB, term, [["title", 3], ["content", 1]])
+        * localityMultiplier(dataB, school, city)
+        * (1 / (1 + ageDays(dataB) / 14))
+        * (1 + (Number(dataB.upvotesCount) || 0) * 0.1);
+
+      return scoreB - scoreA;
+    })
     .slice(0, suggestions ? 5 : 20);
 
   const productDocs = productsSnap.docs
     .filter((d) => {
       const data = d.data();
       const sellerId = typeof data.sellerId === "string" ? data.sellerId : "";
+      const price = Number(data.price) || 0;
+      
+      // Price filters
+      if (priceMin !== null && price < priceMin) return false;
+      if (priceMax !== null && price > priceMax) return false;
+
       return sellerId
         && !blockedIds.has(sellerId)
         && (!city || data.city === city)
         && (!term || matchesSearch(data.title, term) || matchesSearch(data.category, term) || matchesSearch(data.sellerName, term));
     })
-    .sort((a, b) => (textRank(b.data(), term, [["title", 3], ["category", 2], ["description", 1]]) * localityMultiplier(b.data(), school, city) / (1 + ageDays(b.data()) / 14)) - (textRank(a.data(), term, [["title", 3], ["category", 2], ["description", 1]]) * localityMultiplier(a.data(), school, city) / (1 + ageDays(a.data()) / 14)))
+    .sort((a, b) => {
+      const dataA = a.data();
+      const dataB = b.data();
+
+      const catBoostA = boostedCategory && dataA.category === boostedCategory ? 2.0 : 1.0;
+      const catBoostB = boostedCategory && dataB.category === boostedCategory ? 2.0 : 1.0;
+
+      const scoreA = textRank(dataA, term, [["title", 3], ["category", 2], ["description", 1]])
+        * localityMultiplier(dataA, school, city)
+        * (1 / (1 + ageDays(dataA) / 14))
+        * (1 + (Number(dataA.wishlistCount) || 0) * 0.2)
+        * catBoostA;
+
+      const scoreB = textRank(dataB, term, [["title", 3], ["category", 2], ["description", 1]])
+        * localityMultiplier(dataB, school, city)
+        * (1 / (1 + ageDays(dataB) / 14))
+        * (1 + (Number(dataB.wishlistCount) || 0) * 0.2)
+        * catBoostB;
+
+      return scoreB - scoreA;
+    })
     .slice(0, suggestions ? 5 : 20);
 
   const [posts, products] = await Promise.all([enrichPosts(postDocs), enrichProducts(productDocs)]);
@@ -1796,6 +1988,75 @@ export const getProductReviews = onCall({ invoker: "public", cors: CORS_ORIGINS 
     .map(serializeDoc);
 
   return { reviews };
+});
+
+export const createProductReview = onCall({ invoker: "public", cors: CORS_ORIGINS }, async (request) => {
+  const uid = assertAuthedUid(request);
+  const productId = typeof request.data?.productId === "string" ? request.data.productId : "";
+  const rating = Number(request.data?.rating);
+  const comment = typeof request.data?.comment === "string" ? request.data.comment.trim().slice(0, 500) : "";
+  if (!productId || !Number.isInteger(rating) || rating < 1 || rating > 5) throw new HttpsError("invalid-argument", "Invalid review.");
+  const product = await db.collection("products").doc(productId).get();
+  if (!product.exists) throw new HttpsError("not-found", "Listing not found.");
+  const sellerId = product.get("sellerId");
+  if (typeof sellerId !== "string" || sellerId === uid) throw new HttpsError("permission-denied", "You cannot review this seller.");
+  if (!["sold", "reserved"].includes(product.get("status"))) throw new HttpsError("failed-precondition", "Reviews are available after a reservation or sale.");
+  if (await hasBlockRelationship(uid, sellerId)) throw new HttpsError("permission-denied", "This review is unavailable.");
+  const [existing, rooms, reviewer] = await Promise.all([
+    db.collection("reviews").where("productId", "==", productId).where("reviewerId", "==", uid).limit(1).get(),
+    db.collection("chatRooms").where("participants", "array-contains", uid).limit(100).get(),
+    db.collection("users").doc(uid).get(),
+  ]);
+  if (!existing.empty) throw new HttpsError("already-exists", "You have already reviewed this listing.");
+  
+  const sellerRoom = rooms.docs.find((room) => room.get("productId") === productId && Array.isArray(room.get("participants")) && room.get("participants").includes(sellerId));
+  if (!sellerRoom) throw new HttpsError("permission-denied", "You can review only sellers you contacted about this listing.");
+
+  // Verify >= 2 messages exchanged
+  const messagesSnap = await db.collection("chatRooms").doc(sellerRoom.id).collection("messages").limit(10).get();
+  const buyerMsgCount = messagesSnap.docs.filter((d) => d.get("senderId") === uid).length;
+  const sellerMsgCount = messagesSnap.docs.filter((d) => d.get("senderId") === sellerId).length;
+  if (buyerMsgCount < 1 || sellerMsgCount < 1 || messagesSnap.size < 2) {
+    throw new HttpsError("permission-denied", "You must have exchanged at least 2 messages with the seller to review them.");
+  }
+
+  // Reciprocity Damping (>= 3 reciprocal 5-star review pairs within 48h damped to 0.3x weight)
+  const [aToBReviews, bToAReviews] = await Promise.all([
+    db.collection("reviews").where("reviewerId", "==", uid).where("sellerId", "==", sellerId).get(),
+    db.collection("reviews").where("reviewerId", "==", sellerId).where("sellerId", "==", uid).get(),
+  ]);
+  const aDocs = aToBReviews.docs;
+  const bDocs = bToAReviews.docs;
+  const aTimes = aDocs.map((d) => docMillis(d, "createdAt") || Date.now());
+  aTimes.push(Date.now()); // Include current review
+  const bTimes = bDocs.map((d) => docMillis(d, "createdAt") || Date.now());
+
+  let reciprocalPairs = 0;
+  const usedB = new Set<number>();
+  for (const aTime of aTimes) {
+    let matchIdx = -1;
+    for (let i = 0; i < bTimes.length; i++) {
+      if (!usedB.has(i) && Math.abs(aTime - bTimes[i]) <= 48 * HOUR_MS) {
+        matchIdx = i;
+        break;
+      }
+    }
+    if (matchIdx !== -1) {
+      usedB.add(matchIdx);
+      reciprocalPairs++;
+    }
+  }
+
+  const dampingMultiplier = (rating === 5 && reciprocalPairs >= 3) ? 0.3 : 1.0;
+
+  const reviewRef = db.collection("reviews").doc();
+  await reviewRef.set({
+    productId, sellerId, reviewerId: uid, reviewerName: reviewer.get("name") || reviewer.get("username") || "Student", rating, comment,
+    dampingMultiplier,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await db.collection("notifications").add({ userId: sellerId, type: "new_review", title: "New Review", message: `${reviewer.get("name") || "A student"} left a ${rating}★ review.`, link: `/product/${productId}`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+  return { id: reviewRef.id };
 });
 
 export const getLandingStats = onCall({ invoker: "public", cors: CORS_ORIGINS }, async () => {
@@ -2122,7 +2383,13 @@ export const aggregateSellerReputation = onDocumentWritten(
     const after = event.data?.after.data();
     const sellerId = (after?.sellerId || before?.sellerId) as string | undefined;
     if (!sellerId) return;
-    const reviewsSnap = await db.collection("reviews").where("sellerId", "==", sellerId).limit(500).get();
+
+    const [reviewsSnap, roomsSnap, productsSnap] = await Promise.all([
+      db.collection("reviews").where("sellerId", "==", sellerId).limit(500).get(),
+      db.collection("chatRooms").where("participants", "array-contains", sellerId).limit(100).get(),
+      db.collection("products").where("sellerId", "==", sellerId).limit(100).get(),
+    ]);
+
     const now = Date.now();
     let weightedTotal = 0;
     let weight = 0;
@@ -2131,21 +2398,101 @@ export const aggregateSellerReputation = onDocumentWritten(
       if (!Number.isFinite(rating)) continue;
       const createdAt = review.get("createdAt");
       const old = createdAt instanceof admin.firestore.Timestamp && now - createdAt.toMillis() > 180 * DAY_MS;
-      const reviewWeight = old ? 0.5 : 1;
+      const damping = typeof review.get("dampingMultiplier") === "number" ? review.get("dampingMultiplier") : 1.0;
+      const reviewWeight = (old ? 0.5 : 1) * damping;
       weightedTotal += rating * reviewWeight;
       weight += reviewWeight;
     }
     const count = reviewsSnap.size;
     const globalMean = 4.2;
     const displayedRating = (globalMean * 5 + weightedTotal) / (5 + weight);
+
+    // Calculate responsiveness
+    let totalRoomsWithBuyerMessage = 0;
+    let sellerRepliedOnTimeCount = 0;
+
+    for (const roomDoc of roomsSnap.docs) {
+      const messagesSnap = await db.collection("chatRooms")
+        .doc(roomDoc.id)
+        .collection("messages")
+        .orderBy("createdAt", "asc")
+        .limit(50)
+        .get();
+
+      if (messagesSnap.empty) continue;
+
+      let lastBuyerMsgTime = 0;
+      let roomInvolved = false;
+
+      for (const msgDoc of messagesSnap.docs) {
+        const senderId = msgDoc.get("senderId");
+        const msgTime = docMillis(msgDoc, "createdAt") || Date.now();
+
+        if (senderId !== sellerId) {
+          lastBuyerMsgTime = msgTime;
+          roomInvolved = true;
+        } else if (senderId === sellerId && lastBuyerMsgTime > 0) {
+          const replyTime = msgTime - lastBuyerMsgTime;
+          if (replyTime <= 24 * 3600 * 1000) {
+            sellerRepliedOnTimeCount++;
+          }
+          lastBuyerMsgTime = 0;
+        }
+      }
+      if (roomInvolved) {
+        totalRoomsWithBuyerMessage++;
+      }
+    }
+
+    const responsiveness = totalRoomsWithBuyerMessage > 0 
+      ? Number((sellerRepliedOnTimeCount / totalRoomsWithBuyerMessage).toFixed(2)) 
+      : 1.0;
+
+    // Calculate completionScore
+    let soldCount = 0;
+    let totalProductsCount = 0;
+    productsSnap.forEach((d) => {
+      const status = d.get("status");
+      if (["sold", "available", "reserved", "expired"].includes(status)) {
+        totalProductsCount++;
+        if (status === "sold") soldCount++;
+      }
+    });
+    const completionScore = totalProductsCount > 0 ? Number((soldCount / totalProductsCount).toFixed(2)) : 1.0;
+
+    // Determine reputationBadges
+    const badges: string[] = [];
+    if (responsiveness >= 0.8 && totalRoomsWithBuyerMessage >= 2) {
+      badges.push("Fast responder");
+    }
+    if (displayedRating >= 4.5 && count >= 10) {
+      badges.push("Trusted seller");
+    }
+    if (count < 3) {
+      badges.push("New seller");
+    }
+
     await db.collection("users").doc(sellerId).set({
       reviewCount: count,
       ratingSum: weightedTotal,
       reputation: Number(displayedRating.toFixed(2)),
+      responsiveness,
+      completionScore,
+      reputationBadges: badges,
       reputationUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
   },
 );
+
+function postEngagement(data: any): number {
+  const reactions = Object.values(data.reactionsCount || {}).reduce<number>((sum, value) => sum + (typeof value === "number" ? value : 0), 0);
+  return (Number(data.upvotesCount) || 0) * 3 + reactions * 3
+    + (Number(data.repliesCount) || 0) * 5 + (Number(data.sharesCount) || 0) * 7 + (Number(data.savesCount) || 0) * 4;
+}
+
+function productEngagement(data: any): number {
+  return (Number(data.wishlistCount) || 0) * 4 + (Number(data.inquiryCount) || 0) * 8;
+}
 
 export const computeDerived = onSchedule(
   { schedule: "every 10 minutes", timeZone: "UTC", timeoutSeconds: 540, memory: "1GiB" },
@@ -2162,27 +2509,415 @@ export const computeDerived = onSchedule(
     const now = admin.firestore.FieldValue.serverTimestamp();
     const landingStats = { totalUsers: usersSnap.size, totalProducts: productsSnap.size, totalSchools: schools.size, updatedAt: now };
     batch.set(db.collection("computed").doc("landing_stats"), landingStats);
+    
     for (const school of schools) {
       const rankedPosts = postsSnap.docs
         .filter((docSnap) => docSnap.get("status") === "approved")
-        .map((docSnap) => ({ id: docSnap.id, type: "post", score: feedScore(docSnap.data(), school, ""), createdAt: docMillis(docSnap, "createdAt"), authorId: docSnap.get("authorId") }))
+        .map((docSnap) => {
+          const data = docSnap.data();
+          const score = feedScore(data, school, "");
+          const ageHours = ageDays(data) * 24;
+          const engagement = postEngagement(data);
+          const velocity = engagement / (ageHours + 0.1);
+          return { id: docSnap.id, type: "post", score, createdAt: docMillis(docSnap, "createdAt"), authorId: docSnap.get("authorId"), ageHours, engagement, velocity };
+        })
         .filter((item) => Number.isFinite(item.score))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 200);
+        .sort((a, b) => b.score - a.score);
+      const postsPool = rankedPosts.slice(0, 200);
+
       const rankedProducts = productsSnap.docs
         .filter((docSnap) => ["available", "reserved", "sold"].includes(docSnap.get("status")))
-        .map((docSnap) => ({ id: docSnap.id, type: "product", score: productScore(docSnap.data(), school, ""), createdAt: docMillis(docSnap, "createdAt"), authorId: docSnap.get("sellerId") }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 100);
-      const trending = [...rankedPosts, ...rankedProducts].sort((a, b) => b.score - a.score).slice(0, 30).map((item, index) => ({
-        ...item,
-        badge: index < 3 ? "HOT" : index < 8 ? "TRENDING" : item.createdAt > Date.now() - 6 * HOUR_MS ? "NEW" : "RISING",
-      }));
+        .map((docSnap) => {
+          const data = docSnap.data();
+          const score = productScore(data, school, "");
+          const ageHours = ageDays(data) * 24;
+          const engagement = productEngagement(data);
+          const velocity = engagement / (ageHours + 0.1);
+          return { id: docSnap.id, type: "product", score, createdAt: docMillis(docSnap, "createdAt"), authorId: docSnap.get("sellerId"), ageHours, engagement, velocity };
+        })
+        .sort((a, b) => b.score - a.score);
+      const productsPool = rankedProducts.slice(0, 100);
+
       const schoolKey = crypto.createHash("sha256").update(school).digest("hex").slice(0, 24);
-      batch.set(db.collection("computed").doc(`feed_pool_${schoolKey}`), { school, items: [...rankedPosts, ...rankedProducts].sort((a, b) => b.score - a.score).slice(0, 200), updatedAt: now });
-      batch.set(db.collection("computed").doc(`trending_${schoolKey}`), { school, items: trending, badges: Object.fromEntries(trending.map((item) => [item.id, item.badge])), updatedAt: now });
+      const prevTrendingSnap = await db.collection("computed").doc(`trending_${schoolKey}`).get();
+      const prevBadgesState = prevTrendingSnap.get("badgesState") || {};
+      const newBadgesState: Record<string, any> = {};
+
+      const combinedCandidates = [...postsPool, ...productsPool].sort((a, b) => b.score - a.score).slice(0, 30);
+      const docRefs = combinedCandidates.map((c) =>
+        db.collection(c.type === "post" ? "posts" : "products").doc(c.id)
+      );
+      const docsSnap = docRefs.length > 0 ? await db.getAll(...docRefs) : [];
+      const docMap = new Map(docsSnap.map((d) => [d.id, d.data() || {}]));
+
+      const trending = combinedCandidates.map((item) => {
+        // Determine candidate badge
+        let candidate: "NEW" | "HOT" | "TRENDING" | "RISING" | "none" = "none";
+        if (item.type === "post") {
+          const isTop10 = rankedPosts.findIndex((p) => p.id === item.id) < Math.max(1, rankedPosts.length * 0.1);
+          const isTop25 = rankedPosts.findIndex((p) => p.id === item.id) < Math.max(1, rankedPosts.length * 0.25);
+          if (item.ageHours < 6) candidate = "NEW";
+          else if (isTop10 && item.engagement >= 25) candidate = "HOT";
+          else if (isTop25 && item.engagement >= 10) candidate = "TRENDING";
+          else if (item.velocity >= 5 && item.ageHours < 12) candidate = "RISING";
+        } else {
+          const isTop10 = rankedProducts.findIndex((p) => p.id === item.id) < Math.max(1, rankedProducts.length * 0.1);
+          const isTop25 = rankedProducts.findIndex((p) => p.id === item.id) < Math.max(1, rankedProducts.length * 0.25);
+          if (item.ageHours < 24) candidate = "NEW";
+          else if (isTop10 && item.engagement >= 30) candidate = "HOT";
+          else if (isTop25 && item.engagement >= 10) candidate = "TRENDING";
+          else if (item.velocity >= 5 && item.ageHours < 12) candidate = "RISING";
+        }
+
+        // State Machine for Hysteresis
+        const prev = prevBadgesState[item.id] || { badge: "none", candidate: "none", candidateCount: 0, failCount: 0 };
+        let badge = prev.badge;
+        let pCandidate = prev.candidate;
+        let pCandidateCount = prev.candidateCount;
+        let pFailCount = prev.failCount;
+
+        if (candidate === "NEW") {
+          badge = "NEW";
+          pCandidate = "none";
+          pCandidateCount = 0;
+          pFailCount = 0;
+        } else {
+          if (prev.badge === "NEW") {
+            badge = "none";
+            pCandidate = "none";
+            pCandidateCount = 0;
+            pFailCount = 0;
+          }
+          if (candidate === prev.badge) {
+            pFailCount = 0;
+            pCandidate = "none";
+            pCandidateCount = 0;
+          } else {
+            if (candidate === prev.candidate) {
+              pCandidateCount = prev.candidateCount + 1;
+            } else {
+              pCandidate = candidate;
+              pCandidateCount = 1;
+            }
+
+            if (pCandidateCount >= 2) {
+              badge = candidate;
+              pCandidate = "none";
+              pCandidateCount = 0;
+              pFailCount = 0;
+            } else {
+              pFailCount = prev.failCount + 1;
+              if (pFailCount >= 3) {
+                badge = pCandidateCount >= 2 ? pCandidate : "none";
+                pFailCount = 0;
+              }
+            }
+          }
+        }
+
+        newBadgesState[item.id] = { badge, candidate: pCandidate, candidateCount: pCandidateCount, failCount: pFailCount };
+        
+        const raw = docMap.get(item.id) || {};
+        return {
+          id: item.id,
+          type: item.type,
+          score: item.score,
+          createdAt: item.createdAt,
+          authorId: item.authorId,
+          badge,
+          title: raw.title || raw.name || "",
+          content: raw.content || raw.description || "",
+          authorName: raw.authorName || raw.sellerName || "Student",
+          authorProfilePicture: raw.authorProfilePicture || raw.sellerProfilePicture || null,
+          authorUsername: raw.authorUsername || null,
+          school: raw.school || raw.sellerSchool || "",
+          city: raw.city || "",
+          upvotesCount: raw.upvotesCount || 0,
+          repliesCount: raw.repliesCount || 0,
+          wishlistCount: raw.wishlistCount || 0,
+          inquiryCount: raw.inquiryCount || 0,
+          price: raw.price || 0,
+          category: raw.category || "",
+          image: raw.image || (raw.imageUrls && raw.imageUrls[0]) || "",
+        };
+      });
+
+      batch.set(db.collection("computed").doc(`feed_pool_${schoolKey}`), { school, items: [...postsPool, ...productsPool].sort((a, b) => b.score - a.score).slice(0, 200), updatedAt: now });
+      batch.set(db.collection("computed").doc(`trending_${schoolKey}`), { school, items: trending, badges: Object.fromEntries(trending.map((item) => [item.id, item.badge])), badgesState: newBadgesState, updatedAt: now });
     }
     await batch.commit();
-    console.log("computeDerived", { posts: postsSnap.size, products: productsSnap.size, schools: schools.size });
+    console.log("computeDerived finished");
+  },
+);
+
+async function recordAffinity(uid: string, bucket: "categories" | "postTypes" | "schools" | "engagedAuthors", key: string, eventWeight: number) {
+  if (!uid || !key) return;
+  const ref = db.collection("user_affinity").doc(uid);
+  await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(ref);
+    const data = existing.data() || {};
+    const updatedAt = data.updatedAt instanceof admin.firestore.Timestamp ? data.updatedAt.toMillis() : Date.now();
+    const decay = Math.pow(0.5, Math.max(0, Date.now() - updatedAt) / (14 * DAY_MS));
+    const values = { ...(data[bucket] || {}) } as Record<string, number>;
+    values[key] = (Number(values[key]) || 0) * decay + eventWeight;
+    const trimmed = Object.entries(values).sort((a, b) => b[1] - a[1]).slice(0, bucket === "engagedAuthors" ? 50 : 30);
+    transaction.set(ref, { [bucket]: Object.fromEntries(trimmed), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  });
+}
+
+export const learnWishlistAffinity = onDocumentCreated(
+  { document: "wishlists/{wishlistId}" },
+  async (event) => {
+    const data = event.data?.data();
+    const uid = data?.userId as string | undefined;
+    const productId = data?.productId as string | undefined;
+    if (!uid || !productId) return;
+    const product = await db.collection("products").doc(productId).get();
+    const category = product.get("category");
+    const school = product.get("sellerSchool");
+    await Promise.all([
+      typeof category === "string" ? recordAffinity(uid, "categories", category, 4) : Promise.resolve(),
+      typeof school === "string" ? recordAffinity(uid, "schools", school, 2) : Promise.resolve(),
+      typeof product.get("sellerId") === "string" ? recordAffinity(uid, "engagedAuthors", product.get("sellerId"), 2) : Promise.resolve(),
+    ]);
+  },
+);
+
+export const learnFollowAffinity = onDocumentCreated(
+  { document: "follows/{followId}" },
+  async (event) => {
+    const data = event.data?.data();
+    const uid = data?.followerId as string | undefined;
+    const followingId = data?.followingId as string | undefined;
+    if (!uid || !followingId) return;
+    const followed = await db.collection("users").doc(followingId).get();
+    await Promise.all([
+      recordAffinity(uid, "engagedAuthors", followingId, 10),
+      typeof followed.get("school") === "string" ? recordAffinity(uid, "schools", followed.get("school"), 4) : Promise.resolve(),
+    ]);
+  },
+);
+
+export const learnUpvoteAffinity = onDocumentCreated(
+  { document: "post_upvotes/{upvoteId}" },
+  async (event) => {
+    const data = event.data?.data();
+    const uid = data?.userId as string | undefined;
+    const postId = data?.postId as string | undefined;
+    if (!uid || !postId) return;
+    const post = await db.collection("posts").doc(postId).get();
+    if (!post.exists) return;
+    const authorId = post.get("authorId");
+    const postType = post.get("type");
+    const school = post.get("school");
+    await Promise.all([
+      typeof postType === "string" ? recordAffinity(uid, "postTypes", postType, 3) : Promise.resolve(),
+      typeof school === "string" ? recordAffinity(uid, "schools", school, 1.5) : Promise.resolve(),
+      typeof authorId === "string" ? recordAffinity(uid, "engagedAuthors", authorId, 3) : Promise.resolve(),
+    ]);
+  },
+);
+
+export const learnReactionAffinity = onDocumentCreated(
+  { document: "post_reactions/{reactionId}" },
+  async (event) => {
+    const data = event.data?.data();
+    const uid = data?.userId as string | undefined;
+    const postId = data?.postId as string | undefined;
+    if (!uid || !postId) return;
+    const post = await db.collection("posts").doc(postId).get();
+    if (!post.exists) return;
+    const authorId = post.get("authorId");
+    const postType = post.get("type");
+    const school = post.get("school");
+    await Promise.all([
+      typeof postType === "string" ? recordAffinity(uid, "postTypes", postType, 2) : Promise.resolve(),
+      typeof school === "string" ? recordAffinity(uid, "schools", school, 1) : Promise.resolve(),
+      typeof authorId === "string" ? recordAffinity(uid, "engagedAuthors", authorId, 2) : Promise.resolve(),
+    ]);
+  },
+);
+
+export const learnChatRoomAffinity = onDocumentCreated(
+  { document: "chatRooms/{roomId}" },
+  async (event) => {
+    const data = event.data?.data();
+    const participants = data?.participants as string[] | undefined;
+    if (!participants || participants.length !== 2) return;
+    const [u1, u2] = participants;
+    const [user1, user2] = await Promise.all([
+      db.collection("users").doc(u1).get(),
+      db.collection("users").doc(u2).get(),
+    ]);
+    const s1 = user1.get("school");
+    const s2 = user2.get("school");
+    await Promise.all([
+      recordAffinity(u1, "engagedAuthors", u2, 8),
+      typeof s2 === "string" ? recordAffinity(u1, "schools", s2, 3) : Promise.resolve(),
+      recordAffinity(u2, "engagedAuthors", u1, 8),
+      typeof s1 === "string" ? recordAffinity(u2, "schools", s1, 3) : Promise.resolve(),
+    ]);
+  },
+);
+
+export const getSuggestedUsers = onCall({ invoker: "public", cors: CORS_ORIGINS }, async (request) => {
+  const uid = assertAuthedUid(request);
+  const [viewer, followingSnap, blockedIds] = await Promise.all([
+    db.collection("users").doc(uid).get(),
+    db.collection("follows").where("followerId", "==", uid).limit(100).get(),
+    blockSetFor(uid),
+  ]);
+  const following = new Set(followingSnap.docs.map((docSnap) => docSnap.get("followingId")).filter((id): id is string => typeof id === "string"));
+  const school = viewer.get("school");
+  
+  // Pre-filter candidates to the top 60 by school, city, and active status
+  const queryRef = typeof school === "string"
+    ? db.collection("users").where("school", "==", school).limit(100)
+    : db.collection("users").limit(100);
+  const candidatesSnap = await queryRef.get();
+  
+  const initialCandidates = candidatesSnap.docs
+    .filter((docSnap) => docSnap.id !== uid && !following.has(docSnap.id) && !blockedIds.has(docSnap.id) && docSnap.get("verified") === true)
+    .map((docSnap) => {
+      const data = docSnap.data();
+      const score = (data.school === school ? 30 : 0)
+        + (data.city && data.city === viewer.get("city") ? 10 : 0)
+        + (data.lastActiveAt instanceof admin.firestore.Timestamp && Date.now() - data.lastActiveAt.toMillis() < 7 * DAY_MS ? 8 : 0);
+      return { docSnap, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20); // Bounded at exactly top 20 to restrict doc reads
+
+  if (initialCandidates.length === 0) {
+    return { users: [] };
+  }
+
+  const candidateIds = initialCandidates.map((c) => c.docSnap.id);
+  const followingList = Array.from(following).slice(0, 30);
+
+  // Fetch mutual follows and affinities in parallel
+  const [mutualSnap, affinitySnaps, viewerAffinitySnap] = await Promise.all([
+    followingList.length > 0
+      ? db.collection("follows")
+          .where("followingId", "in", candidateIds)
+          .where("followerId", "in", followingList)
+          .get()
+      : Promise.resolve({ docs: [] }),
+    db.collection("user_affinity").where(admin.firestore.FieldPath.documentId(), "in", candidateIds).get(),
+    db.collection("user_affinity").doc(uid).get(),
+  ]);
+
+  // Calculate mutual follow counts
+  const mutualFollowsCount: Record<string, number> = {};
+  mutualSnap.docs.forEach((d) => {
+    const followingId = d.get("followingId");
+    if (typeof followingId === "string") {
+      mutualFollowsCount[followingId] = (mutualFollowsCount[followingId] || 0) + 1;
+    }
+  });
+
+  // Map candidate affinities
+  const candidateAffinities: Record<string, any> = {};
+  affinitySnaps.docs.forEach((d) => {
+    candidateAffinities[d.id] = d.data();
+  });
+
+  const vEngaged = viewerAffinitySnap.data()?.engagedAuthors || {};
+
+  const scoredUsers = initialCandidates
+    .map(({ docSnap, score: baseScore }) => {
+      const cId = docSnap.id;
+      let score = baseScore;
+
+      // Mutual follows boost (+5 per mutual friend)
+      const mutuals = mutualFollowsCount[cId] || 0;
+      score += mutuals * 5;
+
+      // Engagement overlap boost
+      const cEngaged = candidateAffinities[cId]?.engagedAuthors || {};
+      let overlap = 0;
+      for (const authorId in vEngaged) {
+        if (cEngaged[authorId]) {
+          overlap += Math.min(Number(vEngaged[authorId]), Number(cEngaged[authorId]));
+        }
+      }
+      score += overlap * 2;
+
+      // 3-hour stable rotation jitter
+      const hashVal = cId.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+      const noise = Math.sin(Date.now() / (3 * 3600 * 1000) + hashVal) * 6;
+      score += noise;
+
+      return { user: publicUserFromDoc(docSnap), score };
+    })
+    .filter((item): item is { user: PublicUser; score: number } => item.user !== null)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 15)
+    .map((item) => item.user);
+
+  return { users: scoredUsers };
+});
+
+export const getRecommendedProducts = onCall({ invoker: "public", cors: CORS_ORIGINS }, async (request) => {
+  const uid = assertAuthedUid(request);
+  const productId = typeof request.data?.productId === "string" ? request.data.productId : "";
+  const [viewer, affinity, current] = await Promise.all([
+    db.collection("users").doc(uid).get(),
+    db.collection("user_affinity").doc(uid).get(),
+    productId ? db.collection("products").doc(productId).get() : Promise.resolve(null),
+  ]);
+  const category = current?.get("category");
+  const baseQuery = typeof category === "string"
+    ? db.collection("products").where("category", "==", category).limit(100)
+    : db.collection("products").where("status", "==", "available").limit(100);
+  const snapshot = await baseQuery.get();
+  const categories = (affinity.data()?.categories || {}) as Record<string, number>;
+  const school = viewer.get("school") || "";
+  const city = viewer.get("city") || "";
+  const ranked = snapshot.docs
+    .filter((docSnap) => docSnap.id !== productId && docSnap.get("sellerId") !== uid && docSnap.get("status") === "available")
+    .filter((docSnap) => !current || !current.exists || (docSnap.get("price") >= Number(current.get("price")) * .5 && docSnap.get("price") <= Number(current.get("price")) * 2))
+    .sort((a, b) => (productScore(b.data(), school, city) + (Number(categories[b.get("category")]) || 0) * 35) - (productScore(a.data(), school, city) + (Number(categories[a.get("category")]) || 0) * 35))
+    .slice(0, 12);
+  return { products: await enrichProducts(ranked) };
+});
+
+export const maintainMarketplaceLifecycle = onSchedule(
+  { schedule: "every day 09:00", timeZone: "UTC", timeoutSeconds: 540 },
+  async () => {
+    const now = Date.now();
+    const renewCutoff = admin.firestore.Timestamp.fromMillis(now - 21 * DAY_MS);
+    const expireCutoff = admin.firestore.Timestamp.fromMillis(now - 45 * DAY_MS);
+    const reserveCutoff = admin.firestore.Timestamp.fromMillis(now - 7 * DAY_MS);
+    const [renewals, expirations, staleReservations] = await Promise.all([
+      db.collection("products").where("status", "==", "available").where("createdAt", "<=", renewCutoff).limit(300).get(),
+      db.collection("products").where("status", "==", "available").where("createdAt", "<=", expireCutoff).limit(300).get(),
+      db.collection("products").where("status", "==", "reserved").where("updatedAt", "<=", reserveCutoff).limit(300).get(),
+    ]);
+    const batch = db.batch();
+    let writes = 0;
+    for (const product of renewals.docs) {
+      if (product.get("renewalPromptedAt")) continue;
+      batch.set(db.collection("notifications").doc(), {
+        userId: product.get("sellerId"), type: "listing_renewal", title: "Still selling?", message: `Renew \"${product.get("title") || "your listing"}\" to keep it visible.`, link: `/edit-item/${product.id}`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      batch.update(product.ref, { renewalPromptedAt: admin.firestore.FieldValue.serverTimestamp() });
+      writes += 2;
+    }
+    for (const product of expirations.docs) {
+      batch.update(product.ref, { status: "expired", expiredAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      writes += 1;
+    }
+    for (const product of staleReservations.docs) {
+      for (const userId of [product.get("sellerId"), product.get("reservedById")]) {
+        if (typeof userId !== "string") continue;
+        batch.set(db.collection("notifications").doc(), {
+          userId, type: "reservation_reminder", title: "Reservation reminder", message: `Please confirm the status of \"${product.get("title") || "this item"}\".`, link: `/product/${product.id}`, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        writes += 1;
+      }
+    }
+    if (writes) await batch.commit();
+    console.log("maintainMarketplaceLifecycle", { writes, renewalCandidates: renewals.size, expiryCandidates: expirations.size, reservationCandidates: staleReservations.size });
   },
 );
