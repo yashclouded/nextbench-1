@@ -50,6 +50,10 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [upvotedPostIds, setUpvotedPostIds] = useState<Set<string>>(new Set());
   const searchSequence = useRef(0);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('nextbench-recent-searches') || '[]').slice(0, 10); }
+    catch { return []; }
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -194,6 +198,19 @@ export default function Search() {
     return () => clearTimeout(debounceTimer);
   }, [searchQuery, appliedSchool, appliedLocation, user?.uid]);
 
+  useEffect(() => {
+    const value = searchQuery.trim();
+    if (!value) return;
+    const timer = window.setTimeout(() => {
+      setRecentSearches((previous) => {
+        const next = [value, ...previous.filter((term) => term.toLowerCase() !== value.toLowerCase())].slice(0, 10);
+        localStorage.setItem('nextbench-recent-searches', JSON.stringify(next));
+        return next;
+      });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
   // Apply block filter at render time — avoids putting allBlockedIds in the
   // effect dep array which would re-trigger the search on every snapshot.
   const filteredUsers = useMemo(
@@ -331,6 +348,16 @@ export default function Search() {
             <Package size={14} /> Marketplace
           </button>
         </div>
+        {!searchQuery.trim() && recentSearches.length > 0 && (
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-luxury-ink/35">Recent</span>
+            {recentSearches.map((term) => (
+              <button key={term} onClick={() => setSearchQuery(term)} className="shrink-0 rounded-xl bg-surface-soft px-3 py-1.5 text-xs font-medium text-luxury-ink/65 transition-colors hover:bg-luxury-ink/5">
+                {term}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Results Content */}

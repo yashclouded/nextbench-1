@@ -91,18 +91,14 @@ export interface BlockedUser extends DiscoveryUser {
   blockDocId: string;
 }
 
-export async function getDiscoveryFeed(cursor?: { postCreatedAt?: number; productCreatedAt?: number } | null) {
-  const callable = httpsCallable<
-    { postCreatedAt?: number; productCreatedAt?: number },
-    {
-      posts: DiscoveryPost[];
-      products: DiscoveryProduct[];
-      hasMorePosts: boolean;
-      hasMoreProducts: boolean;
-      nextCursor: { postCreatedAt?: number; productCreatedAt?: number };
-    }
-  >(functions, 'getDiscoveryFeed');
-  const result = await callable(cursor || {});
+export async function getDiscoveryFeed(params?: {
+  mode?: 'for-you' | 'following';
+  postCreatedAt?: number;
+  productCreatedAt?: number;
+  cursorIndex?: number;
+} | null) {
+  const callable = httpsCallable<any, any>(functions, 'getDiscoveryFeed');
+  const result = await callable(params || {});
   return result.data;
 }
 
@@ -164,6 +160,12 @@ export async function getProductReviews(productId: string) {
   return result.data.reviews;
 }
 
+export async function createProductReview(productId: string, rating: number, comment: string) {
+  const callable = httpsCallable<{ productId: string; rating: number; comment: string }, { id: string }>(functions, 'createProductReview');
+  const result = await callable({ productId, rating, comment });
+  return result.data;
+}
+
 export async function deletePostCascade(postId: string) {
   const callable = httpsCallable<{ postId: string }, { success: boolean }>(functions, 'deletePostCascade');
   const result = await callable({ postId });
@@ -186,4 +188,10 @@ export async function getLandingStats() {
   const callable = httpsCallable<Record<string, never>, { totalUsers: number; totalProducts: number; totalSchools: number }>(functions, 'getLandingStats');
   const result = await callable({});
   return result.data;
+}
+
+export async function getSuggestedUsers() {
+  const callable = httpsCallable<Record<string, never>, { users: DiscoveryUser[] }>(functions, 'getSuggestedUsers');
+  const result = await callable({});
+  return result.data.users;
 }
