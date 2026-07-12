@@ -42,7 +42,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           
           {/* Left Sidebar (Now next to middle content) */}
           <div className={`hidden md:block shrink-0 border-r transition-all duration-300 relative z-50 ${
-            isCollapsedLeftNav ? 'w-[72px]' : 'w-[72px] xl:w-[240px]'
+            isCollapsedLeftNav ? 'w-[72px]' : 'w-[72px] min-[1120px]:w-[240px]'
           } ${isMessagesPage ? 'h-full' : ''}`} style={{ borderColor: 'var(--color-border)' }}>
             <SidebarNav />
           </div>
@@ -54,7 +54,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
           {/* Right Sidebar (hidden on mobile and tablet) */}
           {!isMessagesPage && (
-            <div ref={rightSidebarRef} className="hidden lg:block w-[320px] xl:w-[380px] shrink-0">
+            <div ref={rightSidebarRef} className="hidden min-[1200px]:block w-[320px] min-[1400px]:w-[380px] shrink-0">
               <SuggestedUsers />
             </div>
           )}

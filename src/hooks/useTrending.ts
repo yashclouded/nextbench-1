@@ -1,123 +1,86 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../lib/AuthContext';
-import { getDiscoveryFeed } from '../lib/discovery';
-import {
-  TrendablePost,
-  TrendableProduct,
-  ScoredPost,
-  ScoredProduct,
-  computeSchoolTrending,
-  computeCityTrending,
-  computeTrendingProduct,
-  countActiveToday,
-} from '../lib/trending';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
-interface TrendingData {
-  schoolTrending: ScoredPost[];
-  cityTrending: ScoredPost[];
-  trendingProduct: ScoredProduct | null;
-  activeToday: number;
-  loading: boolean;
-}
-
-function trendTimestamp(value: any) {
-  if (typeof value === 'number') {
-    return { toMillis: () => value };
-  }
-  return value;
-}
-
-export function useTrending(): TrendingData {
+export function useTrending() {
   const { user, userData } = useAuth();
-  const [rawPosts, setRawPosts] = useState<TrendablePost[]>([]);
-  const [rawProducts, setRawProducts] = useState<TrendableProduct[]>([]);
+  const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
+  const [trendingProducts, setTrendingProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  // Only fetch once per user session — trending data doesn't need to be live
-  const hasFetched = useRef(false);
 
   useEffect(() => {
-    // Reset when user changes
-    hasFetched.current = false;
-  }, [user?.uid]);
+    if (!user || !userData?.school) {
+      setLoading(false);
+      return;
+    }
 
-  useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
+    let active = true;
 
-    let cancelled = false;
-    setLoading(true);
+    const getSchoolKey = async (schoolName: string) => {
+      const msgBuffer = new TextEncoder().encode(schoolName.trim().toLowerCase());
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex.slice(0, 24);
+    };
 
-    getDiscoveryFeed()
-      .then(({ posts, products }) => {
-        if (cancelled) return;
+    let unsub: (() => void) | undefined;
 
-        setRawPosts(posts.map((post) => ({
-          id: post.id,
-          title: post.title || '',
-          content: post.content || '',
-          authorId: post.authorId || '',
-          authorName: post.authorName || 'Unknown',
-          authorProfilePicture: post.authorProfilePicture || undefined,
-          authorUsername: (post as any).authorUsername || null,
-          school: post.school || '',
-          city: post.city,
-          type: post.type || 'others',
-          imageUrl: post.imageUrl,
-          imageUrls: post.imageUrls,
-          upvotesCount: post.upvotesCount || 0,
-          repliesCount: post.repliesCount || 0,
-          sharesCount: (post as any).sharesCount || 0,
-          createdAt: trendTimestamp(post.createdAt),
-        } as TrendablePost)));
+    getSchoolKey(userData.school)
+      .then((schoolKey) => {
+        if (!active) return;
+        unsub = onSnapshot(doc(db, 'computed', `trending_${schoolKey}`), (snap) => {
+          if (!active) return;
+          if (snap.exists()) {
+            const items = snap.get('items') || [];
+            
+            // Map items to include trendLabel based on server-computed badge
+            const mapped = items.map((i: any) => {
+              let trendLabel = null;
+              if (i.badge === 'HOT') trendLabel = '⚡ Exploding';
+              else if (i.badge === 'TRENDING') {
+                trendLabel = i.type === 'post' ? '📈 Trending in Your School' : '🔥 Heating Up';
+              } else if (i.badge === 'RISING') trendLabel = "👀 Everyone's Watching";
+              else if (i.badge === 'NEW') trendLabel = i.type === 'post' ? '🆕 New Post' : '🆕 New Product';
 
-        setRawProducts(products.map((product) => ({
-          id: product.id,
-          title: product.title || '',
-          price: product.price || 0,
-          category: product.category || '',
-          condition: product.condition || '',
-          image: product.image || '',
-          status: product.status || 'available',
-          sellerId: product.sellerId || '',
-          sellerName: product.sellerName || 'Unknown',
-          sellerSchool: product.sellerSchool || '',
-          city: product.city,
-          createdAt: trendTimestamp(product.createdAt),
-          wishlistCount: (product as any).wishlistCount || 0,
-          inquiryCount: (product as any).inquiryCount || 0,
-        } as TrendableProduct)));
+              // Map properties to match ScoredPost / ScoredProduct expectations
+              return {
+                ...i,
+                trendLabel,
+              };
+            });
+
+            const posts = mapped.filter((i: any) => i.type === 'post');
+            const products = mapped.filter((i: any) => i.type === 'product');
+            setTrendingPosts(posts);
+            setTrendingProducts(products);
+          }
+          setLoading(false);
+        }, (err) => {
+          console.warn('Failed to listen to trending:', err);
+          setLoading(false);
+        });
       })
-      .catch((error) => {
-        if (!cancelled) {
-          console.error('Trending: Error fetching discovery feed:', error);
-          setRawPosts([]);
-          setRawProducts([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .catch((err) => {
+        console.error('Failed to get school key for trending:', err);
+        setLoading(false);
       });
 
-    return () => { cancelled = true; };
-  }, [user?.uid]);
+    return () => {
+      active = false;
+      if (unsub) unsub();
+    };
+  }, [user?.uid, userData?.school]);
 
-  const schoolTrending = useMemo(() => {
-    if (!userData?.school) return [];
-    return computeSchoolTrending(rawPosts, userData.school, userData.city, 5);
-  }, [rawPosts, userData?.school, userData?.city]);
-
+  const schoolTrending = useMemo(() => trendingPosts, [trendingPosts]);
   const cityTrending = useMemo(() => {
     if (!userData?.city) return [];
-    return computeCityTrending(rawPosts, userData.city, 5);
-  }, [rawPosts, userData?.city]);
+    return trendingPosts.filter((p: any) => p.city && p.city.toLowerCase() === userData.city?.toLowerCase());
+  }, [trendingPosts, userData?.city]);
 
-  const trendingProduct = useMemo(() => {
-    return computeTrendingProduct(rawProducts);
-  }, [rawProducts]);
-
-  const activeToday = useMemo(() => {
-    return countActiveToday(rawPosts);
-  }, [rawPosts]);
+  const trendingProduct = useMemo(() => trendingProducts[0] || null, [trendingProducts]);
+  const activeToday = useMemo(() => trendingPosts.length, [trendingPosts]);
 
   return { schoolTrending, cityTrending, trendingProduct, activeToday, loading };
 }
