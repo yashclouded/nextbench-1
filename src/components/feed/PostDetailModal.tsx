@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, MapPin, School, Flame, ChevronLeft, ChevronRight, Heart, MessageSquare, Share2, Image as ImageIcon, Trash2, Pencil, Users as UsersIcon } from 'lucide-react';
 import { collection, addDoc, serverTimestamp, doc, updateDoc, query, where, getDocs, getDoc, limit } from 'firebase/firestore';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -310,6 +311,17 @@ function LikedByModal({ postId, count, onClose }: { postId: string; count: numbe
   );
 }
 
+const CommentSkeleton = () => (
+  <div className="flex gap-3 p-4 bg-surface-soft/20 rounded-2xl border border-luxury-ink/5 animate-pulse">
+    <div className="w-6 h-6 rounded-full bg-luxury-ink/10 shrink-0" />
+    <div className="flex-1">
+      <div className="h-3 bg-luxury-ink/10 rounded w-24 mb-2" />
+      <div className="h-2.5 bg-luxury-ink/10 rounded w-full mb-1" />
+      <div className="h-2.5 bg-luxury-ink/10 rounded w-2/3" />
+    </div>
+  </div>
+);
+
 // ─── Post Detail Modal (Instagram-style) ──────────────────
 // Owns all reply state (the live replies subscription + the compose box) so that
 // loading replies or typing a reply re-renders only this modal — never the feed
@@ -414,21 +426,18 @@ export default function PostDetailModal({
     return roots;
   }, [repliesMap, commentSort]);
 
-  // ─── Live replies subscription (moved out of Feed) ───
+  // ─── Query replies with caching ───
+  const { data: cachedReplies, isLoading: loadingReplies } = useQuery({
+    queryKey: ['postReplies', post.id],
+    queryFn: () => getPostReplies(post.id),
+    staleTime: 30 * 1000,
+  });
+
   useEffect(() => {
-    let cancelled = false;
-    getPostReplies(post.id)
-      .then((reps) => {
-        if (!cancelled) setReplies(reps);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          console.warn('Failed to load replies:', err);
-          setReplies([]);
-        }
-      });
-    return () => { cancelled = true; };
-  }, [post.id]);
+    if (cachedReplies) {
+      setReplies(cachedReplies);
+    }
+  }, [cachedReplies]);
 
   // ─── Paste to add image to reply (moved out of Feed) ───
   useEffect(() => {
@@ -780,7 +789,13 @@ export default function PostDetailModal({
                 </div>
               )}
             </div>
-            {replies.length === 0 ? (
+            {loadingReplies && replies.length === 0 ? (
+              <div className="space-y-4 mb-6">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <CommentSkeleton key={i} />
+                ))}
+              </div>
+            ) : replies.length === 0 ? (
               <div className="text-center py-6">
                 <MessageSquare className="mx-auto text-luxury-ink/10 mb-2" size={24} />
                 <p className="text-luxury-ink/40 font-serif italic text-sm">No replies yet. Start the discussion!</p>

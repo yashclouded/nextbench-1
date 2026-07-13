@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import React, { useMemo } from 'react';
 import { useAuth } from '../../lib/AuthContext';
 import { useFollowingIds, followUser, unfollowUser } from '../../lib/follows';
 import { Link } from 'react-router-dom';
-import { UserCheck, UserPlus, Users, ArrowRight, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { getOptimizedImageUrl } from '../../lib/utils';
 import { useToast } from '../../lib/ToastContext';
 import { useAllBlockedUserIds } from '../../lib/blocks';
 import TrendingSidebar from './TrendingSidebar';
-import { getPublicUsers, searchDiscovery, searchPublicUsers } from '../../lib/discovery';
+import { getSuggestedUsers } from '../../lib/discovery';
+import { useQuery } from '@tanstack/react-query';
 
 interface SuggestedUser {
   id: string;
@@ -26,136 +25,17 @@ export default function SuggestedUsers() {
   const { showToast } = useToast();
   const { followingIds } = useFollowingIds();
   const allBlockedIds = useAllBlockedUserIds();
-  const [suggestions, setSuggestions] = useState<SuggestedUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  // Guard: only fetch once per user session. followingIds Set reference changes
-  // on every Firestore snapshot which would re-trigger the effect endlessly.
-  const hasFetched = useRef(false);
+  const { data: suggestionsRaw, isLoading: loading } = useQuery({
+    queryKey: ['suggestedUsers', user?.uid],
+    queryFn: () => getSuggestedUsers(),
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    if (!user || !userData) {
-      setLoading(false);
-      return;
-    }
-    // Reset fetch guard when user changes
-    hasFetched.current = false;
-  }, [user?.uid]);
-
-  useEffect(() => {
-    if (!user || !userData) return;
-    // Skip if already fetched for this user; wait until followingIds has
-    // settled (loaded from Firestore) before running the FoF algorithm.
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-
-    const fetchSuggestions = async () => {
-      try {
-        let fetchedUsers: SuggestedUser[] = [];
-        const suggestedIdsSet = new Set<string>();
-
-        // Phase 1: Instagram-style Friends-of-Friends (FoF) Algorithm
-        if (followingIds.size > 0) {
-          const followingsToQuery = Array.from(followingIds).sort(() => 0.5 - Math.random()).slice(0, 30);
-          
-          const fofQuery = query(collection(db, 'follows'), where('followerId', 'in', followingsToQuery));
-          const fofSnap = await getDocs(fofQuery);
-          
-          const fofFriends: Record<string, string[]> = {};
-          fofSnap.forEach(doc => {
-            const potentialId = doc.data().followingId;
-            const mutualFriendId = doc.data().followerId;
-            if (potentialId !== user.uid && !followingIds.has(potentialId)) {
-              if (!fofFriends[potentialId]) fofFriends[potentialId] = [];
-              fofFriends[potentialId].push(mutualFriendId);
-            }
-          });
-
-          const sortedFof = Object.entries(fofFriends)
-            .sort((a, b) => b[1].length - a[1].length)
-            .slice(0, 10)
-            .map(entry => entry[0]);
-
-          if (sortedFof.length > 0) {
-            const usersById = new Map((await getPublicUsers(sortedFof)).map(u => [u.id, u]));
-            
-            // Fetch names of mutual friends
-            const mutualsToFetch = new Set<string>();
-            usersById.forEach((_, userId) => {
-              const friends = fofFriends[userId] || [];
-              friends.slice(0, 2).forEach(id => mutualsToFetch.add(id));
-            });
-            
-            const mutualNames: Record<string, string> = {};
-            if (mutualsToFetch.size > 0) {
-              const mutualUsers = await getPublicUsers(Array.from(mutualsToFetch));
-              mutualUsers.forEach(u => { mutualNames[u.id] = u.name || 'User'; });
-            }
-
-            usersById.forEach((data, userId) => {
-              const friends = fofFriends[userId] || [];
-              const mutualFriends = friends.slice(0, 2).map(id => ({ id, name: mutualNames[id] || 'User' }));
-              
-              fetchedUsers.push({
-                id: userId,
-                name: data.name || 'User',
-                school: data.school || 'Unknown School',
-                profilePicture: data.profilePicture || undefined,
-                verified: data.verified,
-                mutualCount: friends.length,
-                mutualFriends: mutualFriends
-              });
-              suggestedIdsSet.add(userId);
-            });
-            fetchedUsers.sort((a, b) => (b.mutualCount || 0) - (a.mutualCount || 0));
-          }
-        }
-
-        // Phase 2: Fallback to users from the same school
-        if (fetchedUsers.length < 5) {
-          const discovery = await searchDiscovery({ school: userData.school, suggestions: true });
-          discovery.users.forEach(data => {
-            if (data.id !== user.uid && !followingIds.has(data.id) && !suggestedIdsSet.has(data.id)) {
-              fetchedUsers.push({
-                id: data.id,
-                name: data.name || 'User',
-                school: data.school || 'Unknown School',
-                profilePicture: data.profilePicture || undefined,
-                verified: data.verified
-              });
-              suggestedIdsSet.add(data.id);
-            }
-          });
-        }
-
-        // Phase 3: General fallback
-        if (fetchedUsers.length < 5) {
-          const generalUsers = await searchPublicUsers({ limit: 15, excludeIds: [user.uid] });
-          generalUsers.forEach(data => {
-            if (data.id !== user.uid && !followingIds.has(data.id) && !suggestedIdsSet.has(data.id)) {
-              fetchedUsers.push({
-                id: data.id,
-                name: data.name || 'User',
-                school: data.school || 'Unknown School',
-                profilePicture: data.profilePicture || undefined,
-                verified: data.verified
-              });
-              suggestedIdsSet.add(data.id);
-            }
-          });
-        }
-
-        // Filter out blocked users before setting suggestions
-        const filtered = fetchedUsers.filter(u => !allBlockedIds.has(u.id));
-        setSuggestions(filtered.slice(0, 5));
-      } catch (error) {
-        console.error("Error fetching suggestions:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSuggestions();
-  }, [user?.uid, userData, followingIds.size]);
+  const suggestions = useMemo(() => {
+    if (!suggestionsRaw) return [];
+    return (suggestionsRaw as SuggestedUser[]).filter(u => !allBlockedIds.has(u.id));
+  }, [suggestionsRaw, allBlockedIds]);
 
   const toggleFollow = async (e: React.MouseEvent, targetId: string) => {
     e.preventDefault();
@@ -186,11 +66,10 @@ export default function SuggestedUsers() {
     );
   }
 
-  if (!loading && suggestions.length === 0) return null;
-
   return (
     <div className="pt-8 pl-4 pr-6 pb-20">
-      <div className="mb-6 bg-surface-elevated rounded-2xl border border-luxury-ink/5 p-5">
+      {((!loading && suggestions.length > 0) || loading) && (
+        <div className="mb-6 bg-surface-elevated rounded-2xl border border-luxury-ink/5 p-5">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-[14px] font-bold text-luxury-ink">Suggested for you</h3>
         </div>
@@ -253,6 +132,7 @@ export default function SuggestedUsers() {
         )}
         </div>
       </div>
+      )}
 
       {/* Trending Section */}
       <div className="mb-6 bg-surface-elevated rounded-2xl border border-luxury-ink/5 p-5">

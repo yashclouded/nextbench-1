@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 import {
   initializeFirestore,
   persistentLocalCache,
+  persistentMultipleTabManager,
   memoryLocalCache,
 } from 'firebase/firestore';
 
@@ -29,11 +30,16 @@ const app = initializeApp(firebaseConfig);
 function createFirestore() {
   try {
     return initializeFirestore(app, {
-      localCache: memoryLocalCache(),
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
     }, firestoreDbId);
   } catch (e) {
-    console.warn('[Firebase] Firestore initialization failed:', e);
-    return initializeFirestore(app, { localCache: memoryLocalCache() }, firestoreDbId);
+    console.warn('[Firebase] Persistent cache initialization failed, falling back to memory cache:', e);
+    try {
+      return initializeFirestore(app, { localCache: memoryLocalCache() }, firestoreDbId);
+    } catch (err) {
+      console.warn('[Firebase] Firestore fallback initialization failed:', err);
+      throw err;
+    }
   }
 }
 

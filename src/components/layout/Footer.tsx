@@ -136,6 +136,7 @@ export default function Footer() {
                 { label: 'Terms of Service', path: '/terms' },
                 { label: 'Privacy Policy', path: '/privacy' },
                 { label: 'Your Consent', path: '/privacy#consent' },
+                { label: 'Transparency', path: '/transparency' },
                 { label: 'Admin Portal', path: '/admin' },
               ].map((link) => (
                 <li key={link.label}>
@@ -212,6 +213,12 @@ export default function Footer() {
               onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-luxury-ink-muted)'}
             >
               Terms
+            </Link>
+            <Link to="/transparency" className="text-[10px] font-bold uppercase tracking-widest transition-colors" style={{ color: 'var(--color-luxury-ink-muted)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-brand-pink)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-luxury-ink-muted)'}
+            >
+              Transparency
             </Link>
             <Link to="/careers" className="text-[10px] font-bold uppercase tracking-widest transition-colors" style={{ color: 'var(--color-luxury-ink-muted)' }}
               onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-brand-pink)'}

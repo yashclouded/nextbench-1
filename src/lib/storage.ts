@@ -71,6 +71,94 @@ export async function uploadToCloudinary(
   });
 }
 
+export interface CloudinaryUploadResponse {
+  url: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * Detailed upload function that returns the secure URL along with width and height.
+ */
+export async function uploadToCloudinaryDetailed(
+  file: File,
+  folder: string,
+  onProgress?: UploadProgressCallback,
+  resourceType: 'auto' | 'image' | 'video' | 'raw' = 'auto'
+): Promise<CloudinaryUploadResponse> {
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error('Cloudinary environment variables are missing.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('folder', folder);
+
+  return new Promise<CloudinaryUploadResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct, e.loaded, e.total);
+        }
+      });
+    }
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve({
+            url: data.secure_url,
+            width: data.width || 0,
+            height: data.height || 0,
+          });
+        } catch {
+          reject(new Error('Failed to parse Cloudinary response.'));
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.error?.message || 'Failed to upload file.'));
+        } catch {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
+    xhr.addEventListener('abort', () => reject(new Error('Upload was aborted.')));
+
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
+    xhr.send(formData);
+  });
+}
+
+/**
+ * Uploads a product image returning URL, width, and height.
+ */
+export async function uploadProductImageDetailed(file: File, userId: string, onProgress?: UploadProgressCallback): Promise<CloudinaryUploadResponse> {
+  return uploadToCloudinaryDetailed(file, `nextbench/products/${userId}`, onProgress);
+}
+
+/**
+ * Uploads a post image returning URL, width, and height.
+ */
+export async function uploadPostImageDetailed(file: File, onProgress?: UploadProgressCallback): Promise<CloudinaryUploadResponse> {
+  const randomId = Math.random().toString(36).substring(2, 15);
+  return uploadToCloudinaryDetailed(file, `nextbench/posts/${randomId}`, onProgress);
+}
+
+/**
+ * Uploads a chat image returning URL, width, and height.
+ */
+export async function uploadChatImageDetailed(file: File, roomId: string): Promise<CloudinaryUploadResponse> {
+  return uploadToCloudinaryDetailed(file, `nextbench/chats/${roomId}`);
+}
+
 /**
  * Uploads an image file to Cloudinary and returns the download URL.
  */

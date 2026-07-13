@@ -7,6 +7,7 @@ import { collection, query, where, onSnapshot, deleteDoc, doc, getDoc } from 'fi
 import { Link } from 'react-router-dom';
 import { useToast } from '../../lib/ToastContext';
 import { getOptimizedImageUrl } from '../../lib/utils';
+import { ProductCardSkeleton } from '../../components/ui/skeleton/Skeleton';
 
 interface WishlistItem {
   id: string; // wishlist doc id
@@ -104,9 +105,10 @@ export default function Wishlist() {
       </div>
 
       {loading ? (
-        <div className="py-20 text-center">
-          <div className="w-10 h-10 border-2 border-brand-teal border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-xs font-bold uppercase tracking-widest text-luxury-ink/30">Loading wishlist...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <ProductCardSkeleton key={i} />
+          ))}
         </div>
       ) : items.length === 0 ? (
         <div className="bg-surface-card rounded-3xl p-20 text-center luxury-shadow border border-luxury-ink/5">

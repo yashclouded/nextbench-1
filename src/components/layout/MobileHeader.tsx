@@ -1,5 +1,5 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Bell, Moon, Sun } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Bell, Moon, Sun, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -10,6 +10,7 @@ import { isChatMessageNotification } from '../../lib/notifications';
 export default function MobileHeader() {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -32,19 +33,27 @@ export default function MobileHeader() {
     return () => unsubscribe();
   }, [user?.uid]);
 
-  // Don't show header if we are not on main dashboard pages,
-  // to avoid conflicting with modal headers or simple pages.
-  const showHeaderPaths = ['/', '/dashboard', '/community', '/search', '/notifications'];
-  if (!showHeaderPaths.includes(location.pathname)) {
+  // Hide header on chat routes to avoid double header issues
+  if (location.pathname.startsWith('/messages/') || location.pathname.startsWith('/club/')) {
     return null;
   }
 
+  const mainTabs = ['/', '/dashboard', '/community', '/search', '/notifications', '/marketplace'];
+  const isMainTab = mainTabs.includes(location.pathname);
+
   return (
     <div className="md:hidden sticky top-0 z-[60] nav-glass border-b px-4 py-3 flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
-      <Link to="/" className="flex items-center gap-2">
-        <img src="/logo.png" alt="Logo" className="h-6 w-auto" />
-        <span className="text-xl font-bold tracking-tight text-luxury-ink">nextbench</span>
-      </Link>
+      {isMainTab ? (
+        <Link to="/" className="flex items-center gap-2">
+          <img src="/logo.png" alt="Logo" className="h-6 w-auto" />
+          <span className="text-xl font-bold tracking-tight text-luxury-ink">nextbench</span>
+        </Link>
+      ) : (
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-luxury-ink hover:text-brand-teal transition-colors">
+          <ArrowLeft size={20} />
+          <span className="text-xs font-bold uppercase tracking-wider">Back</span>
+        </button>
+      )}
       <div className="flex items-center gap-1">
         <button 
           onClick={toggleTheme} 

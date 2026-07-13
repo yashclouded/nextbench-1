@@ -39,14 +39,15 @@ export default function MessagesLayout() {
   const { user, userData } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { roomId: routeRoomId } = useParams<{ roomId?: string }>();
+  const { roomId: routeRoomId, clubId: routeClubId } = useParams<{ roomId?: string; clubId?: string }>();
   const { showToast } = useToast();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // The "active" chat — either from URL param or clicked in sidebar
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(routeRoomId || null);
-  const [activeRoomState, setActiveRoomState] = useState<any>(location.state || null);
+  // Derived from router state
+  const activeRoomId = routeRoomId || routeClubId || null;
+  const activeRoomType = routeClubId ? 'club' : 'chat';
+  const activeRoomState = location.state || null;
 
   const [chatRooms, setChatRooms] = useState<ChatRoomItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +61,6 @@ export default function MessagesLayout() {
   const [creatingDM, setCreatingDM] = useState(false);
 
   // Clubs
-  const [activeRoomType, setActiveRoomType] = useState<'chat' | 'club'>('chat');
   const [showCreateClub, setShowCreateClub] = useState(false);
   const [clubName, setClubName] = useState('');
   const [clubDescription, setClubDescription] = useState('');
@@ -71,13 +71,6 @@ export default function MessagesLayout() {
   const allBlockedIds = useAllBlockedUserIds();
 
   useScrollLock(showNewDM || showCreateClub);
-
-  // Keep activeRoomId in sync when the URL param changes
-  useEffect(() => {
-    setActiveRoomId(routeRoomId || null);
-    setActiveRoomType('chat'); // if loading from /messages/:roomId, it's a chat
-    setActiveRoomState(location.state || null);
-  }, [routeRoomId]);
 
   // Listen to toggle events from global sidebar
   useEffect(() => {
@@ -215,25 +208,19 @@ export default function MessagesLayout() {
     }
   };
 
-  // Open a chat — on desktop: set active panel. On mobile: navigate.
+  // Open a chat — on desktop: route inside panel. On mobile: route full screen.
   const openChat = (roomId: string, state?: any, type: 'chat' | 'club' = 'chat') => {
     const isDesktop = window.innerWidth >= 768;
     if (isDesktop) {
-      setActiveRoomId(roomId);
-      setActiveRoomType(type);
-      setActiveRoomState(state || null);
-      // Update URL without full navigation so back button still works
-      window.history.pushState({}, '', type === 'club' ? `/club/${roomId}` : `/messages/${roomId}`);
+      navigate(type === 'club' ? `/messages/club/${roomId}` : `/messages/${roomId}`, { state });
     } else {
       navigate(type === 'club' ? `/club/${roomId}` : `/chat/${roomId}`, { state });
     }
   };
 
-  // ChatRoom needs a way to "go back" — on desktop that just clears the panel
+  // ChatRoom/ClubChat needs a way to "go back"
   const handleChatBack = () => {
-    setActiveRoomId(null);
-    setActiveRoomState(null);
-    window.history.pushState({}, '', '/messages');
+    navigate('/messages');
   };
 
   if (userData && !userData.verified) {

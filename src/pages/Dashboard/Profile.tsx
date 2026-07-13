@@ -23,6 +23,7 @@ import SEO from '../../components/seo/SEO';
 import { PdfPreview } from '../../components/ui/PdfViewer';
 import VideoPlayer from '../../components/ui/VideoPlayer';
 import { createInviteCode, deletePostCascade, getPublicProfileContent, getPublicUsers } from '../../lib/discovery';
+import { ProfileSkeleton } from '../../components/ui/skeleton/Skeleton';
 
 
 interface UserProduct {
@@ -748,7 +749,7 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
     );
   }
 
-  if (!user || !profileUser) return <div className="pt-32 text-center text-xs font-bold uppercase tracking-widest text-luxury-ink/30">Loading profile...</div>;
+  if (!user || !profileUser) return <div className="pt-32"><ProfileSkeleton /></div>;
 
   const userName = (profileUser.name && typeof profileUser.name === 'string') ? profileUser.name : 'Unknown User';
   const nameParts = userName.split(' ');
@@ -1037,9 +1038,22 @@ export default function Profile({ usernameResolvedUserId }: ProfileProps) {
             <span className="text-sm font-bold text-luxury-ink group-hover:text-brand-teal transition-colors">{followingCount}</span>
             <span className="text-sm text-luxury-ink/50 group-hover:text-brand-teal/70 transition-colors">Following</span>
           </button>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-luxury-ink">{profileUser.reputation?.toFixed(1) || '5.0'}</span>
-            <span className="text-sm text-luxury-ink/50 flex items-center gap-0.5">Reputation <Star size={11} className="text-brand-teal" /></span>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {profileUser.reviewCount && profileUser.reviewCount >= 3 ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold text-luxury-ink">{profileUser.reputation?.toFixed(1) || '5.0'}</span>
+                <span className="text-sm text-luxury-ink/50 flex items-center gap-0.5">
+                  ({profileUser.reviewCount}) Reputation <Star size={11} className="text-brand-teal fill-brand-teal" />
+                </span>
+              </div>
+            ) : (
+              <span className="text-xs font-bold text-brand-teal bg-brand-teal/10 px-2.5 py-1 rounded-lg uppercase tracking-wider">New Seller</span>
+            )}
+            {profileUser.reputationBadges && profileUser.reputationBadges.map((badge: string) => (
+              <span key={badge} className="px-2.5 py-1 bg-surface-soft border border-luxury-ink/10 text-luxury-ink/75 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                {badge}
+              </span>
+            ))}
           </div>
         </div>
 

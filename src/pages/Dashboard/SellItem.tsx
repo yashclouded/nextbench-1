@@ -8,8 +8,10 @@ import { db } from '../../lib/firebase';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-errors';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../../lib/ToastContext';
-import { uploadProductImage } from '../../lib/storage';
+import { uploadProductImageDetailed } from '../../lib/storage';
 import { isHeicFile, convertHeicToJpeg } from '../../lib/heic-converter';
+import { Suspense, lazy } from 'react';
+const ImageCropper = lazy(() => import('../../components/ui/ImageCropper'));
 
 interface SelectedImage {
   id: string;
@@ -37,6 +39,11 @@ export default function SellItem() {
 
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0); // track nested drag-enter/leave pairs
+
+  // Cropping state queue
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [currentCropIndex, setCurrentCropIndex] = useState(0);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -78,12 +85,18 @@ export default function SellItem() {
             setTags(data.tags);
           }
           
+          const imagesDetailed = data.imagesDetailed || [];
           const images = data.images || (data.image ? [data.image] : []);
-          const existingImages = images.map((url: string) => ({
-            id: Math.random().toString(36).substring(2, 9),
-            type: 'url' as const,
-            previewUrl: url
-          }));
+          const existingImages = images.map((url: string, index: number) => {
+            const detailed = imagesDetailed.find((d: any) => d?.url === url) || imagesDetailed[index];
+            return {
+              id: Math.random().toString(36).substring(2, 9),
+              type: 'url' as const,
+              previewUrl: url,
+              w: detailed?.w || data.imageWidth || 0,
+              h: detailed?.h || data.imageHeight || 0,
+            };
+          });
           setSelectedImages(existingImages);
         } else {
           showToast('Listing not found', 'error');
@@ -158,6 +171,39 @@ export default function SellItem() {
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
+  const handleCropComplete = useCallback((croppedBlob: Blob) => {
+    const croppedFile = new File([croppedBlob], pendingFiles[currentCropIndex]?.name || 'cropped.jpg', { type: 'image/jpeg' });
+    setSelectedImages(prev => [
+      ...prev,
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        type: 'file',
+        file: croppedFile,
+        previewUrl: URL.createObjectURL(croppedFile),
+      }
+    ]);
+    setCropImageSrc(null);
+
+    const nextIndex = currentCropIndex + 1;
+    if (nextIndex < pendingFiles.length) {
+      setCurrentCropIndex(nextIndex);
+      const reader = new FileReader();
+      reader.onload = () => setCropImageSrc(reader.result as string);
+      reader.readAsDataURL(pendingFiles[nextIndex]);
+    }
+  }, [pendingFiles, currentCropIndex]);
+
+  const handleCropCancel = () => {
+    setCropImageSrc(null);
+    const nextIndex = currentCropIndex + 1;
+    if (nextIndex < pendingFiles.length) {
+      setCurrentCropIndex(nextIndex);
+      const reader = new FileReader();
+      reader.onload = () => setCropImageSrc(reader.result as string);
+      reader.readAsDataURL(pendingFiles[nextIndex]);
+    }
+  };
+
   // ─── Shared file processor (used by file-input, drag-drop, and paste) ──────
   const processFiles = useCallback(async (files: File[]) => {
     const remainingSlots = 5 - selectedImages.length;
@@ -171,7 +217,7 @@ export default function SellItem() {
       showToast(`Only adding the first ${remainingSlots} images to stay within the 5 image limit.`, 'info');
     }
 
-    const newImages: SelectedImage[] = [];
+    const processedFiles: File[] = [];
     for (let f of filesToProcess) {
       let file = f as File;
       const isHeic = isHeicFile(file);
@@ -189,15 +235,15 @@ export default function SellItem() {
         showToast(`"${file.name}" is over 5MB`, 'warning');
         continue;
       }
-      newImages.push({
-        id: Math.random().toString(36).substring(2, 9),
-        type: 'file',
-        file,
-        previewUrl: URL.createObjectURL(file),
-      });
+      processedFiles.push(file);
     }
-    if (newImages.length > 0) {
-      setSelectedImages(prev => [...prev, ...newImages]);
+
+    if (processedFiles.length > 0) {
+      setPendingFiles(processedFiles);
+      setCurrentCropIndex(0);
+      const reader = new FileReader();
+      reader.onload = () => setCropImageSrc(reader.result as string);
+      reader.readAsDataURL(processedFiles[0]);
     }
   }, [selectedImages.length, showToast]);
 
@@ -279,20 +325,24 @@ export default function SellItem() {
       // Upload files in parallel using Promise.all
       const uploadPromises = selectedImages.map(async (img) => {
         if (img.type === 'file' && img.file) {
-          return await uploadProductImage(img.file, user.uid);
+          const res = await uploadProductImageDetailed(img.file, user.uid);
+          return { url: res.url, w: res.width, h: res.height };
         }
-        return img.previewUrl;
+        return { url: img.previewUrl, w: (img as any).w || 0, h: (img as any).h || 0 };
       });
 
-      const imageUrls = await Promise.all(uploadPromises);
+      const detailedImages = await Promise.all(uploadPromises);
 
       const payload = {
         title: titleTrimmed,
         price: priceNum,
         condition: formData.condition,
         category: formData.category,
-        image: imageUrls[0], // primary / legacy fallback
-        images: imageUrls, // all listing images
+        image: detailedImages[0]?.url || '', // primary / legacy fallback
+        images: detailedImages.map(d => d.url), // all listing images
+        imageWidth: detailedImages[0]?.w || null,
+        imageHeight: detailedImages[0]?.h || null,
+        imagesDetailed: detailedImages,
         description: formData.description,
         meetupAvailable: formData.meetup,
         deliveryAvailable: formData.delivery,
@@ -535,6 +585,21 @@ export default function SellItem() {
           </div>
         </form>
       </div>
+
+      {cropImageSrc && (
+        <Suspense fallback={
+          <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50 text-white font-bold text-sm uppercase tracking-widest">
+            Loading Cropper...
+          </div>
+        }>
+          <ImageCropper
+            imageSrc={cropImageSrc}
+            onCropComplete={handleCropComplete}
+            onCancel={handleCropCancel}
+            aspect={4/3}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

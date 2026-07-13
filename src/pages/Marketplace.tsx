@@ -4,6 +4,8 @@ import { motion, AnimatePresence, useAnimationControls } from 'motion/react';
 import { getOptimizedImageUrl } from '../lib/utils';
 import SEO from '../components/seo/SEO';
 import { getDiscoveryFeed } from '../lib/discovery';
+import SmartImage from '../components/ui/SmartImage';
+import { MarketplaceSkeleton } from '../components/ui/skeleton/Skeleton';
 
 interface MarketplaceItem {
   id: string;
@@ -45,13 +47,12 @@ function MarketplaceCard({
       whileTap={{ scale: 0.97 }}
       className="group block w-full break-inside-avoid overflow-hidden rounded-2xl bg-surface-card border border-luxury-ink/5 shadow-sm hover:shadow-lg transition-shadow text-left mb-4"
     >
-      <div className="relative w-full overflow-hidden bg-luxury-ink/5">
-        <img
-          src={getOptimizedImageUrl(item.image)}
+      <div className="relative w-full overflow-hidden bg-luxury-ink/5 aspect-4/3">
+        <SmartImage
+          src={getOptimizedImageUrl(item.image, 640)}
           alt={item.title}
-          loading="lazy"
-          className="w-full h-auto object-cover grayscale-[0.15] group-hover:grayscale-0 group-hover:scale-[1.04] transition-all duration-500"
-          referrerPolicy="no-referrer"
+          ratio={4 / 3}
+          className="grayscale-[0.15] group-hover:grayscale-0 group-hover:scale-[1.04] transition-all duration-500"
         />
         <div className="absolute inset-0 bg-luxury-ink/0 group-hover:bg-luxury-ink/10 transition-colors" />
       </div>
@@ -196,15 +197,8 @@ export default function Marketplace() {
 
       <AnimatePresence mode="wait">
         {viewState === 'loading' && (
-          <motion.div
-            key="loading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex items-center justify-center py-20"
-          >
-            <div className="w-8 h-8 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+            <MarketplaceSkeleton />
           </motion.div>
         )}
 

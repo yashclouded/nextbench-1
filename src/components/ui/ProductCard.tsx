@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Heart, MapPin, Tag, ChevronLeft, ChevronRight, Share2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { getOptimizedImageUrl } from '../../lib/utils';
 import { db } from '../../lib/firebase';
 import { doc, deleteDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
+import Avatar from './Avatar';
+import SmartImage from './SmartImage';
 
 interface Product {
   id: string;
@@ -23,6 +24,7 @@ interface Product {
   sellerProfilePicture?: string;
   city?: string;
   createdAt: any;
+  badge?: string;
 }
 
 interface ProductCardProps {
@@ -115,18 +117,12 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/profile/${product.sellerId}`); }}
               className="shrink-0 cursor-pointer"
             >
-              <div className="w-9 h-9 rounded-full bg-surface-soft flex items-center justify-center text-brand-teal font-semibold text-sm overflow-hidden ring-1 ring-inset ring-luxury-ink/[0.06]">
-                {product.sellerProfilePicture ? (
-                  <img
-                    src={getOptimizedImageUrl(product.sellerProfilePicture)}
-                    alt={product.sellerName}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  product.sellerName[0]?.toUpperCase()
-                )}
-              </div>
+              <Avatar
+                src={product.sellerProfilePicture}
+                name={product.sellerName}
+                size={36}
+                className="ring-1 ring-inset ring-luxury-ink/[0.06]"
+              />
             </div>
             <div className="flex-1 min-w-0">
               <div
@@ -152,15 +148,16 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
             style={{ background: 'linear-gradient(135deg, var(--color-surface-soft) 0%, rgba(var(--color-brand-teal-rgb), 0.05) 100%)' }}
           >
             {/* Single visible image — no scroll container */}
-            <img
-              src={getOptimizedImageUrl(allImages[imgIndex])}
+            <SmartImage
+              src={allImages[imgIndex]}
               alt={product.title}
-              className={`w-full h-full object-contain transition-transform duration-700 pointer-events-none ${
+              ratio={4/3}
+              fit="cover"
+              className={`transition-transform duration-700 pointer-events-none ${
                 product.status === 'sold'
                   ? 'grayscale-[0.6]'
                   : 'group-hover:scale-105 grayscale-[0.2] group-hover:grayscale-0'
               }`}
-              referrerPolicy="no-referrer"
               draggable={false}
             />
 
@@ -203,6 +200,17 @@ export default function ProductCard({ product, isWishlisted, wishlistDocId, onSh
             <div className={`absolute left-3 bg-luxury-ink/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold z-10 ${hasMultiple ? 'bottom-6' : 'bottom-3'}`}>
               {product.category}
             </div>
+
+            {product.badge && product.badge !== 'none' && (
+              <div className={`absolute top-12 left-3 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest z-10 ${
+                product.badge === 'HOT' ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white animate-pulse' :
+                product.badge === 'TRENDING' ? 'bg-pink-500/10 text-pink-500' :
+                product.badge === 'RISING' ? 'bg-brand-teal/10 text-brand-teal' :
+                'bg-emerald-500/10 text-emerald-500' // NEW
+              }`}>
+                {product.badge}
+              </div>
+            )}
 
             {/* SOLD overlay */}
             {product.status === 'sold' && (

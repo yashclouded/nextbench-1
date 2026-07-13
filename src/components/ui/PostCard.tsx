@@ -7,7 +7,8 @@ const PdfViewer = lazy(() => import('./PdfViewer'));
 const PdfPreview = lazy(() => import('./PdfViewer').then(m => ({ default: m.PdfPreview })));
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 import { motion, AnimatePresence } from 'motion/react';
-import { getOptimizedImageUrl } from '../../lib/utils';
+import Avatar from './Avatar';
+import SmartImage from './SmartImage';
 import { POST_TYPES } from '../../pages/Dashboard/Feed';
 import { getPersonaDisplay } from '../../lib/confessions';
 import ReportModal from './ReportModal';
@@ -129,11 +130,11 @@ function LikedByModal({ postId, count, onClose }: { postId: string; count: numbe
                       navigate(liker.username ? `/u/${liker.username}` : `/profile/${liker.uid}`);
                     }}
                   >
-                    <div className="w-9 h-9 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-sm overflow-hidden shrink-0">
-                      {liker.profilePicture ? (
-                        <img src={getOptimizedImageUrl(liker.profilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-                      ) : liker.name[0]?.toUpperCase()}
-                    </div>
+                    <Avatar
+                      src={liker.profilePicture}
+                      name={liker.name}
+                      size={36}
+                    />
                     <div className="min-w-0">
                       <p className="text-[14px] font-semibold text-luxury-ink truncate">{liker.name}</p>
                       {liker.username && (
@@ -168,6 +169,9 @@ interface Post {
   status: string;
   imageUrl?: string;
   imageUrls?: string[];
+  imageWidth?: number;
+  imageHeight?: number;
+  imagesDetailed?: { url: string; w: number; h: number; }[];
   pdfUrl?: string;
   pdfPages?: number;
   upvotesCount: number;
@@ -175,6 +179,7 @@ interface Post {
   repliesCount: number;
   feedScore?: number;
   isHot?: boolean;
+  badge?: string;
   city?: string;
   createdAt: any;
   poll?: {
@@ -382,12 +387,18 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         <div className="mb-3" onClick={handleProfileClick}>
           <div className="flex items-center gap-2 min-w-0">
             {/* Avatar */}
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold overflow-hidden shrink-0 ring-1 ring-inset ring-luxury-ink/[0.06] ${displayInfo.isAnonymous ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
-              {!displayInfo.isAnonymous && liveProfilePicture ? (
-                <img src={getOptimizedImageUrl(liveProfilePicture)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
-
-              ) : displayInfo.name[0]?.toUpperCase()}
-            </div>
+            {displayInfo.isAnonymous ? (
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold overflow-hidden shrink-0 ring-1 ring-inset ring-luxury-ink/[0.06] bg-purple-500/10 text-purple-600">
+                {displayInfo.name[0]?.toUpperCase()}
+              </div>
+            ) : (
+              <Avatar
+                src={liveProfilePicture}
+                name={displayInfo.name}
+                size={36}
+                className="ring-1 ring-inset ring-luxury-ink/[0.06]"
+              />
+            )}
             
             <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
               <span className="text-[13px] sm:text-[14px] font-semibold text-luxury-ink hover:underline cursor-pointer truncate max-w-[7.5rem] sm:max-w-[11rem]">{displayInfo.name}</span>
@@ -398,11 +409,21 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              {post.isHot && (
+              {post.badge && post.badge !== 'none' ? (
+                <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                  post.badge === 'HOT' ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white animate-pulse' :
+                  post.badge === 'TRENDING' ? 'bg-pink-500/10 text-pink-500' :
+                  post.badge === 'RISING' ? 'bg-brand-teal/10 text-brand-teal' :
+                  'bg-emerald-500/10 text-emerald-500' // NEW
+                }`}>
+                  {post.badge === 'HOT' && <Flame size={10} strokeWidth={2} />}
+                  {post.badge}
+                </span>
+              ) : post.isHot ? (
                 <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[10px] font-bold uppercase tracking-wide">
                   <Flame size={10} strokeWidth={2} /> Hot
                 </span>
-              )}
+              ) : null}
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${post.type === 'confession' ? 'bg-purple-500/10 text-purple-600' : 'bg-brand-teal/10 text-brand-teal'}`}>
                 {typeLabel}
               </span>
@@ -431,13 +452,15 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         {hasImage && (
           <div className="relative mt-2 mb-6 w-full rounded-[20px] overflow-hidden group bg-black/5">
             {/* Single visible image — no scroll container */}
-            <img
-              src={getOptimizedImageUrl(postImageUrls[currentImageIndex])}
+            <SmartImage
+              src={postImageUrls[currentImageIndex]}
               alt={post.title || "Post image"}
-              className="w-full h-auto pointer-events-none"
-              referrerPolicy="no-referrer"
+              w={post.imageWidth}
+              h={post.imageHeight}
+              ratio={post.imageWidth && post.imageHeight ? undefined : 4/3}
+              fit="cover"
+              className="pointer-events-none"
               draggable={false}
-              loading="lazy"
             />
 
 
@@ -498,25 +521,30 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
         <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
           <div className="flex items-center gap-0.5 sm:gap-1.5 -ml-1.5 text-[14px] font-semibold">
             {/* Like */}
-            <button
-              onClick={(e) => { e.stopPropagation(); onUpvote?.(post); }}
-              aria-label="Like"
-              className={`flex items-center gap-0.5 rounded-full transition-colors group ${hasUpvoted ? 'text-brand-pink' : 'text-luxury-ink/45 hover:text-brand-pink'}`}
+            <div
+              className={`flex items-center gap-0.5 rounded-full transition-colors group ${hasUpvoted ? 'text-brand-pink' : 'text-luxury-ink/45'}`}
             >
-              <motion.span
-                className="grid place-items-center w-10 h-10 rounded-full group-hover:bg-brand-pink/10 transition-colors"
-                whileTap={{ scale: 0.85 }}
+              <button
+                onClick={(e) => { e.stopPropagation(); onUpvote?.(post); }}
+                aria-label="Like"
+                className="grid place-items-center w-10 h-10 rounded-full hover:bg-brand-pink/10 transition-colors cursor-pointer text-inherit"
+                type="button"
               >
                 <motion.span
-                  key={likeBurst}
-                  initial={likeBurst > 0 ? { scale: 0.5 } : false}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 600, damping: 14 }}
+                  whileTap={{ scale: 0.85 }}
                   className="grid place-items-center"
                 >
-                  <Heart size={22} strokeWidth={1.75} className={hasUpvoted ? 'fill-brand-pink' : ''} />
+                  <motion.span
+                    key={likeBurst}
+                    initial={likeBurst > 0 ? { scale: 0.5 } : false}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 600, damping: 14 }}
+                    className="grid place-items-center"
+                  >
+                    <Heart size={22} strokeWidth={1.75} className={hasUpvoted ? 'fill-brand-pink' : ''} />
+                  </motion.span>
                 </motion.span>
-              </motion.span>
+              </button>
               <AnimatePresence mode="popLayout">
                 <motion.button
                   key={post.upvotesCount || 0}
@@ -524,7 +552,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: 6, opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="tabular-nums pr-1.5 hover:underline cursor-pointer"
+                  className="tabular-nums pr-1.5 hover:underline cursor-pointer text-inherit font-semibold text-[14px]"
                   onClick={(e) => { e.stopPropagation(); if ((post.upvotesCount || 0) > 0) setShowLikedBy(true); }}
                   aria-label="See who liked this post"
                   type="button"
@@ -532,7 +560,7 @@ export default function PostCard({ post, hasUpvoted, hasDownvoted, hasSaved, onC
                   {post.upvotesCount || 0}
                 </motion.button>
               </AnimatePresence>
-            </button>
+            </div>
 
             {/* Dislike */}
             <button

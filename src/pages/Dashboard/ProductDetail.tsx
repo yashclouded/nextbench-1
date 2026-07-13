@@ -15,7 +15,8 @@ import { useScrollLock } from '../../hooks/useScrollLock';
 import ShareModal from '../../components/ui/ShareModal';
 import { useBlockStatus } from '../../lib/blocks';
 import { getOrCreateDMRoom } from '../../lib/dm';
-import { getProductReviews } from '../../lib/discovery';
+import { getProductReviews, createProductReview } from '../../lib/discovery';
+import { ProductDetailSkeleton } from '../../components/ui/skeleton/Skeleton';
 
 interface ProductData {
   id: string;
@@ -35,6 +36,9 @@ interface ProductData {
   reservedById?: string;
   tags?: string[];      
   city?: string;        
+  sellerReputation?: number | null;
+  sellerReviewCount?: number;
+  sellerReputationBadges?: string[];
 }
 
 interface Review {
@@ -245,22 +249,16 @@ export default function ProductDetail() {
     }
     setSubmittingReview(true);
     try {
-      await addDoc(collection(db, 'reviews'), {
-        productId: id, sellerId: product?.sellerId, reviewerId: user.uid, reviewerName: userData.name,
-        rating: reviewRating, comment: reviewComment, createdAt: serverTimestamp()
-      });
+      await createProductReview(id, reviewRating, reviewComment);
       showToast('Review submitted!', 'success');
       setShowReviewModal(false);
       setReviewComment('');
       setReviewRating(5);
-      if (product?.sellerId) {
-        createNotification({ userId: product.sellerId, type: 'new_review', title: 'New Review', message: `${userData.name} left a ${reviewRating}★ review`, link: `/product/${id}` });
-      }
     } catch { showToast('Failed to submit review', 'error'); }
     finally { setSubmittingReview(false); }
   };
 
-  if (loading) return <div className="pt-32 text-center text-xs font-bold uppercase tracking-widest text-brand-teal/40">Loading Item...</div>;
+  if (loading) return <div className="pt-32"><ProductDetailSkeleton /></div>;
 
   if (!product || iBlockedSeller || sellerBlockedMe) {
     return (
@@ -334,13 +332,21 @@ export default function ProductDetail() {
               >
                 {productImages.map((img, idx) => (
                   <div key={idx} className="w-full h-full shrink-0">
-                    <img 
-                      src={img} 
-                      alt={`${product.title} - Image ${idx + 1}`}
-                      className="w-full h-full object-cover rounded-xl pointer-events-none"
-                      referrerPolicy="no-referrer"
-                      draggable={false}
-                    />
+                    <div className="w-full h-full relative overflow-hidden bg-surface-soft rounded-xl flex items-center justify-center">
+                      <img 
+                        src={getOptimizedImageUrl(img, 800)} 
+                        alt="" 
+                        className="absolute inset-0 w-full h-full object-cover filter blur-[20px] opacity-40 scale-105 pointer-events-none"
+                        referrerPolicy="no-referrer"
+                      />
+                      <img 
+                        src={getOptimizedImageUrl(img, 800)} 
+                        alt={`${product.title} - Image ${idx + 1}`}
+                        className="max-w-full max-h-full object-contain relative z-10 pointer-events-none"
+                        referrerPolicy="no-referrer"
+                        draggable={false}
+                      />
+                    </div>
                   </div>
                 ))}
               </motion.div>
@@ -484,15 +490,33 @@ export default function ProductDetail() {
               <div className="w-14 h-14 rounded-full bg-brand-teal/10 flex items-center justify-center text-xl font-serif font-bold text-brand-teal shrink-0">
                 {product.sellerName?.[0]?.toUpperCase() || 'U'}
               </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <p className="text-lg font-bold text-luxury-ink group-hover:text-brand-teal transition-colors">{product.sellerName}</p>
-                  <ShieldCheck size={14} className="text-brand-teal"  />
+                  <ShieldCheck size={14} className="text-brand-teal shrink-0"  />
+                  {product.sellerReviewCount && product.sellerReviewCount >= 3 ? (
+                    <div className="flex items-center gap-1 bg-brand-teal/10 px-2 py-0.5 rounded text-xs font-bold text-brand-teal shrink-0">
+                      <span>{product.sellerReputation?.toFixed(1)}</span>
+                      <Star size={10} className="fill-brand-teal" />
+                      <span className="text-[10px] text-brand-teal/70">({product.sellerReviewCount})</span>
+                    </div>
+                  ) : (
+                    <span className="text-[9px] font-bold text-brand-teal bg-brand-teal/10 px-2 py-0.5 rounded uppercase tracking-wider shrink-0">New Seller</span>
+                  )}
                 </div>
                 <p className="text-sm text-luxury-ink/50 font-medium flex items-center gap-1 mt-1">
                   {product.sellerSchool} 
                   {product.city && <><span className="text-luxury-ink/30 mx-1">•</span> <MapPin size={12} className="text-brand-teal/70" /> {product.city}</>}
                 </p>
+                {product.sellerReputationBadges && product.sellerReputationBadges.length > 0 && (
+                  <div className="flex gap-1.5 flex-wrap mt-2">
+                    {product.sellerReputationBadges.map((badge) => (
+                      <span key={badge} className="px-2 py-0.5 bg-surface-soft border border-luxury-ink/10 text-luxury-ink/65 rounded text-[9px] font-bold uppercase tracking-wider">
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </Link>
           </div>
