@@ -411,7 +411,7 @@ service cloud.firestore {
       // with other members. Now leads/co-leads manage the club; members may only
       // post message previews, leave (removing only themselves), or join.
       allow update: if isVerified() && isValidId(clubId)
-        && incoming().updatedAt == request.time
+        && (incoming().updatedAt == request.time || incoming().updatedAt == existing().updatedAt)
         && (
           // Lead or co-lead: full management (rename, settings, roles, invite
           // code, add/remove members, transfer leadership)
