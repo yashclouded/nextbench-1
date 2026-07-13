@@ -35,6 +35,9 @@ interface ChatRoomItem {
   unreadBy?: string[];
 }
 
+// Global promise-based user cache to prevent duplicate fetches across mounts
+const userPromiseCache: { [key: string]: Promise<any> } = {};
+
 export default function MessagesLayout() {
   const { user, userData } = useAuth();
   const navigate = useNavigate();
@@ -84,7 +87,6 @@ export default function MessagesLayout() {
   // Load chat rooms
   useEffect(() => {
     if (!user) return;
-    const userCache: { [key: string]: any } = {};
 
     const q = query(
       collection(db, 'chatRooms'),
@@ -96,36 +98,53 @@ export default function MessagesLayout() {
         const rooms: ChatRoomItem[] = [];
         const uncachedUserIds = new Set<string>();
 
+        // Identify which users need to be fetched
         for (const roomDoc of snapshot.docs) {
           const data = roomDoc.data() as ChatRoomItem;
           const otherUserId = data.participants.find(id => id !== user.uid);
-          if (otherUserId && !userCache[otherUserId]) uncachedUserIds.add(otherUserId);
-        }
-
-        if (uncachedUserIds.size > 0) {
-          await Promise.all(
-            Array.from(uncachedUserIds).map(async (userId) => {
-              try {
-                const uDoc = await getDoc(doc(db, 'users', userId));
-                userCache[userId] = uDoc.exists()
-                  ? { id: userId, ...uDoc.data() }
-                  : { id: userId, name: 'Deleted User' };
-              } catch {
-                // Permission denied — likely a blocked user.  Don't let one
-                // failed read break the entire chat list; the room will be
-                // filtered out by allBlockedIds in the loop below anyway.
-                userCache[userId] = { id: userId, name: 'User' };
-              }
-            })
-          );
-        }
-
-        for (const roomDoc of snapshot.docs) {
-          const data = roomDoc.data() as ChatRoomItem;
-          const otherUserId = data.participants.find(id => id !== user.uid);
-          if (otherUserId && !allBlockedIds.has(otherUserId)) {
-            rooms.push({ id: roomDoc.id, ...data, otherUser: userCache[otherUserId] });
+          if (otherUserId && !userPromiseCache[otherUserId]) {
+            uncachedUserIds.add(otherUserId);
           }
+        }
+
+        // Trigger fetches for any new users
+        if (uncachedUserIds.size > 0) {
+          Array.from(uncachedUserIds).forEach((userId) => {
+            userPromiseCache[userId] = getDoc(doc(db, 'users', userId))
+              .then((uDoc) => {
+                return uDoc.exists()
+                  ? { id: userId, ...uDoc.data() }
+                  : { id: userId, name: 'Deleted User', profilePicture: null };
+              })
+              .catch(() => {
+                return { id: userId, name: 'User', profilePicture: null };
+              });
+          });
+        }
+
+        // Wait for all user profiles in the current rooms to resolve
+        const resolvedUsersList = await Promise.all(
+          snapshot.docs.map(async (roomDoc) => {
+            const data = roomDoc.data() as ChatRoomItem;
+            const otherUserId = data.participants.find(id => id !== user.uid);
+            if (!otherUserId) return null;
+            
+            const otherUser = await userPromiseCache[otherUserId];
+            return { roomId: roomDoc.id, otherUser };
+          })
+        );
+
+        const usersMap = Object.fromEntries(
+          resolvedUsersList.filter(Boolean).map((x: any) => [x.roomId, x.otherUser])
+        );
+
+        for (const roomDoc of snapshot.docs) {
+          const data = roomDoc.data() as ChatRoomItem;
+          rooms.push({
+            id: roomDoc.id,
+            ...data,
+            otherUser: usersMap[roomDoc.id],
+          });
         }
 
         rooms.sort((a, b) => {
