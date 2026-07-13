@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   collection,
   query,
@@ -337,8 +337,9 @@ export function useChatEngine({
     [user, roomId, collectionPath, getRoomMetadataUpdate]
   );
 
-  // Merge Firestore-synced real messages with pending/failed optimistic ones
-  const mergedMessages = (() => {
+  // Merge Firestore-synced real messages with pending/failed optimistic ones.
+  // useMemo prevents the O(n log n) sort from running on every render (e.g. on each keystroke).
+  const mergedMessages = useMemo(() => {
     const realClientIds = new Set(messages.map((m) => m.clientMessageId).filter(Boolean));
     const pending = optimisticMessages.filter((m) => !realClientIds.has(m.id));
 
@@ -352,7 +353,7 @@ export function useChatEngine({
       };
       return getVal(a) - getVal(b);
     });
-  })();
+  }, [messages, optimisticMessages]);
 
   return {
     messages: mergedMessages,

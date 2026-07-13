@@ -130,6 +130,10 @@ export default function ChatView({
   const prevScrollTopRef = useRef(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [newMessageCount, setNewMessageCount] = useState(0);
+  // Throttle markAsRead to prevent write→read→render feedback loops in club chats
+  const lastMarkAsReadRef = useRef<number>(0);
+  // Track the last-seen message ID to distinguish new messages from loaded-older ones
+  const lastMsgIdRef = useRef<string | undefined>(undefined);
 
   const handleMessageSentCallback = useCallback(() => {
     setNewMessage('');
@@ -170,11 +174,13 @@ export default function ChatView({
     clearBlob,
   } = useVoiceRecorder();
 
-  // Mark chat as read on mount or when messages change
+  // Mark chat as read — throttled to at most once per 2 s to prevent write→read→render loops
   useEffect(() => {
-    if (isNearBottom && messages.length > 0) {
-      markAsRead();
-    }
+    if (!isNearBottom || messages.length === 0) return;
+    const now = Date.now();
+    if (now - lastMarkAsReadRef.current < 2000) return;
+    lastMarkAsReadRef.current = now;
+    markAsRead();
   }, [messages.length, isNearBottom, markAsRead]);
 
   // Virtualizer removed for better typing performance and zero rendering lag
@@ -208,13 +214,20 @@ export default function ChatView({
     }
   }, [messages.length]);
 
-  // Scroll to bottom on new message
+  // Scroll to bottom on genuinely new messages only (not when loading older history)
   const lastMessagesLengthRef = useRef(messages.length);
   useEffect(() => {
-    if (messages.length > lastMessagesLengthRef.current) {
-      const latestMsg = messages[messages.length - 1];
-      const isMine = latestMsg?.senderId === user?.uid;
+    const latestMsg = messages[messages.length - 1];
+    const latestMsgId = latestMsg?.id;
 
+    // Only scroll when a new message was appended at the bottom.
+    // Comparing IDs prevents false-triggering when older messages are prepended
+    // (load-older: length grows but latestMsgId stays the same).
+    const isNewMessageAppended =
+      messages.length > lastMessagesLengthRef.current && latestMsgId !== lastMsgIdRef.current;
+
+    if (isNewMessageAppended) {
+      const isMine = latestMsg?.senderId === user?.uid;
       if (isNearBottom || isMine) {
         setTimeout(() => {
           if (parentRef.current) {
@@ -226,7 +239,9 @@ export default function ChatView({
         setNewMessageCount((prev) => prev + 1);
       }
     }
+
     lastMessagesLengthRef.current = messages.length;
+    lastMsgIdRef.current = latestMsgId;
   }, [messages, user?.uid, isNearBottom]);
 
   // Voice recording handlers

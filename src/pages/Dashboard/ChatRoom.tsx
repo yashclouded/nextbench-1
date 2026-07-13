@@ -17,6 +17,7 @@ interface ChatRoomProps {
   panelMode?: boolean;
   onBack?: () => void;
   roomIdOverride?: string;
+  panelState?: any; // Desktop panel: state passed directly (avoids history.state hack)
 }
 
 export interface ChatRoomData {
@@ -34,7 +35,7 @@ export interface ChatRoomData {
   unreadBy?: string[];
 }
 
-export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoomProps = {}) {
+export default function ChatRoom({ panelMode, onBack, roomIdOverride, panelState }: ChatRoomProps = {}) {
   const params = useParams<{ roomId: string }>();
   const roomId = roomIdOverride || params.roomId;
   const { user, userData } = useAuth();
@@ -42,8 +43,10 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride }: ChatRoom
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [roomData, setRoomData] = useState<ChatRoomData | null>(location.state?.roomData || null);
-  const [otherUser, setOtherUser] = useState<any>(location.state?.otherUser || null);
+  // panelState is passed directly from MessagesLayout on desktop to avoid history.state hacks
+  const initialState = panelState ?? location.state;
+  const [roomData, setRoomData] = useState<ChatRoomData | null>(initialState?.roomData || null);
+  const [otherUser, setOtherUser] = useState<any>(initialState?.otherUser || null);
   const [showOptions, setShowOptions] = useState(false);
   const [showReport, setShowReport] = useState(false);
 
