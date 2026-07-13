@@ -2,7 +2,7 @@
  * MessagesLayout.tsx
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, User, ShieldCheck, Search, Lock, Plus, X, Send, Users, Globe, Crown, ArrowLeft } from 'lucide-react';
@@ -35,9 +35,6 @@ interface ChatRoomItem {
   unreadBy?: string[];
 }
 
-// Global promise-based user cache to prevent duplicate fetches across mounts
-const userPromiseCache: { [key: string]: Promise<any> } = {};
-
 export default function MessagesLayout() {
   const { user, userData } = useAuth();
   const navigate = useNavigate();
@@ -47,10 +44,13 @@ export default function MessagesLayout() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Derived from router state
-  const activeRoomId = routeRoomId || routeClubId || null;
-  const activeRoomType = routeClubId ? 'club' : 'chat';
-  const activeRoomState = location.state || null;
+  // Active panel — local state on desktop (no remount on click), router-seeded for deep-links
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(routeRoomId || routeClubId || null);
+  const [activeRoomType, setActiveRoomType] = useState<'chat' | 'club'>(routeClubId ? 'club' : 'chat');
+  const [activeRoomState, setActiveRoomState] = useState<any>(location.state || null);
+
+  // Component-scoped user profile cache — prevents duplicate fetches, clears on unmount
+  const userCacheRef = useRef<{ [key: string]: Promise<any> }>({});
 
   const [chatRooms, setChatRooms] = useState<ChatRoomItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +84,29 @@ export default function MessagesLayout() {
     return () => window.removeEventListener('messages-sidebar-toggle', handleToggle);
   }, []);
 
+  // Handle browser back/forward when we use window.history.pushState for URL updates
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const clubMatch = path.match(/^\/messages\/club\/([^/]+)$/);
+      const dmMatch = path.match(/^\/messages\/([^/]+)$/);
+      if (clubMatch) {
+        setActiveRoomId(clubMatch[1]);
+        setActiveRoomType('club');
+        setActiveRoomState(null);
+      } else if (dmMatch) {
+        setActiveRoomId(dmMatch[1]);
+        setActiveRoomType('chat');
+        setActiveRoomState(null);
+      } else {
+        setActiveRoomId(null);
+        setActiveRoomState(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Load chat rooms
   useEffect(() => {
     if (!user) return;
@@ -102,7 +125,7 @@ export default function MessagesLayout() {
         for (const roomDoc of snapshot.docs) {
           const data = roomDoc.data() as ChatRoomItem;
           const otherUserId = data.participants.find(id => id !== user.uid);
-          if (otherUserId && !userPromiseCache[otherUserId]) {
+          if (otherUserId && !userCacheRef.current[otherUserId]) {
             uncachedUserIds.add(otherUserId);
           }
         }
@@ -110,7 +133,7 @@ export default function MessagesLayout() {
         // Trigger fetches for any new users
         if (uncachedUserIds.size > 0) {
           Array.from(uncachedUserIds).forEach((userId) => {
-            userPromiseCache[userId] = getDoc(doc(db, 'users', userId))
+            userCacheRef.current[userId] = getDoc(doc(db, 'users', userId))
               .then((uDoc) => {
                 return uDoc.exists()
                   ? { id: userId, ...uDoc.data() }
@@ -128,8 +151,8 @@ export default function MessagesLayout() {
             const data = roomDoc.data() as ChatRoomItem;
             const otherUserId = data.participants.find(id => id !== user.uid);
             if (!otherUserId) return null;
-            
-            const otherUser = await userPromiseCache[otherUserId];
+
+            const otherUser = await userCacheRef.current[otherUserId];
             return { roomId: roomDoc.id, otherUser };
           })
         );
@@ -227,19 +250,25 @@ export default function MessagesLayout() {
     }
   };
 
-  // Open a chat — on desktop: route inside panel. On mobile: route full screen.
+  // Open a chat — on desktop: local state only (no remount). On mobile: full route navigate.
   const openChat = (roomId: string, state?: any, type: 'chat' | 'club' = 'chat') => {
     const isDesktop = window.innerWidth >= 768;
     if (isDesktop) {
-      navigate(type === 'club' ? `/messages/club/${roomId}` : `/messages/${roomId}`, { state });
+      setActiveRoomId(roomId);
+      setActiveRoomType(type);
+      setActiveRoomState(state || null);
+      // Update URL so it's shareable / browser-history-friendly without React Router re-mount
+      window.history.pushState(state || {}, '', type === 'club' ? `/messages/club/${roomId}` : `/messages/${roomId}`);
     } else {
       navigate(type === 'club' ? `/club/${roomId}` : `/chat/${roomId}`, { state });
     }
   };
 
-  // ChatRoom/ClubChat needs a way to "go back"
+  // Close chat panel — on desktop just clears local state
   const handleChatBack = () => {
-    navigate('/messages');
+    setActiveRoomId(null);
+    setActiveRoomState(null);
+    window.history.pushState({}, '', '/messages');
   };
 
   if (userData && !userData.verified) {
@@ -509,16 +538,18 @@ export default function MessagesLayout() {
         {activeRoomId ? (
           <div className="flex-1 flex flex-col overflow-hidden relative">
             {activeRoomType === 'club' ? (
-              <ClubChatPanel
+              <ClubChat
                 key={activeRoomId}
-                clubId={activeRoomId}
+                panelMode
+                roomIdOverride={activeRoomId}
                 onBack={handleChatBack}
               />
             ) : (
-              <ChatRoomPanel
+              <ChatRoom
                 key={activeRoomId}
-                roomId={activeRoomId}
-                initialState={activeRoomState}
+                panelMode
+                roomIdOverride={activeRoomId}
+                panelState={activeRoomState}
                 onBack={handleChatBack}
               />
             )}
@@ -653,46 +684,5 @@ export default function MessagesLayout() {
         )}
       </AnimatePresence>
     </>
-  );
-}
-
-/**
- * ChatRoomPanel — wraps ChatRoom in panel mode for the desktop two-pane layout.
- */
-function ChatRoomPanel({
-  roomId,
-  initialState,
-  onBack,
-}: {
-  roomId: string;
-  initialState: any;
-  onBack: () => void;
-}) {
-  // Push URL state so ChatRoom can read location.state for otherUser/roomData
-  useEffect(() => {
-    window.history.replaceState(initialState || {}, '', `/messages/${roomId}`);
-  }, [roomId]);
-
-  return (
-    <ChatRoom panelMode roomIdOverride={roomId} onBack={onBack} />
-  );
-}
-
-/**
- * ClubChatPanel — wraps ClubChat in panel mode for the desktop two-pane layout.
- */
-function ClubChatPanel({
-  clubId,
-  onBack,
-}: {
-  clubId: string;
-  onBack: () => void;
-}) {
-  useEffect(() => {
-    window.history.replaceState({}, '', `/club/${clubId}`);
-  }, [clubId]);
-
-  return (
-    <ClubChat panelMode roomIdOverride={clubId} onBack={onBack} />
   );
 }
