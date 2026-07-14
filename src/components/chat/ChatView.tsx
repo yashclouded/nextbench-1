@@ -36,6 +36,7 @@ import { uploadChatImageDetailed } from '../../lib/storage';
 import { uploadVoiceMessage } from '../../lib/voiceMessage';
 import { stopAllVoicePlayback } from '../../hooks/useVoicePlayer';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+import { notifyMentionedUsers } from '../../lib/mentions';
 
 import MentionInput from '../ui/MentionInput';
 import Avatar from '../ui/Avatar';
@@ -126,6 +127,7 @@ export default function ChatView({
   const [voiceUploadError, setVoiceUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef(0);
   const prevScrollTopRef = useRef(0);
@@ -292,6 +294,9 @@ export default function ChatView({
     e.preventDefault();
     if ((!newMessage.trim() && !pendingImageFile) || isUploading || isBlocked || !isMember) return;
 
+    // Capture the message text before clearing it (for mention processing)
+    const messageTextForMentions = newMessage.trim();
+
     let imageObj: any = undefined;
     if (pendingImageFile) {
       setIsUploading(true);
@@ -311,7 +316,27 @@ export default function ChatView({
     setPendingImagePreview(null);
 
     sendMessage(newMessage || undefined, imageObj || undefined, replyingTo);
+
+    // Send mention notifications for @tagged users in the message
+    if (messageTextForMentions && user) {
+      const chatType = collectionPath === 'clubs' ? 'club_chat' : 'dm';
+      const link = collectionPath === 'clubs' ? `/club/${roomId}` : `/chat/${roomId}`;
+      notifyMentionedUsers(
+        messageTextForMentions,
+        user.uid,
+        userData?.name || 'Someone',
+        { type: chatType, link }
+      ).catch(err => console.warn('Failed to notify mentioned users in chat:', err));
+    }
   };
+
+  // Handle Enter key from MentionInput to submit form programmatically
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      formRef.current?.requestSubmit();
+    }
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
@@ -835,7 +860,7 @@ export default function ChatView({
               </div>
             </motion.div>
           ) : (
-            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+            <form ref={formRef} onSubmit={handleSendMessage} className="flex items-center gap-2">
               <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
 
               <button
@@ -867,6 +892,7 @@ export default function ChatView({
                 <MentionInput
                   value={newMessage}
                   onChange={setNewMessage}
+                  onKeyDown={handleInputKeyDown}
                   placeholder={
                     isBlocked
                       ? 'Messaging is disabled'

@@ -2185,10 +2185,10 @@ export const createNotification = onCall({ invoker: "public", cors: CORS_ORIGINS
     throw new HttpsError("invalid-argument", "Missing required fields.");
   }
 
-  // Rate Limiting (max 15 notification creations/minute per user)
-  const allowed = await enforceRateLimit(uid, 'notif_create', 15, 60000);
+  // Rate Limiting (max 50 notification creations/minute per user)
+  const allowed = await enforceRateLimit(uid, 'notif_create', 50, 60000);
   if (!allowed) {
-    throw new HttpsError("resource-exhausted", "Rate limit exceeded. Max 15 notifications per minute.");
+    throw new HttpsError("resource-exhausted", "Rate limit exceeded. Max 50 notifications per minute.");
   }
 
   // Restrict administrative/sensitive notification types to actual admin users
