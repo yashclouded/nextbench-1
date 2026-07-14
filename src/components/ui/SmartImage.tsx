@@ -87,7 +87,7 @@ export default function SmartImage({
   if (isError) {
     return (
       <div
-        className="w-full flex flex-col items-center justify-center bg-surface-soft border border-luxury-ink/5 text-luxury-ink/30 p-4 text-center"
+        className="w-full h-full flex flex-col items-center justify-center bg-surface-soft border border-luxury-ink/5 text-luxury-ink/30 p-4 text-center"
         style={{ aspectRatio }}
       >
         <ImageIcon size={20} className="mb-1" />
@@ -107,7 +107,7 @@ export default function SmartImage({
 
   return (
     <div
-      className="relative w-full overflow-hidden bg-surface-soft select-none"
+      className="relative w-full h-full overflow-hidden bg-surface-soft select-none"
       style={{
         aspectRatio,
         backgroundImage: lqip ? `url(${lqip})` : undefined,
