@@ -69,6 +69,7 @@ interface ChatViewProps {
   isMember?: boolean;
   isAdmin?: boolean;
   canPost?: boolean;
+  clubMembers?: string[];
   otherUser?: any;
   otherPresence?: any;
   onBack?: () => void;
@@ -93,6 +94,7 @@ export default function ChatView({
   isMember = true,
   isAdmin = false,
   canPost = true,
+  clubMembers,
   otherUser,
   otherPresence,
   onBack,
@@ -171,6 +173,7 @@ export default function ChatView({
     userData,
     recipientId,
     isBlocked,
+    clubMembers,
     onMessageSent: handleMessageSentCallback,
   });
 

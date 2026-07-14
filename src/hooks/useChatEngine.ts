@@ -63,6 +63,7 @@ export interface ChatEngineOptions {
   userData: any;
   recipientId?: string; // DM only
   isBlocked?: boolean; // DM only
+  clubMembers?: string[]; // clubs only — leadId + coLeadIds + memberIds, from the caller's already-live club doc
   onMessageSent?: (text?: string, image?: any) => void;
 }
 
@@ -73,6 +74,7 @@ export function useChatEngine({
   userData,
   recipientId,
   isBlocked = false,
+  clubMembers,
   onMessageSent,
 }: ChatEngineOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -85,9 +87,11 @@ export function useChatEngine({
   const hasMoreRef = useRef(true);
   const loadingOlderRef = useRef(false);
 
-  // Helper to generate the metadata update object for a room/club
+  // Helper to generate the metadata update object for a room/club. For clubs,
+  // the caller passes its already-live member list (see ClubChat.tsx) instead
+  // of this hook doing its own getDoc(clubs/roomId) on every single send.
   const getRoomMetadataUpdate = useCallback(
-    async (lastMsgText: string) => {
+    (lastMsgText: string) => {
       const updateData: any = {
         lastMessage: lastMsgText,
         lastSenderId: user.uid,
@@ -96,26 +100,9 @@ export function useChatEngine({
 
       if (collectionPath === 'clubs') {
         updateData.lastSenderName = userData?.name || 'Unknown';
-        try {
-          const clubSnap = await getDoc(doc(db, 'clubs', roomId));
-          if (clubSnap.exists()) {
-            const clubData = clubSnap.data();
-            const members = new Set<string>();
-            if (clubData.leadId) members.add(clubData.leadId);
-            if (Array.isArray(clubData.coLeadIds)) {
-              clubData.coLeadIds.forEach((id: string) => members.add(id));
-            }
-            if (Array.isArray(clubData.memberIds)) {
-              clubData.memberIds.forEach((id: string) => members.add(id));
-            }
-            // Remove self
-            members.delete(user.uid);
-            if (members.size > 0) {
-              updateData.unreadBy = arrayUnion(...Array.from(members));
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to get club members for unreadBy:', err);
+        const others = (clubMembers || []).filter((id) => id !== user.uid);
+        if (others.length > 0) {
+          updateData.unreadBy = arrayUnion(...others);
         }
       } else if (recipientId) {
         updateData.unreadBy = arrayUnion(recipientId);
@@ -123,7 +110,7 @@ export function useChatEngine({
 
       return updateData;
     },
-    [user?.uid, userData?.name, collectionPath, roomId, recipientId]
+    [user?.uid, userData?.name, collectionPath, clubMembers, recipientId]
   );
 
   // Mark room as read for user

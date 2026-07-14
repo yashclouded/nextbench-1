@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, writeBatch, collection, getDocs, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -49,6 +49,15 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
   const isLeadOrCo = isLead || isColeader;
   const isMember = club?.memberIds?.includes(user?.uid || '') || false;
   const canPost = !club?.settings?.onlyLeadsCanPost || isLeadOrCo;
+
+  const clubMembers = useMemo(() => {
+    if (!club) return [];
+    const set = new Set<string>();
+    if (club.leadId) set.add(club.leadId);
+    (club.coLeadIds || []).forEach((id) => set.add(id));
+    (club.memberIds || []).forEach((id) => set.add(id));
+    return Array.from(set);
+  }, [club]);
 
   // Listen to club metadata
   useEffect(() => {
@@ -148,6 +157,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
         isMember={isMember}
         isAdmin={isLeadOrCo}
         canPost={canPost}
+        clubMembers={clubMembers}
         onBack={onBack ? onBack : () => navigate('/messages')}
         showOptions={showOptions}
         setShowOptions={setShowOptions}
