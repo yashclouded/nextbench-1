@@ -152,6 +152,8 @@ export function useChatEngine({
         try {
           const msgData: any = {
             senderId: user.uid,
+            senderName: userData?.name || 'Unknown',
+            senderAvatar: userData?.profilePicture || null,
             createdAt: serverTimestamp(),
             clientMessageId: msg.clientMessageId,
           };
@@ -240,6 +242,8 @@ export function useChatEngine({
       try {
         const msgData: any = {
           senderId: user.uid,
+          senderName: userData?.name || 'Unknown',
+          senderAvatar: userData?.profilePicture || null,
           createdAt: serverTimestamp(),
           clientMessageId: msg.clientMessageId,
         };
@@ -320,6 +324,8 @@ export function useChatEngine({
       try {
         const messageData = {
           senderId: user.uid,
+          senderName: userData?.name || 'Unknown',
+          senderAvatar: userData?.profilePicture || null,
           type: 'voice' as const,
           audioUrl,
           duration,

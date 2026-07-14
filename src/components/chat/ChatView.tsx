@@ -565,6 +565,13 @@ export default function ChatView({
                         : 'bg-surface-card text-luxury-ink border-luxury-ink/5 rounded-tl-xs'
                     } ${isOptimistic ? 'opacity-50' : ''} ${isFailed ? 'border-red-400 bg-red-50/10' : ''}`}
                   >
+                    {/* Sender Name (Group Chats Only) */}
+                    {isClub && !isMe && !isDeleted && (
+                      <div className="text-[11px] font-bold text-brand-teal mb-1 leading-tight tracking-wide">
+                        {msg.senderName || 'Member'}
+                      </div>
+                    )}
+
                     {/* Reply Preview */}
                     {!isDeleted && msg.replyToText && (
                       <div className={`text-xs mb-2 p-2 rounded-lg border-l-2 ${isMe ? 'bg-black/10 border-white/40' : 'bg-surface-soft border-brand-teal'}`}>
