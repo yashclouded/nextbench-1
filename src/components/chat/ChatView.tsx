@@ -129,6 +129,9 @@ export default function ChatView({
 
   // Voice recording state
   const [voiceUploading, setVoiceUploading] = useState(false);
+  
+  // Message Info state
+  const [msgInfoId, setMsgInfoId] = useState<string | null>(null);
   const [voiceUploadProgress, setVoiceUploadProgress] = useState(0);
   const [voiceUploadError, setVoiceUploadError] = useState<string | null>(null);
 
@@ -734,6 +737,15 @@ export default function ChatView({
                     >
                       <Reply size={14} /> Reply
                     </button>
+                    <button
+                      onClick={() => {
+                        setMsgInfoId(targetMsg.id);
+                        setSelectedMessageId(null);
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-xs font-bold text-luxury-ink/70 hover:bg-surface-soft transition-colors flex items-center gap-2.5"
+                    >
+                      <Info size={14} /> Info
+                    </button>
                     {targetMsg.text && (
                       <button
                         onClick={() => {
@@ -995,6 +1007,61 @@ export default function ChatView({
                 <button type="button" onClick={() => setDeleteEveryoneConfirmMsgId(null)} className="px-5 py-2.5 rounded-full text-xs font-bold text-luxury-ink/50 hover:bg-surface-soft">Cancel</button>
                 <button type="button" onClick={async () => { await deleteForEveryone(deleteEveryoneConfirmMsgId); setDeleteEveryoneConfirmMsgId(null); }} className="px-5 py-2.5 bg-red-500 text-white rounded-full text-xs font-bold hover:bg-red-600 shadow-lg">Delete for everyone</button>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Message Info Modal */}
+        {msgInfoId && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-center justify-center p-4" onClick={() => setMsgInfoId(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-card w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-luxury-ink/5"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal">
+                  <Info size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-luxury-ink">Message Info</h3>
+                  <p className="text-xs text-luxury-ink/60">Delivery details</p>
+                </div>
+              </div>
+
+              {(() => {
+                const msg = messages.find(m => m.id === msgInfoId);
+                if (!msg) return null;
+                const isMe = msg.senderId === user?.uid;
+                const sentTime = msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Just now';
+                
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-surface-soft rounded-xl">
+                      <span className="text-sm font-semibold text-luxury-ink/70">Sent at</span>
+                      <span className="text-sm font-medium text-luxury-ink">{sentTime}</span>
+                    </div>
+                    {isMe && (
+                      <div className="flex items-center justify-between p-3 bg-surface-soft rounded-xl">
+                        <span className="text-sm font-semibold text-luxury-ink/70">Status</span>
+                        <span className="text-sm font-medium text-brand-teal flex items-center gap-1.5">
+                          <CheckCircle2 size={16} /> 
+                          {msg.status === 'pending' ? 'Sending...' : msg.status === 'failed' ? 'Failed' : isClub ? 'Sent to Club' : 'Delivered / Seen'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <button
+                onClick={() => setMsgInfoId(null)}
+                className="w-full mt-6 py-3 bg-luxury-ink text-surface-base rounded-xl text-sm font-bold hover:bg-luxury-ink/90 transition-colors"
+              >
+                Close
+              </button>
             </motion.div>
           </div>
         )}
