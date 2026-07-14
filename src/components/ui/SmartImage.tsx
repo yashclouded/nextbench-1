@@ -28,11 +28,22 @@ export default function SmartImage({
 }: SmartImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
+  const imgRef = React.useRef<HTMLImageElement>(null);
 
   // Reset state when source changes
   useEffect(() => {
     setIsLoaded(false);
     setIsError(false);
+    
+    // Check if the image is already complete (e.g. from browser cache)
+    if (imgRef.current && imgRef.current.complete) {
+      // If it's complete and its naturalWidth is 0, it means it's broken, otherwise it's loaded
+      if (imgRef.current.naturalWidth === 0 && imgRef.current.src !== '') {
+        // Will be caught by onError
+      } else {
+        setIsLoaded(true);
+      }
+    }
   }, [src]);
 
   if (!src) {
@@ -87,11 +98,11 @@ export default function SmartImage({
   if (isError) {
     return (
       <div
-        className="w-full flex flex-col items-center justify-center bg-surface-soft border border-luxury-ink/5 text-luxury-ink/30 p-4 text-center"
+        className="w-full h-full flex flex-col items-center justify-center bg-surface-soft border border-luxury-ink/5 text-luxury-ink/30 p-1 text-center"
         style={{ aspectRatio }}
       >
-        <ImageIcon size={20} className="mb-1" />
-        <span className="text-[10px] font-bold uppercase tracking-wider">Image Unavailable</span>
+        <ImageIcon size={16} className="mb-1" />
+        <span className="text-[8px] font-bold uppercase tracking-wider leading-tight hidden sm:block">Error</span>
       </div>
     );
   }
@@ -107,7 +118,7 @@ export default function SmartImage({
 
   return (
     <div
-      className="relative w-full overflow-hidden bg-surface-soft select-none"
+      className="relative w-full h-full overflow-hidden bg-surface-soft select-none"
       style={{
         aspectRatio,
         backgroundImage: lqip ? `url(${lqip})` : undefined,
@@ -117,6 +128,7 @@ export default function SmartImage({
       }}
     >
       <img
+        ref={imgRef}
         src={optimizedSrc}
         srcSet={srcSet}
         sizes={srcSet ? '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw' : undefined}

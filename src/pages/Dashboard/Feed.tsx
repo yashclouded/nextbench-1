@@ -13,6 +13,7 @@ import { useFollowingIds } from '../../lib/follows';
 import { isTextSafe } from '../../lib/moderation';
 import { checkAllImagesSafety, preloadModerationModel } from '../../lib/imageModeration';
 import { createNotification } from '../../lib/notifications';
+import { notifyMentionedUsers } from '../../lib/mentions';
 import ShareModal from '../../components/ui/ShareModal';
 import { Link, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
@@ -970,12 +971,12 @@ export default function Feed() {
         if (!isPostAnonymous) {
           const authorName = userData.name || user.email;
           const followsSnap = await getDocs(query(collection(db, 'follows'), where('followingId', '==', user.uid)));
-          // Cap fan-out to 14 followers to stay within the Cloud Function rate
-          // limit of 15/min. Remaining followers won't receive in-app notifs
+          // Cap fan-out to 40 followers to stay within the Cloud Function rate
+          // limit of 50/min. Remaining followers won't receive in-app notifs
           // from the client — a server-side fan-out would be the ideal fix.
           const followerIds: string[] = [];
           followsSnap.forEach(f => followerIds.push(f.data().followerId));
-          const cappedFollowerIds = followerIds.slice(0, 14);
+          const cappedFollowerIds = followerIds.slice(0, 40);
           for (const followerId of cappedFollowerIds) {
             createNotification({ 
               userId: followerId, 
@@ -986,6 +987,16 @@ export default function Feed() {
               postId: postDocRef.id
             });
           }
+        }
+
+        // Notify @mentioned users in the post content
+        if (content) {
+          notifyMentionedUsers(
+            content,
+            user.uid,
+            isPostAnonymous ? 'Someone' : (userData.name || 'Someone'),
+            { type: 'post_reply', link: `/post/${postDocRef.id}`, postId: postDocRef.id }
+          ).catch(err => console.warn('Failed to notify mentioned users in post:', err));
         }
       } else {
         if (!isTextClean) {

@@ -573,7 +573,7 @@ export default function PostDetailModal({
       if (post.authorId !== user.uid) {
         createNotification({
           userId: post.authorId,
-          type: 'new_message',
+          type: 'new_post',
           title: 'New Comment',
           message: `${userData?.name || user.email?.split('@')[0]} commented on your post`,
           link: `/post/${post.id}`,
@@ -594,7 +594,7 @@ export default function PostDetailModal({
           if (parentReply.authorId !== user.uid) {
             createNotification({
               userId: parentReply.authorId,
-              type: 'new_message',
+              type: 'new_post',
               title: 'New Reply',
               message: `${userData?.name || user.email?.split('@')[0]} replied to your comment`,
               link: `/post/${post.id}`,

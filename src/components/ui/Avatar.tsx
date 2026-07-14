@@ -2,13 +2,15 @@ import React from 'react';
 import SmartImage from './SmartImage';
 
 interface AvatarProps {
-  src?: string | null;
+  src?: string | null | { url: string; w?: number; h?: number };
   name: string;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | number;
   className?: string;
 }
 
 export default function Avatar({ src, name = 'User', size = 'md', className = '' }: AvatarProps) {
+  // Extract URL if src is an object (Cloudinary format)
+  const imageUrl = typeof src === 'object' && src !== null ? src.url : src;
   // Size classes map
   const sizeClasses = {
     xs: 'w-6 h-6 text-[10px]',
@@ -39,14 +41,16 @@ export default function Avatar({ src, name = 'User', size = 'md', className = ''
       style={customStyle}
       className={`rounded-full overflow-hidden flex items-center justify-center bg-brand-teal/5 text-brand-teal font-bold uppercase select-none border border-luxury-ink/5 shrink-0 relative ${sizeClass} ${className}`}
     >
-      {src ? (
-        <SmartImage
-          src={src}
-          alt={name}
-          ratio={1}
-          fit="cover"
-          className="w-full h-full object-cover"
-        />
+      {imageUrl ? (
+        <div className="absolute inset-0 w-full h-full">
+          <SmartImage
+            src={imageUrl as string}
+            alt={name}
+            ratio={1}
+            fit="cover"
+            className="w-full h-full object-cover"
+          />
+        </div>
       ) : (
         <span className="leading-none">{initials}</span>
       )}

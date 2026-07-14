@@ -18,6 +18,18 @@
     <meta property="og:url" content="https://nextbench.in" />
     <style>
       /* Instant loading screen — shown before any JS runs */
+      :root {
+        --loader-bg: #fafaf8;
+        --loader-text: #091A1D;
+        --loader-subtle: rgba(9, 26, 29, 0.15);
+        --loader-accent: #4ECDC4;
+      }
+      .loader-dark {
+        --loader-bg: #0a1a1d;
+        --loader-text: #fafaf8;
+        --loader-subtle: rgba(255,255,255,0.1);
+        --loader-accent: #4ECDC4;
+      }
       #app-loading {
         position: fixed;
         inset: 0;
@@ -25,40 +37,59 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: #0a1a1d;
+        background: var(--loader-bg);
         z-index: 9999;
-        gap: 20px;
-        transition: opacity 0.3s ease;
+        gap: 16px;
+        transition: opacity 0.35s ease;
       }
       #app-loading.hidden {
         opacity: 0;
         pointer-events: none;
       }
-      #app-loading svg {
-        width: 48px;
-        height: 48px;
-        animation: nb-spin 1.2s linear infinite;
+      #app-loading img {
+        width: 40px;
+        height: 40px;
+        animation: nb-pulse 1.6s ease-in-out infinite;
       }
-      #app-loading p {
-        color: rgba(255,255,255,0.4);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 14px;
-        letter-spacing: 0.05em;
-        margin: 0;
+      #app-loading .loader-bar {
+        width: 120px;
+        height: 3px;
+        border-radius: 3px;
+        background: var(--loader-subtle);
+        overflow: hidden;
+        margin-top: 4px;
       }
-      @keyframes nb-spin {
-        to { transform: rotate(360deg); }
+      #app-loading .loader-bar-fill {
+        width: 40%;
+        height: 100%;
+        border-radius: 3px;
+        background: var(--loader-accent);
+        animation: nb-slide 1.2s ease-in-out infinite;
+      }
+      @keyframes nb-pulse {
+        0%, 100% { opacity: 0.85; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.05); }
+      }
+      @keyframes nb-slide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(400%); }
       }
     </style>
+    <script>
+      // Apply saved theme to loading screen immediately
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('loader-dark');
+        }
+      } catch(e) {}
+    </script>
   </head>
   <body>
     <!-- Instant loading screen: visible before React mounts -->
-    <div id="app-loading">
-      <svg viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="25" cy="25" r="20" stroke="rgba(255,255,255,0.1)" stroke-width="4"/>
-        <path d="M25 5 A20 20 0 0 1 45 25" stroke="#4ECDC4" stroke-width="4" stroke-linecap="round"/>
-      </svg>
-      <p>Nextbench</p>
+    <div id="app-loading" class="">
+      <img src="/logo.png" alt="Nextbench" />
+      <div class="loader-bar"><div class="loader-bar-fill"></div></div>
     </div>
 
     <div id="root"></div>

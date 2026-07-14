@@ -27,7 +27,10 @@ import {
   Info,
   Pin
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import { useLightbox } from '../../lib/LightboxContext';
@@ -35,6 +38,7 @@ import { uploadChatImageDetailed } from '../../lib/storage';
 import { uploadVoiceMessage } from '../../lib/voiceMessage';
 import { stopAllVoicePlayback } from '../../hooks/useVoicePlayer';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+import { notifyMentionedUsers } from '../../lib/mentions';
 
 import MentionInput from '../ui/MentionInput';
 import Avatar from '../ui/Avatar';
@@ -102,8 +106,11 @@ export default function ChatView({
   onPin,
 }: ChatViewProps) {
   const { user, userData } = useAuth();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { showLightbox } = useLightbox();
+
+  const isClub = collectionPath === 'clubs';
 
   const [newMessage, setNewMessage] = useState('');
   const [showQuickReplies, setShowQuickReplies] = useState(false);
@@ -121,10 +128,14 @@ export default function ChatView({
 
   // Voice recording state
   const [voiceUploading, setVoiceUploading] = useState(false);
+  
+  // Message Info state
+  const [msgInfoId, setMsgInfoId] = useState<string | null>(null);
   const [voiceUploadProgress, setVoiceUploadProgress] = useState(0);
   const [voiceUploadError, setVoiceUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const prevScrollHeightRef = useRef(0);
   const prevScrollTopRef = useRef(0);
@@ -300,6 +311,9 @@ export default function ChatView({
     e.preventDefault();
     if ((!newMessage.trim() && !pendingImageFile) || isUploading || isBlocked || !isMember) return;
 
+    // Capture the message text before clearing it (for mention processing)
+    const messageTextForMentions = newMessage.trim();
+
     let imageObj: any = undefined;
     if (pendingImageFile) {
       setIsUploading(true);
@@ -319,7 +333,27 @@ export default function ChatView({
     setPendingImagePreview(null);
 
     sendMessage(newMessage || undefined, imageObj || undefined, replyingTo);
+
+    // Send mention notifications for @tagged users in the message
+    if (messageTextForMentions && user) {
+      const chatType = collectionPath === 'clubs' ? 'club_chat' : 'dm';
+      const link = collectionPath === 'clubs' ? `/club/${roomId}` : `/chat/${roomId}`;
+      notifyMentionedUsers(
+        messageTextForMentions,
+        user.uid,
+        userData?.name || 'Someone',
+        { type: chatType, link }
+      ).catch(err => console.warn('Failed to notify mentioned users in chat:', err));
+    }
   };
+
+  // Handle Enter key from MentionInput to submit form programmatically
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      formRef.current?.requestSubmit();
+    }
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
@@ -378,29 +412,40 @@ export default function ChatView({
               <ChevronLeft size={20} />
             </button>
           )}
-          <Avatar
-            src={avatar}
-            name={title}
-            size={40}
-            className="ring-1 ring-inset ring-luxury-ink/[0.06]"
-          />
-          <div className="min-w-0">
-            <h2 className="text-sm font-bold text-luxury-ink truncate flex items-center gap-1.5">
-              {title}
-              {collectionPath === 'chatRooms' && otherUser?.verified && <ShieldCheck size={14} className="text-brand-teal" />}
-            </h2>
-            {collectionPath === 'chatRooms' && (
-              <p className="text-[10px] font-semibold text-luxury-ink/40">
-                {otherPresence?.status === 'online' ? (
-                  <span className="text-brand-teal flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-brand-teal" /> Active Now</span>
-                ) : (
-                  otherPresence?.label || 'Offline'
-                )}
-              </p>
-            )}
-            {collectionPath === 'clubs' && subtitle && (
-              <p className="text-[10px] text-luxury-ink/40 truncate">{subtitle}</p>
-            )}
+          <div 
+            className="flex items-center gap-4 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => {
+              if (collectionPath === 'clubs') {
+                navigate(`/club/${roomId}`);
+              } else if (recipientId) {
+                navigate(`/profile/${recipientId}`);
+              }
+            }}
+          >
+            <Avatar
+              src={avatar}
+              name={title}
+              size={40}
+              className="ring-1 ring-inset ring-luxury-ink/[0.06]"
+            />
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-luxury-ink truncate flex items-center gap-1.5">
+                {title}
+                {collectionPath === 'chatRooms' && otherUser?.verified && <ShieldCheck size={14} className="text-brand-teal" />}
+              </h2>
+              {collectionPath === 'chatRooms' && (
+                <p className="text-[10px] font-semibold text-luxury-ink/40">
+                  {otherPresence?.status === 'online' ? (
+                    <span className="text-brand-teal flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-brand-teal" /> Active Now</span>
+                  ) : (
+                    otherPresence?.label || 'Offline'
+                  )}
+                </p>
+              )}
+              {collectionPath === 'clubs' && subtitle && (
+                <p className="text-[10px] text-luxury-ink/40 truncate">{subtitle}</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -539,6 +584,15 @@ export default function ChatView({
                       className="w-full px-4 py-2.5 text-left text-xs font-bold text-luxury-ink/70 hover:bg-surface-soft transition-colors flex items-center gap-2.5"
                     >
                       <Reply size={14} /> Reply
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMsgInfoId(targetMsg.id);
+                        setSelectedMessageId(null);
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-xs font-bold text-luxury-ink/70 hover:bg-surface-soft transition-colors flex items-center gap-2.5"
+                    >
+                      <Info size={14} /> Info
                     </button>
                     {targetMsg.text && (
                       <button
@@ -695,7 +749,7 @@ export default function ChatView({
               </div>
             </motion.div>
           ) : (
-            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+            <form ref={formRef} onSubmit={handleSendMessage} className="flex items-center gap-2">
               <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
 
               <button
@@ -727,6 +781,7 @@ export default function ChatView({
                 <MentionInput
                   value={newMessage}
                   onChange={setNewMessage}
+                  onKeyDown={handleInputKeyDown}
                   placeholder={
                     isBlocked
                       ? 'Messaging is disabled'
@@ -803,11 +858,126 @@ export default function ChatView({
             </motion.div>
           </div>
         )}
+
+        {/* Message Info Modal */}
+        {msgInfoId && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] flex items-center justify-center p-4" onClick={() => setMsgInfoId(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-card w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-luxury-ink/5"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal">
+                  <Info size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-luxury-ink">Message Info</h3>
+                  <p className="text-xs text-luxury-ink/60">Delivery details</p>
+                </div>
+              </div>
+
+              {(() => {
+                const msg = messages.find(m => m.id === msgInfoId);
+                if (!msg) return null;
+                const isMe = msg.senderId === user?.uid;
+                const sentTime = msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Just now';
+                
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-surface-soft rounded-xl">
+                      <span className="text-sm font-semibold text-luxury-ink/70">Sent at</span>
+                      <span className="text-sm font-medium text-luxury-ink">{sentTime}</span>
+                    </div>
+                    {isMe && (
+                      <div className="flex items-center justify-between p-3 bg-surface-soft rounded-xl">
+                        <span className="text-sm font-semibold text-luxury-ink/70">Status</span>
+                        <span className="text-sm font-medium text-brand-teal flex items-center gap-1.5">
+                          <CheckCircle2 size={16} /> 
+                          {msg.status === 'pending' ? 'Sending...' : msg.status === 'failed' ? 'Failed' : isClub ? 'Sent to Club' : 'Delivered / Seen'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <button
+                onClick={() => setMsgInfoId(null)}
+                className="w-full mt-6 py-3 bg-luxury-ink text-surface-base rounded-xl text-sm font-bold hover:bg-luxury-ink/90 transition-colors"
+              >
+                Close
+              </button>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
 }
 
+function ClubSenderAvatar({ msg }: { msg: Message }) {
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<{ name: string, avatar: string | null } | null>(null);
+
+  useEffect(() => {
+    if (msg.senderName) return; // Already have it!
+    let isMounted = true;
+    getDoc(doc(db, 'users', msg.senderId)).then(snap => {
+      if (snap.exists() && isMounted) {
+        setProfile({ name: snap.data().name || 'Member', avatar: snap.data().profilePicture || null });
+      }
+    });
+    return () => { isMounted = false; };
+  }, [msg.senderId, msg.senderName]);
+
+  const name = msg.senderName || profile?.name || 'Member';
+  const avatar = msg.senderAvatar !== undefined ? msg.senderAvatar : profile?.avatar;
+
+  return (
+    <div 
+      className="shrink-0 self-end mb-1 cursor-pointer hover:opacity-80 transition-opacity"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigate(`/profile/${msg.senderId}`);
+      }}
+    >
+      <Avatar src={avatar} name={name} size={28} />
+    </div>
+  );
+}
+
+function ClubSenderName({ msg }: { msg: Message }) {
+  const navigate = useNavigate();
+  const [name, setName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (msg.senderName) return; // Already have it!
+    let isMounted = true;
+    getDoc(doc(db, 'users', msg.senderId)).then(snap => {
+      if (snap.exists() && isMounted) {
+        setName(snap.data().name || 'Member');
+      }
+    });
+    return () => { isMounted = false; };
+  }, [msg.senderId, msg.senderName]);
+
+  const displayName = msg.senderName || name || 'Member';
+
+  return (
+    <span 
+      className="cursor-pointer hover:underline"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigate(`/profile/${msg.senderId}`);
+      }}
+    >
+      {displayName}
+    </span>
+  );
+}
 // Memoized message item to prevent re-rendering the message list when typing in the composer
 const MessageItem = React.memo(function MessageItem({
   msg,
@@ -886,6 +1056,11 @@ const MessageItem = React.memo(function MessageItem({
           </button>
         )}
 
+        {/* Sender Avatar (Group Chats Only) */}
+        {collectionPath === 'clubs' && !isMe && !isDeleted && (
+          <ClubSenderAvatar msg={msg} />
+        )}
+
         {/* Message Bubble Box */}
         <div
           onClick={(e) => {
@@ -914,6 +1089,13 @@ const MessageItem = React.memo(function MessageItem({
               : 'bg-surface-card text-luxury-ink border-luxury-ink/5 rounded-tl-xs'
           } ${isOptimistic ? 'opacity-50' : ''} ${isFailed ? 'border-red-400 bg-red-50/10' : ''}`}
         >
+          {/* Sender Name (Group Chats Only) */}
+          {collectionPath === 'clubs' && !isMe && !isDeleted && (
+            <div className="text-[11px] font-bold text-brand-teal mb-1 leading-tight tracking-wide">
+              <ClubSenderName msg={msg} />
+            </div>
+          )}
+
           {/* Reply Preview */}
           {!isDeleted && msg.replyToText && (
             <div className={`text-xs mb-2 p-2 rounded-lg border-l-2 ${isMe ? 'bg-black/10 border-white/40' : 'bg-surface-soft border-brand-teal'}`}>
@@ -929,7 +1111,7 @@ const MessageItem = React.memo(function MessageItem({
             <>
               {/* Image attachment */}
               {msg.image && (
-                <div className={`relative overflow-hidden bg-black/5 rounded-lg -mx-4 -mt-3 w-[280px] max-w-full ${msg.text ? 'mb-2' : '-mb-3'}`}>
+                <div className={`relative overflow-hidden bg-black/5 rounded-lg -mx-4 ${((collectionPath === 'clubs' && !isMe) || msg.replyToText) ? 'mt-2' : '-mt-3'} w-[280px] max-w-full ${msg.text ? 'mb-2' : '-mb-3'}`}>
                   {(() => {
                     const isObj = typeof msg.image === 'object' && msg.image !== null;
                     const imageUrl = isObj ? msg.image.url : msg.image;

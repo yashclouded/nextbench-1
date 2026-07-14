@@ -109,10 +109,17 @@ export function useChatEngine({
   );
 
   // Mark room as read for user
+  // Mark room as read for user — only writes if user is actually in unreadBy
   const markAsRead = useCallback(async () => {
     if (!user || !roomId) return;
     try {
       const roomRef = doc(db, collectionPath, roomId);
+      const roomSnap = await getDoc(roomRef);
+      if (!roomSnap.exists()) return;
+      const data = roomSnap.data();
+      const unreadBy: string[] = data?.unreadBy || [];
+      if (!unreadBy.includes(user.uid)) return; // Already read — skip the write
+
       const updatePayload: any = {
         unreadBy: arrayRemove(user.uid),
       };
@@ -193,6 +200,8 @@ export function useChatEngine({
         try {
           const msgData: any = {
             senderId: user.uid,
+            senderName: userData?.name || 'Unknown',
+            senderAvatar: userData?.profilePicture || null,
             createdAt: serverTimestamp(),
             clientMessageId: msg.clientMessageId,
           };
@@ -245,6 +254,8 @@ export function useChatEngine({
       try {
         const msgData: any = {
           senderId: user.uid,
+          senderName: userData?.name || 'Unknown',
+          senderAvatar: userData?.profilePicture || null,
           createdAt: serverTimestamp(),
           clientMessageId: msg.clientMessageId,
         };
@@ -315,6 +326,8 @@ export function useChatEngine({
       try {
         const messageData = {
           senderId: user.uid,
+          senderName: userData?.name || 'Unknown',
+          senderAvatar: userData?.profilePicture || null,
           type: 'voice' as const,
           audioUrl,
           duration,
