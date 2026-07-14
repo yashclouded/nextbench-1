@@ -312,7 +312,7 @@ export default function ChatView({
   // Send textual/image message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newMessage.trim() && !pendingImageFile) || isUploading || isBlocked || !isMember) return;
+    if ((!newMessage.trim() && !pendingImageFile) || isUploading || isBlocked || !isMember || !canPost) return;
 
     // Capture the message text before clearing it (for mention processing)
     const messageTextForMentions = newMessage.trim();
@@ -758,7 +758,7 @@ export default function ChatView({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || isBlocked || !isMember}
+                disabled={isUploading || isBlocked || !isMember || !canPost}
                 className="p-3 bg-surface-card border border-luxury-ink/10 text-brand-teal hover:bg-brand-teal/10 rounded-full transition-all shrink-0 shadow-xs active:scale-95 disabled:opacity-50"
                 title="Send image"
               >
@@ -790,11 +790,13 @@ export default function ChatView({
                       ? 'Messaging is disabled'
                       : !isMember
                       ? 'Join this club to post'
+                      : !canPost
+                      ? 'Only leads can post in this club'
                       : pendingImageFile
                       ? 'Add a caption...'
                       : 'Type your message...'
                   }
-                  disabled={isBlocked || !isMember}
+                  disabled={isBlocked || !isMember || !canPost}
                   className="w-full bg-transparent py-3.5 text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
                 />
               </div>
@@ -803,7 +805,7 @@ export default function ChatView({
               <button
                 type="button"
                 onClick={handleStartRecording}
-                disabled={isUploading || isBlocked || !isMember}
+                disabled={isUploading || isBlocked || !isMember || !canPost}
                 className="p-3 bg-surface-card border border-luxury-ink/10 text-luxury-ink/40 hover:text-brand-teal rounded-full transition-all shrink-0 shadow-xs active:scale-95 disabled:opacity-30"
                 title="Record audio"
               >
@@ -812,7 +814,7 @@ export default function ChatView({
 
               <button
                 type="submit"
-                disabled={(!newMessage.trim() && !pendingImageFile) || isUploading || isBlocked || !isMember}
+                disabled={(!newMessage.trim() && !pendingImageFile) || isUploading || isBlocked || !isMember || !canPost}
                 className="p-3 bg-brand-teal text-white rounded-full hover:opacity-90 transition-all shadow-xs disabled:opacity-30 disabled:cursor-not-allowed shrink-0 active:scale-95"
               >
                 <Send size={18} />
