@@ -119,8 +119,7 @@ export function useChatEngine({
       const data = roomSnap.data();
       const unreadBy: string[] = data?.unreadBy || [];
       if (!unreadBy.includes(user.uid)) return; // Already read — skip the write
-      await updateDoc(roomRef, {
-      
+
       const updatePayload: any = {
         unreadBy: arrayRemove(user.uid),
       };

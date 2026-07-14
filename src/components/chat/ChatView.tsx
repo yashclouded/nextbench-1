@@ -1056,6 +1056,11 @@ const MessageItem = React.memo(function MessageItem({
           </button>
         )}
 
+        {/* Sender Avatar (Group Chats Only) */}
+        {collectionPath === 'clubs' && !isMe && !isDeleted && (
+          <ClubSenderAvatar msg={msg} />
+        )}
+
         {/* Message Bubble Box */}
         <div
           onClick={(e) => {
@@ -1084,6 +1089,13 @@ const MessageItem = React.memo(function MessageItem({
               : 'bg-surface-card text-luxury-ink border-luxury-ink/5 rounded-tl-xs'
           } ${isOptimistic ? 'opacity-50' : ''} ${isFailed ? 'border-red-400 bg-red-50/10' : ''}`}
         >
+          {/* Sender Name (Group Chats Only) */}
+          {collectionPath === 'clubs' && !isMe && !isDeleted && (
+            <div className="text-[11px] font-bold text-brand-teal mb-1 leading-tight tracking-wide">
+              <ClubSenderName msg={msg} />
+            </div>
+          )}
+
           {/* Reply Preview */}
           {!isDeleted && msg.replyToText && (
             <div className={`text-xs mb-2 p-2 rounded-lg border-l-2 ${isMe ? 'bg-black/10 border-white/40' : 'bg-surface-soft border-brand-teal'}`}>
@@ -1099,7 +1111,7 @@ const MessageItem = React.memo(function MessageItem({
             <>
               {/* Image attachment */}
               {msg.image && (
-                <div className={`relative overflow-hidden bg-black/5 rounded-lg -mx-4 -mt-3 w-[280px] max-w-full ${msg.text ? 'mb-2' : '-mb-3'}`}>
+                <div className={`relative overflow-hidden bg-black/5 rounded-lg -mx-4 ${((collectionPath === 'clubs' && !isMe) || msg.replyToText) ? 'mt-2' : '-mt-3'} w-[280px] max-w-full ${msg.text ? 'mb-2' : '-mb-3'}`}>
                   {(() => {
                     const isObj = typeof msg.image === 'object' && msg.image !== null;
                     const imageUrl = isObj ? msg.image.url : msg.image;

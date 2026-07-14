@@ -44,7 +44,7 @@ export default function Avatar({ src, name = 'User', size = 'md', className = ''
       {imageUrl ? (
         <div className="absolute inset-0 w-full h-full">
           <SmartImage
-            src={imageUrl}
+            src={imageUrl as string}
             alt={name}
             ratio={1}
             fit="cover"
