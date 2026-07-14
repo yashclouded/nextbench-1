@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, writeBatch, collection, getDocs, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -76,7 +76,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
   }, [clubId]);
 
   // Handle pin message
-  const handlePinMessage = async (msgId: string, text?: string) => {
+  const handlePinMessage = useCallback(async (msgId: string, text?: string) => {
     if (!user || !clubId) return;
     try {
       await updateDoc(doc(db, 'clubs', clubId), {
@@ -88,10 +88,10 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
     } catch {
       showToast('Failed to pin message', 'error');
     }
-  };
+  }, [user, clubId, showToast]);
 
   // Handle unpin message
-  const handleUnpinMessage = async () => {
+  const handleUnpinMessage = useCallback(async () => {
     if (!user || !clubId) return;
     try {
       await updateDoc(doc(db, 'clubs', clubId), {
@@ -103,7 +103,12 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
     } catch {
       showToast('Failed to unpin message', 'error');
     }
-  };
+  }, [user, clubId, showToast]);
+
+  const handleBack = useCallback(() => {
+    if (onBack) onBack();
+    else navigate('/messages');
+  }, [onBack, navigate]);
 
   // Clear chat (deleted for me)
   const handleClearChat = async () => {
@@ -158,7 +163,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
         isAdmin={isLeadOrCo}
         canPost={canPost}
         clubMembers={clubMembers}
-        onBack={onBack ? onBack : () => navigate('/messages')}
+        onBack={handleBack}
         showOptions={showOptions}
         setShowOptions={setShowOptions}
         pinnedMessageText={club.pinnedMessageText}

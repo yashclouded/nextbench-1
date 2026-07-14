@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { doc, getDoc, updateDoc, serverTimestamp, writeBatch, collection, getDocs, deleteField, arrayUnion } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -90,7 +90,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride, panelState
   }, [roomId, user?.uid]);
 
   // Handle pin message
-  const handlePinMessage = async (msgId: string, text?: string) => {
+  const handlePinMessage = useCallback(async (msgId: string, text?: string) => {
     if (!user || !roomId) return;
     try {
       await updateDoc(doc(db, 'chatRooms', roomId), {
@@ -102,10 +102,10 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride, panelState
     } catch {
       showToast('Failed to pin message', 'error');
     }
-  };
+  }, [user, roomId, showToast]);
 
   // Handle unpin message
-  const handleUnpinMessage = async () => {
+  const handleUnpinMessage = useCallback(async () => {
     if (!user || !roomId) return;
     try {
       await updateDoc(doc(db, 'chatRooms', roomId), {
@@ -117,7 +117,12 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride, panelState
     } catch {
       showToast('Failed to unpin message', 'error');
     }
-  };
+  }, [user, roomId, showToast]);
+
+  const handleBack = useCallback(() => {
+    if (onBack) onBack();
+    else navigate('/messages');
+  }, [onBack, navigate]);
 
   // Clear chat
   const handleClearChat = async () => {
@@ -226,7 +231,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride, panelState
         isBlocked={isBlocked}
         otherUser={otherUser}
         otherPresence={otherPresence}
-        onBack={onBack ? onBack : () => navigate('/messages')}
+        onBack={handleBack}
         showOptions={showOptions}
         setShowOptions={setShowOptions}
         showReport={showReport}
