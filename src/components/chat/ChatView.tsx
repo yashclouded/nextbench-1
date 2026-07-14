@@ -1008,14 +1008,8 @@ function ClubSenderAvatar({ msg }: { msg: Message }) {
   const avatar = msg.senderAvatar !== undefined ? msg.senderAvatar : profile?.avatar;
 
   return (
-    <div className="w-7 h-7 rounded-full bg-luxury-ink/10 flex items-center justify-center overflow-hidden shrink-0 self-end mb-1">
-      {avatar ? (
-        <img src={avatar} alt={name} className="w-full h-full object-cover" />
-      ) : (
-        <span className="text-[10px] font-bold text-luxury-ink/50 uppercase">
-          {name.charAt(0)}
-        </span>
-      )}
+    <div className="shrink-0 self-end mb-1">
+      <Avatar src={avatar} name={name} size={28} />
     </div>
   );
 }
