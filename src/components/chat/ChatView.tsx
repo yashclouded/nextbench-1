@@ -107,6 +107,7 @@ export default function ChatView({
   onPin,
 }: ChatViewProps) {
   const { user, userData } = useAuth();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { showLightbox } = useLightbox();
 
