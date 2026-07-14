@@ -400,27 +400,38 @@ export default function ChatView({
               <ChevronLeft size={20} />
             </button>
           )}
-          <Avatar
-            src={avatar}
-            name={title}
-            size={40}
-            className="ring-1 ring-inset ring-luxury-ink/[0.06]"
-          />
-          <div className="min-w-0">
-            <h2 className="text-sm font-bold text-luxury-ink truncate flex items-center gap-1.5">
-              {title}
-              {collectionPath === 'chatRooms' && otherUser?.verified && <ShieldCheck size={14} className="text-brand-teal" />}
-            </h2>
-            {collectionPath === 'chatRooms' && (
-              <p className="text-[10px] font-semibold text-luxury-ink/40">
-                {otherPresence?.online ? (
-                  <span className="text-brand-teal flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-brand-teal" /> Active Now</span>
-                ) : 'Offline'}
-              </p>
-            )}
-            {collectionPath === 'clubs' && subtitle && (
-              <p className="text-[10px] text-luxury-ink/40 truncate">{subtitle}</p>
-            )}
+          <div 
+            className="flex items-center gap-4 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => {
+              if (collectionPath === 'clubs') {
+                navigate(`/club/${roomId}`);
+              } else if (recipientId) {
+                navigate(`/profile/${recipientId}`);
+              }
+            }}
+          >
+            <Avatar
+              src={avatar}
+              name={title}
+              size={40}
+              className="ring-1 ring-inset ring-luxury-ink/[0.06]"
+            />
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-luxury-ink truncate flex items-center gap-1.5">
+                {title}
+                {collectionPath === 'chatRooms' && otherUser?.verified && <ShieldCheck size={14} className="text-brand-teal" />}
+              </h2>
+              {collectionPath === 'chatRooms' && (
+                <p className="text-[10px] font-semibold text-luxury-ink/40">
+                  {otherPresence?.online ? (
+                    <span className="text-brand-teal flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-brand-teal" /> Active Now</span>
+                  ) : 'Offline'}
+                </p>
+              )}
+              {collectionPath === 'clubs' && subtitle && (
+                <p className="text-[10px] text-luxury-ink/40 truncate">{subtitle}</p>
+              )}
+            </div>
           </div>
         </div>
 
