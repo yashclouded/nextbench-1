@@ -596,7 +596,7 @@ export default function ChatView({
                       <>
                         {/* Image attachment */}
                         {msg.image && (
-                          <div className={`relative overflow-hidden bg-black/5 rounded-lg -mx-4 -mt-3 w-[280px] max-w-full ${msg.text ? 'mb-2' : '-mb-3'}`}>
+                          <div className={`relative overflow-hidden bg-black/5 rounded-lg -mx-4 w-[280px] max-w-full ${((isClub && !isMe) || msg.replyToText) ? 'mt-1' : '-mt-3'} ${msg.text ? 'mb-2' : '-mb-3'}`}>
                             {(() => {
                               const isObj = typeof msg.image === 'object' && msg.image !== null;
                               const imageUrl = isObj ? msg.image.url : msg.image;
