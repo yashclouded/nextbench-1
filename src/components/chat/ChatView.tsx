@@ -28,6 +28,7 @@ import {
   Info,
   Pin
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -991,6 +992,7 @@ export default function ChatView({
 }
 
 function ClubSenderAvatar({ msg }: { msg: Message }) {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<{ name: string, avatar: string | null } | null>(null);
 
   useEffect(() => {
@@ -1008,13 +1010,20 @@ function ClubSenderAvatar({ msg }: { msg: Message }) {
   const avatar = msg.senderAvatar !== undefined ? msg.senderAvatar : profile?.avatar;
 
   return (
-    <div className="shrink-0 self-end mb-1">
+    <div 
+      className="shrink-0 self-end mb-1 cursor-pointer hover:opacity-80 transition-opacity"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigate(`/profile/${msg.senderId}`);
+      }}
+    >
       <Avatar src={avatar} name={name} size={28} />
     </div>
   );
 }
 
 function ClubSenderName({ msg }: { msg: Message }) {
+  const navigate = useNavigate();
   const [name, setName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1028,5 +1037,17 @@ function ClubSenderName({ msg }: { msg: Message }) {
     return () => { isMounted = false; };
   }, [msg.senderId, msg.senderName]);
 
-  return <>{msg.senderName || name || 'Member'}</>;
+  const displayName = msg.senderName || name || 'Member';
+
+  return (
+    <span 
+      className="cursor-pointer hover:underline"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigate(`/profile/${msg.senderId}`);
+      }}
+    >
+      {displayName}
+    </span>
+  );
 }
