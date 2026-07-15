@@ -16,14 +16,10 @@ import {
   Circle,
   AlertCircle,
   RefreshCw,
-  MoreVertical,
-  ChevronLeft,
   Crown,
   Ban,
-  ShieldCheck,
   Pin
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -37,7 +33,6 @@ import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { notifyMentionedUsers } from '../../lib/mentions';
 
 import MentionInput from '../ui/MentionInput';
-import Avatar from '../ui/Avatar';
 import SmartImage from '../ui/SmartImage';
 import VoiceRecordingControls from '../ui/VoiceRecordingControls';
 import VoiceMessageBubble from '../ui/VoiceMessageBubble';
@@ -47,7 +42,7 @@ import { getOptimizedImageUrl } from '../../lib/utils';
 import { useChatEngine, Message } from '../../hooks/useChatEngine';
 import { MessageBubble } from './MessageBubble';
 import { MessageContextMenu } from './MessageContextMenu';
-import { SelectionToolbar } from './SelectionToolbar';
+import { ChatHeader } from './ChatHeader';
 
 const QUICK_MESSAGES = [
   'Is this still available?',
@@ -107,7 +102,6 @@ export default function ChatView({
   onPin,
 }: ChatViewProps) {
   const { user, userData } = useAuth();
-  const navigate = useNavigate();
   const { showToast } = useToast();
   const { showLightbox } = useLightbox();
 
@@ -409,69 +403,23 @@ export default function ChatView({
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface-base relative">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-luxury-ink/5 flex items-center justify-between bg-surface-base/80 backdrop-blur-md z-30 shrink-0">
-        <div className="flex items-center gap-4 min-w-0">
-          {onBack && (
-            <button onClick={onBack} className="p-2 text-luxury-ink/60 hover:text-luxury-ink hover:bg-surface-soft rounded-full transition-colors active:scale-90" title="Back">
-              <ChevronLeft size={20} />
-            </button>
-          )}
-          <div 
-            className="flex items-center gap-4 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => {
-              if (collectionPath === 'clubs') {
-                navigate(`/club/${roomId}`);
-              } else if (recipientId) {
-                navigate(`/profile/${recipientId}`);
-              }
-            }}
-          >
-            <Avatar
-              src={avatar}
-              name={title}
-              size={40}
-              className="ring-1 ring-inset ring-luxury-ink/[0.06]"
-            />
-            <div className="min-w-0">
-              <h2 className="text-sm font-bold text-luxury-ink truncate flex items-center gap-1.5">
-                {title}
-                {collectionPath === 'chatRooms' && otherUser?.verified && <ShieldCheck size={14} className="text-brand-teal" />}
-              </h2>
-              {collectionPath === 'chatRooms' && (
-                <p className="text-[10px] font-semibold text-luxury-ink/40">
-                  {otherPresence?.status === 'online' ? (
-                    <span className="text-brand-teal flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-brand-teal" /> Active Now</span>
-                  ) : (
-                    otherPresence?.label || 'Offline'
-                  )}
-                </p>
-              )}
-              {collectionPath === 'clubs' && subtitle && (
-                <p className="text-[10px] text-luxury-ink/40 truncate">{subtitle}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Header Actions */}
-        <div className="flex items-center gap-2">
-          {isSelectMode ? (
-            <SelectionToolbar
-              count={selectedMessages.size}
-              onDelete={handleBulkDelete}
-              onCancel={() => { setIsSelectMode(false); setSelectedMessages(new Set()); }}
-            />
-          ) : (
-            <>
-              {setShowOptions && (
-                <button onClick={() => setShowOptions(!showOptions)} className={`p-2 rounded-full transition-colors ${showOptions ? 'bg-surface-soft text-luxury-ink' : 'text-luxury-ink/60 hover:text-luxury-ink hover:bg-surface-soft'}`} title="Options">
-                  <MoreVertical size={20} />
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      <ChatHeader
+        collectionPath={collectionPath}
+        roomId={roomId}
+        title={title}
+        subtitle={subtitle}
+        avatar={avatar}
+        otherUser={otherUser}
+        otherPresence={otherPresence}
+        recipientId={recipientId}
+        onBack={onBack}
+        showOptions={showOptions}
+        setShowOptions={setShowOptions}
+        isSelectMode={isSelectMode}
+        selectedCount={selectedMessages.size}
+        onBulkDelete={handleBulkDelete}
+        onCancelSelect={() => { setIsSelectMode(false); setSelectedMessages(new Set()); }}
+      />
 
       {/* Pinned Message Banner */}
       {pinnedMessageText && (
