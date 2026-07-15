@@ -128,10 +128,6 @@ export function useChatEngine({
       const updatePayload: any = {
         unreadBy: arrayRemove(user.uid),
       };
-      // Firestore security rules for clubs require updatedAt == request.time on any update
-      if (collectionPath === 'clubs') {
-        updatePayload.updatedAt = serverTimestamp();
-      }
       await updateDoc(roomRef, updatePayload);
     } catch (err) {
       console.error('Failed to mark chat as read:', err);
