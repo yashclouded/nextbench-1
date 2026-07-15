@@ -64,6 +64,7 @@ export interface ChatEngineOptions {
   recipientId?: string; // DM only
   isBlocked?: boolean; // DM only
   clubMembers?: string[]; // clubs only — leadId + coLeadIds + memberIds, from the caller's already-live club doc
+  enabled?: boolean; // when false, never opens the message listener (e.g. non-member previewing a club)
   onMessageSent?: (text?: string, image?: any) => void;
 }
 
@@ -75,6 +76,7 @@ export function useChatEngine({
   recipientId,
   isBlocked = false,
   clubMembers,
+  enabled = true,
   onMessageSent,
 }: ChatEngineOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -141,7 +143,10 @@ export function useChatEngine({
   // arrives elsewhere in the thread. The live listener is never torn down or
   // re-subscribed by "load older" — see loadOlder below.
   useEffect(() => {
-    if (!user || !roomId) return;
+    if (!user || !roomId || !enabled) {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     messagesMapRef.current = new Map();
@@ -188,7 +193,7 @@ export function useChatEngine({
     );
 
     return () => unsubscribe();
-  }, [roomId, collectionPath, user?.uid]);
+  }, [roomId, collectionPath, user?.uid, enabled]);
 
   // Load one older page of messages. One-time getDocs, not the live listener —
   // pages loaded this way are not live-updated afterward (matches

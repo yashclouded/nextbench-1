@@ -113,6 +113,7 @@ export default function ChatView({
   const { showLightbox } = useLightbox();
 
   const isClub = collectionPath === 'clubs';
+  const canLoadMessages = !isClub || isMember;
 
   const [newMessage, setNewMessage] = useState('');
   const [showQuickReplies, setShowQuickReplies] = useState(false);
@@ -174,6 +175,7 @@ export default function ChatView({
     recipientId,
     isBlocked,
     clubMembers,
+    enabled: canLoadMessages,
     onMessageSent: handleMessageSentCallback,
   });
 
@@ -498,8 +500,17 @@ export default function ChatView({
       >
         {messages.length === 0 && !loading && (
           <div className="text-center py-20">
-            <p className="text-luxury-ink/20 font-serif italic text-lg mb-2">Start the conversation</p>
-            <p className="text-luxury-ink/10 text-xs font-bold uppercase tracking-widest">Messages are encrypted and secure</p>
+            {isClub && !isMember ? (
+              <>
+                <p className="text-luxury-ink/20 font-serif italic text-lg mb-2">Join this club to view messages</p>
+                <p className="text-luxury-ink/10 text-xs font-bold uppercase tracking-widest">Members can see the conversation here</p>
+              </>
+            ) : (
+              <>
+                <p className="text-luxury-ink/20 font-serif italic text-lg mb-2">Start the conversation</p>
+                <p className="text-luxury-ink/10 text-xs font-bold uppercase tracking-widest">Messages are encrypted and secure</p>
+              </>
+            )}
           </div>
         )}
 
