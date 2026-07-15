@@ -6,6 +6,7 @@ import { Message } from '../../hooks/useChatEngine';
 
 type RenderItem =
   | { kind: 'day'; key: string; label: string }
+  | { kind: 'unread'; key: string; label: string }
   | { kind: 'message'; key: string; msg: Message };
 
 const toMillis = (v: any): number =>
@@ -89,9 +90,32 @@ export function MessageList({
   // Track the last-seen message ID to distinguish new messages from loaded-older ones
   const lastMsgIdRef = useRef<string | undefined>(undefined);
 
+  // Session-based "New messages" divider. At chat open (first non-loading
+  // snapshot) we capture the newest message's timestamp as the boundary.
+  // The divider anchors above the first message that is (a) newer than the
+  // boundary and (b) from another user, and stays put for the session —
+  // pure client state, reset on unmount. No Firestore schema involved.
+  const boundaryMsRef = useRef<number | null>(null);
+  const dividerAnchorKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (boundaryMsRef.current !== null) return; // capture once per mount
+    if (loading) return; // wait for first load
+    const newest = messages[messages.length - 1];
+    boundaryMsRef.current = newest ? toMillis(newest.createdAt) : 0;
+  }, [loading, messages]);
+
   // Flatten messages into virtualizer rows, inserting a day divider at each
   // local-date boundary. Messages arrive ascending by createdAt.
   const renderItems = useMemo<RenderItem[]>(() => {
+    // Latch the unread anchor to the first qualifying message. Once set it
+    // never moves, so the divider stays stable as more messages arrive.
+    if (dividerAnchorKeyRef.current === null && boundaryMsRef.current !== null) {
+      const anchor = messages.find(
+        (m) => toMillis(m.createdAt) > (boundaryMsRef.current as number) && m.senderId !== user?.uid
+      );
+      if (anchor) dividerAnchorKeyRef.current = anchor.id;
+    }
+
     const items: RenderItem[] = [];
     let lastDayKey = '';
     for (const msg of messages) {
@@ -102,10 +126,13 @@ export function MessageList({
         items.push({ kind: 'day', key: `day-${dayKey}`, label: dayLabel(ms) });
         lastDayKey = dayKey;
       }
+      if (dividerAnchorKeyRef.current && msg.id === dividerAnchorKeyRef.current) {
+        items.push({ kind: 'unread', key: 'unread-divider', label: 'New messages' });
+      }
       items.push({ kind: 'message', key: msg.id, msg });
     }
     return items;
-  }, [messages]);
+  }, [messages, user?.uid]);
 
   // Virtualize rows with dynamic measurement: estimateSize seeds the layout,
   // measureElement corrects each row to its real height after paint (images,
@@ -226,6 +253,12 @@ export function MessageList({
                 {item.kind === 'day' ? (
                   <div className="flex justify-center py-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30 bg-surface-soft px-3 py-1 rounded-full">{item.label}</span>
+                  </div>
+                ) : item.kind === 'unread' ? (
+                  <div className="flex items-center gap-3 py-2">
+                    <div className="flex-1 h-px bg-brand-teal/30" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand-teal">{item.label}</span>
+                    <div className="flex-1 h-px bg-brand-teal/30" />
                   </div>
                 ) : (
                   <MessageBubble
