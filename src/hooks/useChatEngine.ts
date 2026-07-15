@@ -146,7 +146,9 @@ export function useChatEngine({
       (snapshot) => {
         const msgs: Message[] = [];
         snapshot.forEach((docSnap) => {
-          msgs.push({ id: docSnap.id, ...docSnap.data() } as Message);
+          const data = docSnap.data();
+          if (data.deletedFor && data.deletedFor.includes(user?.uid)) return;
+          msgs.push({ id: docSnap.id, ...data } as Message);
         });
 
         // Snapshots are descending; reverse to chronological for message list
