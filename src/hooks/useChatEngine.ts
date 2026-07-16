@@ -15,12 +15,19 @@ import {
   arrayUnion,
   writeBatch,
   arrayRemove,
+  deleteField,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
 const LIVE_MESSAGE_LIMIT = 50;
 const OLDER_PAGE_SIZE = 50;
+// Typing: re-arm a write at most this often while actively typing; entries
+// older than the stale window are treated as "stopped" by readers.
+const TYPING_WRITE_INTERVAL_MS = 2000;
+export const TYPING_STALE_MS = 5000;
+// Read receipts: cap how many messages we arrayUnion per throttle window.
+const READ_RECEIPT_BATCH_CAP = 50;
 
 function messageMillis(m: { createdAt: any }): number {
   if (m.createdAt?.toMillis) return m.createdAt.toMillis();
@@ -94,6 +101,12 @@ export function useChatEngine({
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
+  // Live typing state from the room doc: { [uid]: Timestamp }. Readers treat
+  // entries older than TYPING_STALE_MS as stale (no timeout write needed).
+  const [typingUsers, setTypingUsers] = useState<Record<string, any>>({});
+  // Throttle typing writes to <=1 per TYPING_WRITE_INTERVAL_MS while active.
+  const lastTypingWriteRef = useRef<number>(0);
+  const isTypingRef = useRef(false);
 
   const messagesMapRef = useRef<Map<string, Message>>(new Map());
   const oldestDocRef = useRef<any>(null);
@@ -224,9 +237,53 @@ export function useChatEngine({
     return () => unsubscribe();
   }, [roomId, collectionPath, user?.uid, enabled]);
 
-  // Load one older page of messages. One-time getDocs, not the live listener —
-  // pages loaded this way are not live-updated afterward (matches
-  // WhatsApp/Telegram behavior, see design spec Phase 1).
+  // Live typing indicator: subscribe to the room doc's typingUsers map. Separate
+  // from the message listener; light-weight (one doc). Clears own key on unmount.
+  useEffect(() => {
+    if (!user || !roomId || !enabled) {
+      setTypingUsers({});
+      return;
+    }
+    const roomRef = doc(db, collectionPath, roomId);
+    const unsub = onSnapshot(roomRef, (snap) => {
+      const data = snap.data();
+      setTypingUsers((data?.typingUsers as Record<string, any>) || {});
+    }, () => { /* ignore transient errors */ });
+
+    return () => {
+      unsub();
+      // Best-effort clear of our own typing flag when leaving the room.
+      if (isTypingRef.current && user) {
+        isTypingRef.current = false;
+        updateDoc(roomRef, { [`typingUsers.${user.uid}`]: deleteField() }).catch(() => {});
+      }
+    };
+  }, [roomId, collectionPath, user?.uid, enabled]);
+
+  // Write our own typing state. Debounced: while typing, re-arm a server
+  // timestamp at most once per TYPING_WRITE_INTERVAL_MS; on stop, delete our key.
+  // Never writes for blocked users or non-members.
+  const setTyping = useCallback(
+    (typing: boolean) => {
+      if (!user || !roomId || isBlocked) return;
+      const roomRef = doc(db, collectionPath, roomId);
+      if (typing) {
+        const now = Date.now();
+        if (now - lastTypingWriteRef.current < TYPING_WRITE_INTERVAL_MS) return;
+        lastTypingWriteRef.current = now;
+        isTypingRef.current = true;
+        updateDoc(roomRef, { [`typingUsers.${user.uid}`]: serverTimestamp() }).catch(() => {});
+      } else {
+        if (!isTypingRef.current) return; // already stopped
+        isTypingRef.current = false;
+        lastTypingWriteRef.current = 0;
+        updateDoc(roomRef, { [`typingUsers.${user.uid}`]: deleteField() }).catch(() => {});
+      }
+    },
+    [user?.uid, roomId, collectionPath, isBlocked]
+  );
+
+
   const loadOlder = useCallback(async () => {
     if (loadingOlderRef.current || !hasMoreRef.current || !oldestDocRef.current) return;
     loadingOlderRef.current = true;
@@ -633,5 +690,7 @@ export function useChatEngine({
     sendVideoMessage,
     forwardMessage,
     markAsRead,
+    typingUsers,
+    setTyping,
   };
 }
