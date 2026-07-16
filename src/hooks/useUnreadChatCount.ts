@@ -21,7 +21,10 @@ export function useUnreadChatCount(userId?: string | null) {
     const unsubDMs = onSnapshot(qDMs, (snapshot) => {
       let unread = 0;
       snapshot.forEach((doc) => {
-        const unreadBy = doc.data().unreadBy;
+        const data = doc.data();
+        // Muted or archived conversations don't contribute to the badge.
+        if (data.mutedBy?.includes(userId) || data.archivedBy?.includes(userId)) return;
+        const unreadBy = data.unreadBy;
         if (Array.isArray(unreadBy) && unreadBy.includes(userId)) {
           unread++;
         }
@@ -39,7 +42,10 @@ export function useUnreadChatCount(userId?: string | null) {
     const unsubClubs = onSnapshot(qClubs, (snapshot) => {
       let unread = 0;
       snapshot.forEach((doc) => {
-        const unreadBy = doc.data().unreadBy;
+        const data = doc.data();
+        // Muted or archived clubs don't contribute to the badge.
+        if (data.mutedBy?.includes(userId) || data.archivedBy?.includes(userId)) return;
+        const unreadBy = data.unreadBy;
         if (Array.isArray(unreadBy) && unreadBy.includes(userId)) {
           unread++;
         }

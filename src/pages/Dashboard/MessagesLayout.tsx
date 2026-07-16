@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, User, ShieldCheck, Search, Lock, Plus, X, Send, Users, Globe, Crown, ArrowLeft } from 'lucide-react';
+import { MessageSquare, User, ShieldCheck, Search, Lock, Plus, X, Send, Users, Globe, Crown, ArrowLeft, Archive, BellOff } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { db } from '../../lib/firebase';
 import {
@@ -17,6 +17,7 @@ import { getOrCreateDMRoom } from '../../lib/dm';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useAllBlockedUserIds } from '../../lib/blocks';
 import { useUserClubs, createClub } from '../../lib/clubs';
+import { markConversationRead } from '../../lib/conversations';
 import { useToast } from '../../lib/ToastContext';
 import ChatRoom from './ChatRoom';
 import ClubChat from './ClubChat';
@@ -44,6 +45,7 @@ export default function MessagesLayout() {
   const { user, userData } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const uid = user?.uid || '';
   const { roomId: routeRoomId, clubId: routeClubId } = useParams<{ roomId?: string; clubId?: string }>();
   const { showToast } = useToast();
 
@@ -59,6 +61,7 @@ export default function MessagesLayout() {
   const [chatRooms, setChatRooms] = useState<ChatRoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
 
   // New DM modal
   const [showNewDM, setShowNewDM] = useState(false);
@@ -255,6 +258,11 @@ export default function MessagesLayout() {
   // Open a chat — on desktop: navigate to the in-panel route (same component,
   // no remount). On mobile: navigate to the full-screen route.
   const openChat = (roomId: string, state?: any, type: 'chat' | 'club' = 'chat') => {
+    // Opening un-deletes and clears unread instantly in the inbox (the chat
+    // engine also clears unread on view; this keeps the list responsive).
+    if (uid) {
+      markConversationRead(type === 'club' ? 'clubs' : 'chatRooms', roomId, uid).catch(() => {});
+    }
     const isDesktop = window.innerWidth >= 768;
     if (isDesktop) {
       navigate(type === 'club' ? `/messages/club/${roomId}` : `/messages/${roomId}`, { state });
@@ -285,24 +293,42 @@ export default function MessagesLayout() {
     );
   }
 
+  // Per-user visibility: a room is hidden by soft-delete unless it has new
+  // activity (I'm back in unreadBy); archived rooms live in a separate view.
+  const isVisibleInView = (item: { deletedBy?: string[]; archivedBy?: string[]; unreadBy?: string[] }) => {
+    const isDeleted = !!item.deletedBy?.includes(uid) && !item.unreadBy?.includes(uid);
+    if (isDeleted) return false;
+    const isArchived = !!item.archivedBy?.includes(uid);
+    return showArchived ? isArchived : !isArchived;
+  };
+
   const filteredChatRooms = chatRooms.filter((room) => {
     const otherUserId = room.participants.find(id => id !== user?.uid);
-    if (!otherUserId) return true;
-    if (allBlockedIds.has(otherUserId)) return false;
+    if (otherUserId && allBlockedIds.has(otherUserId)) return false;
+    if (!isVisibleInView(room)) return false;
     if (chatSearchTerm.trim()) {
       return (room.otherUser?.name?.toLowerCase() || '').includes(chatSearchTerm.toLowerCase());
     }
     return true;
   });
 
-  const filteredClubs = chatSearchTerm.trim()
-    ? clubs.filter((c) => c.name.toLowerCase().includes(chatSearchTerm.toLowerCase()))
-    : clubs;
+  const filteredClubs = clubs
+    .filter(isVisibleInView)
+    .filter((c) => !chatSearchTerm.trim() || c.name.toLowerCase().includes(chatSearchTerm.toLowerCase()));
+
+  // Count archived rooms (across both collections) for the Archived toggle badge.
+  const archivedCount =
+    chatRooms.filter((r) => r.archivedBy?.includes(uid) && !(r.deletedBy?.includes(uid) && !r.unreadBy?.includes(uid))).length +
+    clubs.filter((c) => c.archivedBy?.includes(uid) && !(c.deletedBy?.includes(uid) && !c.unreadBy?.includes(uid))).length;
 
   const combinedList = [
     ...filteredChatRooms.map(room => ({ ...room, isClub: false })),
     ...filteredClubs.map(club => ({ ...club, isClub: true }))
   ].sort((a, b) => {
+    // Pinned conversations sort above unpinned; recency within each group.
+    const aPinned = (a as any).pinnedBy?.includes(uid) ? 1 : 0;
+    const bPinned = (b as any).pinnedBy?.includes(uid) ? 1 : 0;
+    if (aPinned !== bPinned) return bPinned - aPinned;
     const timeA = a.updatedAt?.toMillis?.() || 0;
     const timeB = b.updatedAt?.toMillis?.() || 0;
     return timeB - timeA;
@@ -357,12 +383,38 @@ export default function MessagesLayout() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
+        {/* Archived view toggle / header */}
+        {!sidebarCollapsed && (showArchived || archivedCount > 0) && (
+          showArchived ? (
+            <button
+              onClick={() => setShowArchived(false)}
+              className="w-full flex items-center gap-2 px-4 py-3 border-b border-luxury-ink/5 text-xs font-bold text-luxury-ink/60 hover:bg-surface-soft transition-colors"
+            >
+              <ArrowLeft size={14} /> Back to inbox
+              <span className="ml-auto text-[10px] font-bold uppercase tracking-widest text-luxury-ink/30">Archived</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowArchived(true)}
+              className="w-full flex items-center gap-3 px-4 py-3 border-b border-luxury-ink/5 hover:bg-surface-soft transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-full bg-surface-soft flex items-center justify-center shrink-0">
+                <Archive size={16} className="text-luxury-ink/40" />
+              </div>
+              <span className="text-sm font-semibold text-luxury-ink/70">Archived</span>
+              <span className="ml-auto text-[10px] font-bold text-luxury-ink/30">{archivedCount}</span>
+            </button>
+          )
+        )}
         {loading || clubsLoading ? (
           <div className="py-12 text-center font-serif italic text-luxury-ink/30 text-sm">Loading...</div>
         ) : combinedList.length === 0 ? (
           <div className="py-12 text-center px-2">
             <MessageSquare className="mx-auto text-brand-teal/20 mb-3" size={24} />
             {!sidebarCollapsed && (
+              showArchived ? (
+                <p className="text-sm font-bold text-luxury-ink/30">No archived chats</p>
+              ) : (
               <>
                 <p className="text-sm font-bold text-luxury-ink/30 mb-3">No messages</p>
                 <button onClick={() => setShowNewDM(true)} className="text-xs font-bold text-brand-teal hover:underline block mx-auto mb-2">
@@ -372,6 +424,7 @@ export default function MessagesLayout() {
                   Create a club
                 </button>
               </>
+              )
             )}
           </div>
         ) : (
@@ -379,7 +432,8 @@ export default function MessagesLayout() {
             const isActive = item.id === activeRoomId;
             if (item.isClub) {
               const club = item as any;
-              const isUnread = club.unreadBy?.includes(user?.uid || '');
+              const isMuted = club.mutedBy?.includes(uid);
+              const isUnread = club.unreadBy?.includes(uid) && !isMuted;
               return (
                 <button
                   key={`club-${club.id}`}
@@ -417,7 +471,8 @@ export default function MessagesLayout() {
                           {club.name}
                           {club.leadId === user?.uid && <Crown size={10} className="text-amber-500 shrink-0" />}
                         </span>
-                        <span className={`text-[10px] ml-1 shrink-0 ${isUnread ? 'text-brand-teal font-bold' : 'text-luxury-ink/30'}`}>
+                        <span className={`text-[10px] ml-1 shrink-0 flex items-center gap-1 ${isUnread ? 'text-brand-teal font-bold' : 'text-luxury-ink/30'}`}>
+                          {isMuted && <BellOff size={10} className="text-luxury-ink/30" />}
                           {club.updatedAt?.toDate?.()?.toLocaleDateString([], { month: 'short', day: 'numeric' }) || ''}
                         </span>
                       </div>
@@ -436,7 +491,8 @@ export default function MessagesLayout() {
               );
             } else {
               const room = item as any;
-              const isUnread = room.unreadBy?.includes(user?.uid || '');
+              const isMuted = room.mutedBy?.includes(uid);
+              const isUnread = room.unreadBy?.includes(uid) && !isMuted;
               const isDM = room.type === 'dm' || !room.productTitle;
               return (
                 <button
@@ -474,7 +530,8 @@ export default function MessagesLayout() {
                         <span className={`truncate text-sm ${isUnread ? 'font-bold text-brand-teal' : 'font-semibold text-luxury-ink'}`}>
                           {room.otherUser?.name || 'Unknown User'}
                         </span>
-                        <span className={`text-[10px] whitespace-nowrap ml-1 shrink-0 ${isUnread ? 'text-brand-teal font-bold' : 'text-luxury-ink/30'}`}>
+                        <span className={`text-[10px] whitespace-nowrap ml-1 shrink-0 flex items-center gap-1 ${isUnread ? 'text-brand-teal font-bold' : 'text-luxury-ink/30'}`}>
+                          {isMuted && <BellOff size={10} className="text-luxury-ink/30" />}
                           {room.updatedAt?.toDate?.()?.toLocaleDateString([], { month: 'short', day: 'numeric' }) || ''}
                         </span>
                       </div>
