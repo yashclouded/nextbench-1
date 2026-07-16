@@ -100,6 +100,7 @@ export default function ChatView({
     sendVideoMessage,
     forwardMessage,
     markAsRead,
+    markVisibleRead,
     typingUsers,
     setTyping,
   } = useChatEngine({
@@ -221,6 +222,7 @@ export default function ChatView({
         hasMore={hasMore}
         loadOlder={loadOlder}
         markAsRead={markAsRead}
+        markVisibleRead={markVisibleRead}
         user={user}
         isClub={isClub}
         isMember={isMember}

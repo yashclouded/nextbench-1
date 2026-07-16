@@ -69,6 +69,7 @@ export interface Message {
   deletedFor?: string[];
   isDeletedForEveryone?: boolean;
   reactions?: Record<string, string[]>;
+  readBy?: string[];
   clientMessageId?: string;
   status?: 'pending' | 'failed' | 'sent';
   forwardedFrom?: { senderId: string; senderName?: string };
@@ -169,6 +170,37 @@ export function useChatEngine({
       console.error('Failed to mark chat as read:', err);
     }
   }, [user?.uid, roomId, collectionPath]);
+
+  // Mark a set of currently-visible messages as read by the current user.
+  // Batched (one writeBatch) and called from MessageList's existing 2s throttle
+  // — never per-message. Skips own messages and ones already marked read.
+  const markVisibleRead = useCallback(
+    async (messageIds: string[]) => {
+      if (!user || !roomId || messageIds.length === 0) return;
+      const uid = user.uid;
+      const toMark: string[] = [];
+      for (const id of messageIds) {
+        const m = messagesMapRef.current.get(id);
+        if (!m) continue;
+        if (m.senderId === uid) continue;          // own messages don't need a receipt
+        if (m.readBy?.includes(uid)) continue;      // already read
+        toMark.push(id);
+        if (toMark.length >= READ_RECEIPT_BATCH_CAP) break;
+      }
+      if (toMark.length === 0) return;
+      try {
+        const batch = writeBatch(db);
+        for (const id of toMark) {
+          batch.update(doc(db, collectionPath, roomId, 'messages', id), { readBy: arrayUnion(uid) });
+        }
+        await batch.commit();
+      } catch {
+        // Best-effort; a failed receipt is non-critical.
+      }
+    },
+    [user?.uid, roomId, collectionPath]
+  );
+
 
   // Subscribe to the newest LIVE_MESSAGE_LIMIT messages via docChanges(). Only
   // added/modified docs get a new object reference in the Map; unaffected
@@ -690,6 +722,7 @@ export function useChatEngine({
     sendVideoMessage,
     forwardMessage,
     markAsRead,
+    markVisibleRead,
     typingUsers,
     setTyping,
   };
