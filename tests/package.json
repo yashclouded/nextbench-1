@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Isolated Firestore security-rules unit tests (kept out of the app's dependency tree).",
   "scripts": {
-    "test": "firebase emulators:exec --project demo-nextbench --only firestore \"node --test --test-concurrency=1 stories.rules.test.mjs clubMessages.rules.test.mjs\"",
+    "test": "firebase emulators:exec --project demo-nextbench --only firestore \"node --test --test-concurrency=1 stories.rules.test.mjs clubMessages.rules.test.mjs conversationState.rules.test.mjs\"",
     "test:nav": "node --import tsx --test storyNavigation.test.ts",
     "test:unit": "node --import tsx --test storyNavigation.test.ts storyMedia.test.ts layerStyle.test.ts"
   },

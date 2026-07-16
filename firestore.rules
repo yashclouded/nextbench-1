@@ -360,7 +360,7 @@ service cloud.firestore {
         || (isSignedIn()
           && isValidId(roomId)
           && canAccessRoom(existing())
-          && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt', 'pinnedMessageId', 'pinnedMessageText', 'unreadBy', 'status', 'requestedBy', 'mutedBy', 'pinnedBy', 'deletedBy', 'lastMessageType' ]));
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt', 'pinnedMessageId', 'pinnedMessageText', 'unreadBy', 'status', 'requestedBy', 'mutedBy', 'archivedBy', 'pinnedBy', 'deletedBy', 'lastMessageType' ]));
 
       allow delete: if isVerified() && isValidId(roomId)
         && request.auth.uid in existing().participants
@@ -442,6 +442,13 @@ service cloud.firestore {
           // Member: update last-message preview / pinned message / unread badge
           (request.auth.uid in existing().memberIds
             && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'lastSenderName', 'pinnedMessageId', 'pinnedMessageText', 'updatedAt', 'unreadBy']))
+          ||
+          // Member: toggle own per-user conversation state (mute/archive/pin/
+          // unread/delete). Only these array fields, and updatedAt must NOT
+          // change — bumping it would reorder every member's inbox.
+          (request.auth.uid in existing().memberIds
+            && incoming().diff(existing()).affectedKeys().hasOnly(['mutedBy', 'archivedBy', 'pinnedBy', 'unreadBy', 'deletedBy'])
+            && incoming().updatedAt == existing().updatedAt)
           ||
           // Member: leave the club — may remove only themselves
           (request.auth.uid in existing().memberIds
