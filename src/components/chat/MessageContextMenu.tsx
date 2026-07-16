@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Reply, Info, Trash2, Pin, CheckCircle2 } from 'lucide-react';
+import { X, Reply, Info, Trash2, Pin, CheckCircle2, Forward } from 'lucide-react';
 import { Message } from '../../hooks/useChatEngine';
 
 interface MessageContextMenuProps {
@@ -26,6 +26,7 @@ interface MessageContextMenuProps {
   deleteForMe: (id: string) => Promise<void> | void;
   deleteForEveryone: (id: string) => Promise<void> | void;
   onCopyText: (text: string) => void;
+  onForward: (msgId: string) => void;
 }
 
 export function MessageContextMenu({
@@ -49,6 +50,7 @@ export function MessageContextMenu({
   deleteForMe,
   deleteForEveryone,
   onCopyText,
+  onForward,
 }: MessageContextMenuProps) {
   return (
     <AnimatePresence>
@@ -78,6 +80,15 @@ export function MessageContextMenu({
                     className="w-full px-4 py-2.5 text-left text-xs font-bold text-luxury-ink/70 hover:bg-surface-soft transition-colors flex items-center gap-2.5"
                   >
                     <Reply size={14} /> Reply
+                  </button>
+                  <button
+                    onClick={() => {
+                      onForward(targetMsg.id);
+                      setSelectedMessageId(null);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-xs font-bold text-luxury-ink/70 hover:bg-surface-soft transition-colors flex items-center gap-2.5"
+                  >
+                    <Forward size={14} /> Forward
                   </button>
                   <button
                     onClick={() => {

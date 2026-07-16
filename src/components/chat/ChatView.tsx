@@ -10,6 +10,7 @@ import { MessageList } from './MessageList';
 import { MessageContextMenu } from './MessageContextMenu';
 import { ChatHeader } from './ChatHeader';
 import { Composer } from './Composer';
+import { ForwardModal } from './ForwardModal';
 
 interface ChatViewProps {
   collectionPath: 'chatRooms' | 'clubs';
@@ -78,6 +79,9 @@ export default function ChatView({
   // Message Info state
   const [msgInfoId, setMsgInfoId] = useState<string | null>(null);
 
+  // Forward modal — holds the message ids being forwarded.
+  const [forwardingMsgIds, setForwardingMsgIds] = useState<string[]>([]);
+
   const {
     messages,
     loading,
@@ -90,6 +94,7 @@ export default function ChatView({
     deleteForEveryone,
     sendVoiceMessage,
     sendVideoMessage,
+    forwardMessage,
     markAsRead,
   } = useChatEngine({
     collectionPath,
@@ -235,6 +240,14 @@ export default function ChatView({
         deleteForMe={deleteForMe}
         deleteForEveryone={deleteForEveryone}
         onCopyText={handleCopyMessageText}
+        onForward={(msgId) => setForwardingMsgIds([msgId])}
+      />
+
+      <ForwardModal
+        isOpen={forwardingMsgIds.length > 0}
+        sources={messages.filter((m) => forwardingMsgIds.includes(m.id))}
+        onForward={forwardMessage}
+        onClose={() => setForwardingMsgIds([])}
       />
     </div>
   );

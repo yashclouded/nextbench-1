@@ -465,6 +465,84 @@ export function useChatEngine({
     [user, roomId, collectionPath, userData, getRoomMetadataUpdate]
   );
 
+  // Forward messages to one or more target conversations. Writes one new
+  // message doc per (target × source), copying the media/text and stamping
+  // forwardedFrom with the ORIGINAL author. Writes to arbitrary rooms the
+  // current user belongs to; each write is rules-gated (membership/canPost),
+  // so a target that rejects is counted as failed without aborting the rest.
+  const forwardMessage = useCallback(
+    async (
+      sources: Message[],
+      targets: { collection: 'chatRooms' | 'clubs'; roomId: string }[]
+    ): Promise<{ ok: number; failed: number }> => {
+      if (!user || sources.length === 0 || targets.length === 0) return { ok: 0, failed: 0 };
+      let ok = 0;
+      let failed = 0;
+
+      for (const target of targets) {
+        try {
+          // Resolve the target's members once for the unread/metadata write.
+          const roomRef = doc(db, target.collection, target.roomId);
+          const roomSnap = await getDoc(roomRef);
+          if (!roomSnap.exists()) { failed++; continue; }
+          const roomData = roomSnap.data() as any;
+
+          let lastPreview = '';
+          for (const src of sources) {
+            const msgData: any = {
+              senderId: user.uid,
+              senderName: userData?.name || 'Unknown',
+              senderAvatar: userData?.profilePicture || null,
+              createdAt: serverTimestamp(),
+              forwardedFrom: {
+                senderId: src.senderId,
+                senderName: src.senderName || 'Unknown',
+              },
+            };
+            if (src.text) msgData.text = src.text;
+            if (src.image) msgData.image = src.image;
+            if (src.type === 'video' && src.video) { msgData.type = 'video'; msgData.video = src.video; }
+            if (src.type === 'voice' && src.audioUrl) {
+              msgData.type = 'voice';
+              msgData.audioUrl = src.audioUrl;
+              if (src.duration !== undefined) msgData.duration = src.duration;
+              if (src.fileSize !== undefined) msgData.fileSize = src.fileSize;
+              if (src.mimeType) msgData.mimeType = src.mimeType;
+            }
+            await addDoc(collection(db, target.collection, target.roomId, 'messages'), msgData);
+            lastPreview =
+              src.type === 'video' ? '📹 Video'
+              : src.type === 'voice' ? '🎤 Voice message'
+              : src.image ? '📷 Image'
+              : (src.text || '');
+          }
+
+          // Update target room metadata (unread for the other members/recipient).
+          const meta: any = {
+            lastMessage: lastPreview,
+            lastSenderId: user.uid,
+            updatedAt: serverTimestamp(),
+          };
+          if (target.collection === 'clubs') {
+            meta.lastSenderName = userData?.name || 'Unknown';
+            const others = ((roomData.memberIds as string[]) || []).filter((id) => id !== user.uid);
+            if (others.length > 0) meta.unreadBy = arrayUnion(...others);
+          } else {
+            const others = ((roomData.participants as string[]) || []).filter((id) => id !== user.uid);
+            if (others.length > 0) meta.unreadBy = arrayUnion(...others);
+          }
+          await updateDoc(roomRef, meta);
+          ok++;
+        } catch (err) {
+          console.error('Failed to forward to target:', target, err);
+          failed++;
+        }
+      }
+      return { ok, failed };
+    },
+    [user, userData]
+  );
+
   // Merge Firestore-synced real messages with pending/failed optimistic ones.
   // useMemo prevents the O(n log n) sort from running on every render (e.g. on each keystroke).
   const mergedMessages = useMemo(() => {
@@ -495,6 +573,7 @@ export function useChatEngine({
     deleteForEveryone,
     sendVoiceMessage,
     sendVideoMessage,
+    forwardMessage,
     markAsRead,
   };
 }
