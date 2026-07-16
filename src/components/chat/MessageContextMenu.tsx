@@ -1,7 +1,46 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Reply, Info, Trash2, Pin, CheckCircle2, Forward } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { Message } from '../../hooks/useChatEngine';
+
+// Resolve + list the names of members who have read a message (Info modal).
+const seenNameCache = new Map<string, string>();
+function SeenByRow({ readBy, isClub }: { readBy: string[]; isClub: boolean }) {
+  const [names, setNames] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    let alive = true;
+    Promise.all(
+      readBy.slice(0, 20).map(async (uid) => {
+        if (seenNameCache.has(uid)) return seenNameCache.get(uid)!;
+        try {
+          const snap = await getDoc(doc(db, 'users', uid));
+          const name = (snap.exists() && snap.data().name) || 'Member';
+          seenNameCache.set(uid, name);
+          return name;
+        } catch {
+          return 'Member';
+        }
+      })
+    ).then((n) => { if (alive) setNames(n); });
+    return () => { alive = false; };
+  }, [readBy.join(',')]);
+
+  return (
+    <div className="p-3 bg-surface-soft rounded-xl">
+      <div className="flex items-center gap-1.5 mb-1">
+        <CheckCircle2 size={14} className="text-brand-teal" />
+        <span className="text-sm font-semibold text-luxury-ink/70">
+          {readBy.length === 0 ? (isClub ? 'Not seen yet' : 'Delivered') : `Seen by ${readBy.length}`}
+        </span>
+      </div>
+      {names.length > 0 && (
+        <p className="text-xs text-luxury-ink/50 leading-relaxed">{names.join(', ')}</p>
+      )}
+    </div>
+  );
+}
 
 interface MessageContextMenuProps {
   messages: Message[];
@@ -238,6 +277,9 @@ export function MessageContextMenu({
                         {msg.status === 'pending' ? 'Sending...' : msg.status === 'failed' ? 'Failed' : isClub ? 'Sent to Club' : 'Delivered / Seen'}
                       </span>
                     </div>
+                  )}
+                  {isMe && msg.status !== 'pending' && msg.status !== 'failed' && (
+                    <SeenByRow readBy={(msg.readBy || []).filter((uid) => uid !== user?.uid)} isClub={isClub} />
                   )}
                 </div>
               );

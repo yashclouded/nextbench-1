@@ -15,6 +15,7 @@ import {
   increment, writeBatch, limit, orderBy
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { sortMillis } from './conversationSort';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -51,6 +52,9 @@ export interface ClubData {
   archivedBy?: string[];
   pinnedBy?: string[];
   deletedBy?: string[];
+  // True when this row came from a snapshot with an unresolved local write
+  // (just-sent updatedAt: serverTimestamp()). See lib/conversationSort.
+  _pendingWrite?: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -297,13 +301,11 @@ export function useUserClubs(userId: string | undefined) {
 
     const unsub = onSnapshot(q, (snap) => {
       const result: ClubData[] = [];
-      snap.forEach((d) => result.push({ id: d.id, ...d.data() } as ClubData));
-      // Sort by most recently active
-      result.sort((a, b) => {
-        const ta = a.updatedAt?.toMillis?.() || 0;
-        const tb = b.updatedAt?.toMillis?.() || 0;
-        return tb - ta;
-      });
+      snap.forEach((d) => result.push({ id: d.id, ...d.data(), _pendingWrite: d.metadata.hasPendingWrites } as ClubData));
+      // Sort by most recently active. A just-sent message leaves updatedAt
+      // unresolved (null) in the local snapshot; sortMillis keeps that row at
+      // the top instead of dropping it to the bottom then snapping back.
+      result.sort((a, b) => sortMillis(b) - sortMillis(a));
       setClubs(result);
       setLoading(false);
     }, (err) => {

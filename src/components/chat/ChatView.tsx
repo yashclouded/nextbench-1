@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Pin } from 'lucide-react';
 
@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
 import { useLightbox } from '../../lib/LightboxContext';
 
-import { useChatEngine, Message } from '../../hooks/useChatEngine';
+import { useChatEngine, Message, TYPING_STALE_MS } from '../../hooks/useChatEngine';
 import { MessageList } from './MessageList';
 import { MessageContextMenu } from './MessageContextMenu';
 import { ChatHeader } from './ChatHeader';
@@ -100,6 +100,9 @@ export default function ChatView({
     sendVideoMessage,
     forwardMessage,
     markAsRead,
+    markVisibleRead,
+    typingUsers,
+    setTyping,
   } = useChatEngine({
     collectionPath,
     roomId,
@@ -163,6 +166,26 @@ export default function ChatView({
     showToast('Copied to clipboard', 'success');
   };
 
+  // Active typers: other users whose typing timestamp is within the stale
+  // window. A Firestore Timestamp has .toMillis(); tolerate a raw number too.
+  // A 1s tick while any typing entry exists guarantees stale entries age out
+  // of the view even if the peer closed their tab without a clear-write.
+  const [, forceTick] = useState(0);
+  const hasTypingEntries = Object.keys(typingUsers || {}).length > 0;
+  useEffect(() => {
+    if (!hasTypingEntries) return;
+    const t = setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [hasTypingEntries]);
+  const now = Date.now();
+  const typingUserIds = Object.entries(typingUsers || {})
+    .filter(([uid, ts]) => {
+      if (uid === user?.uid) return false;
+      const ms = ts?.toMillis ? ts.toMillis() : typeof ts === 'number' ? ts : 0;
+      return now - ms < TYPING_STALE_MS;
+    })
+    .map(([uid]) => uid);
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface-base relative">
       {/* Header */}
@@ -182,6 +205,8 @@ export default function ChatView({
         selectedCount={selectedMessages.size}
         onBulkDelete={handleBulkDelete}
         onCancelSelect={() => { setIsSelectMode(false); setSelectedMessages(new Set()); }}
+        typingUserIds={typingUserIds}
+        clubMembers={clubMembers}
       />
 
       {/* Pinned Message Banner */}
@@ -206,12 +231,14 @@ export default function ChatView({
         hasMore={hasMore}
         loadOlder={loadOlder}
         markAsRead={markAsRead}
+        markVisibleRead={markVisibleRead}
         user={user}
         isClub={isClub}
         isMember={isMember}
         isAdmin={isAdmin}
         collectionPath={collectionPath}
         roomId={roomId}
+        recipientId={recipientId}
         onPin={onPin}
         showLightbox={showLightbox}
         resendMessage={resendMessage}
@@ -244,6 +271,7 @@ export default function ChatView({
         sendMessage={sendMessage}
         sendVoiceMessage={sendVoiceMessage}
         sendVideoMessage={sendVideoMessage}
+        setTyping={setTyping}
       />
 
       <MessageContextMenu

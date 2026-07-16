@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Home, Search, PlusCircle, MessageSquare, User, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { useUnreadChatCount } from '../../hooks/useUnreadChatCount';
+import { isChatConversationRoute } from '../../lib/chatRoutes';
 
 export default function BottomNav() {
   const { user, userData } = useAuth();
@@ -26,7 +27,10 @@ export default function BottomNav() {
 
   const unreadMsgCount = useUnreadChatCount(user?.uid);
 
-  if (location.pathname.startsWith('/chat/')) {
+  // Hide the bottom nav when a conversation is open so it never overlaps the
+  // pinned composer. (Covers /chat/:id, /club/:id, /messages/:id; the bare
+  // /messages inbox keeps the nav.)
+  if (isChatConversationRoute(location.pathname)) {
     return null;
   }
 

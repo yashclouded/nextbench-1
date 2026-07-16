@@ -31,6 +31,7 @@ import ClubChat from './ClubChat';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { SelectionToolbar, type SelectionAction } from '../../components/chat/SelectionToolbar';
 import { searchPublicUsers } from '../../lib/discovery';
+import { sortMillis } from '../../lib/conversationSort';
 
 interface ChatRoomItem {
   id: string;
@@ -48,6 +49,9 @@ interface ChatRoomItem {
   archivedBy?: string[];
   pinnedBy?: string[];
   deletedBy?: string[];
+  // True when this row came from a snapshot with an unresolved local write
+  // (just-sent updatedAt: serverTimestamp()). See lib/conversationSort.
+  _pendingWrite?: boolean;
 }
 
 export default function MessagesLayout() {
@@ -193,12 +197,17 @@ export default function MessagesLayout() {
             id: roomDoc.id,
             ...data,
             otherUser: usersMap[roomDoc.id],
-          });
+            // A just-sent message writes updatedAt: serverTimestamp(), which
+            // reads null in the immediate local snapshot (hasPendingWrites).
+            // Mark it so the sort keeps it at the top instead of dropping it to
+            // the bottom then snapping back when the server timestamp resolves.
+            _pendingWrite: roomDoc.metadata.hasPendingWrites,
+          } as ChatRoomItem);
         }
 
         rooms.sort((a, b) => {
-          const timeA = a.updatedAt?.toMillis?.() || 0;
-          const timeB = b.updatedAt?.toMillis?.() || 0;
+          const timeA = sortMillis(a);
+          const timeB = sortMillis(b);
           return timeB - timeA;
         });
 
@@ -464,9 +473,7 @@ export default function MessagesLayout() {
     const aPinned = (a as any).pinnedBy?.includes(uid) ? 1 : 0;
     const bPinned = (b as any).pinnedBy?.includes(uid) ? 1 : 0;
     if (aPinned !== bPinned) return bPinned - aPinned;
-    const timeA = a.updatedAt?.toMillis?.() || 0;
-    const timeB = b.updatedAt?.toMillis?.() || 0;
-    return timeB - timeA;
+    return sortMillis(b as any) - sortMillis(a as any);
   });
 
   // ─────────────────────────────────────────────
@@ -733,7 +740,7 @@ export default function MessagesLayout() {
   return (
     <>
       {/* ── Main Layout ── */}
-      <div className="flex h-screen overflow-hidden bg-surface-base">
+      <div className="flex h-full overflow-hidden bg-surface-base">
         {/* Sidebar — always visible on desktop, hidden on mobile when chat is open */}
         <div
           className={`

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, SmilePlus, CheckCircle2, Circle, RefreshCw, Trash2, CornerUpRight } from 'lucide-react';
+import { X, SmilePlus, CheckCircle2, Circle, RefreshCw, Trash2, CornerUpRight, Check, CheckCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -111,6 +111,7 @@ interface MessageBubbleProps {
   resendMessage: (tempId: string) => void;
   removeFailedMessage: (tempId: string) => void;
   isAdmin: boolean;
+  recipientId?: string;
 }
 
 // Memoized message item to prevent re-rendering the message list when typing in the composer
@@ -136,11 +137,18 @@ export const MessageBubble = React.memo(function MessageBubble({
   resendMessage,
   removeFailedMessage,
   isAdmin,
+  recipientId,
 }: MessageBubbleProps) {
   const isMe = msg.senderId === user?.uid;
   const isDeleted = msg.isDeletedForEveryone;
   const isOptimistic = msg.status === 'pending';
   const isFailed = msg.status === 'failed';
+  // Read-receipt state for own, delivered messages.
+  const showTicks = isMe && !isDeleted && !isOptimistic && !isFailed;
+  const isDM = collectionPath === 'chatRooms';
+  const readByOthers = (msg.readBy || []).filter((uid) => uid !== user?.uid);
+  const dmRead = isDM && !!recipientId && (msg.readBy || []).includes(recipientId);
+  const clubSeen = !isDM && readByOthers.length > 0;
   // Resolve a link preview only for delivered, non-deleted text messages.
   const linkPreview = useLinkPreview(!isDeleted && !isOptimistic && !isFailed ? msg.text : undefined);
 
@@ -289,6 +297,21 @@ export const MessageBubble = React.memo(function MessageBubble({
           {isOptimistic && (
             <div className="absolute bottom-1 right-1 flex items-center justify-center bg-black/10 rounded-full p-0.5">
               <div className="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
+          {/* Read-receipt ticks (own messages) */}
+          {showTicks && (
+            <div className="flex justify-end mt-0.5 -mb-1" title={dmRead ? 'Read' : clubSeen ? 'Seen' : 'Sent'}>
+              {isDM ? (
+                dmRead ? (
+                  <CheckCheck size={13} className="text-white/90" />
+                ) : (
+                  <Check size={13} className="text-white/50" />
+                )
+              ) : (
+                clubSeen && <Check size={13} className="text-white/80" />
+              )}
             </div>
           )}
         </div>

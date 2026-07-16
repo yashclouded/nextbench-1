@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { MessageBubble } from './MessageBubble';
@@ -28,12 +28,14 @@ interface MessageListProps {
   hasMore: boolean;
   loadOlder: () => void;
   markAsRead: () => void;
+  markVisibleRead: (messageIds: string[]) => void;
   user: any;
   isClub: boolean;
   isMember: boolean;
   isAdmin: boolean;
   collectionPath: 'chatRooms' | 'clubs';
   roomId: string;
+  recipientId?: string;
   onPin?: (msgId: string, text?: string) => void;
   showLightbox: (urls: string[]) => void;
   resendMessage: (tempId: string) => void;
@@ -59,12 +61,14 @@ export function MessageList({
   hasMore,
   loadOlder,
   markAsRead,
+  markVisibleRead,
   user,
   isClub,
   isMember,
   isAdmin,
   collectionPath,
   roomId,
+  recipientId,
   onPin,
   showLightbox,
   resendMessage,
@@ -156,6 +160,29 @@ export function MessageList({
     markAsRead();
   }, [messages.length, isNearBottom, markAsRead]);
 
+  // Read receipts — batched, throttled to once per 2 s. Marks the messages
+  // currently visible in the virtualizer (regardless of near-bottom, so reading
+  // older history still sends receipts) as read by the current user.
+  const lastReceiptRef = useRef<number>(0);
+  const markReceiptsForVisible = useCallback(() => {
+    const now = Date.now();
+    if (now - lastReceiptRef.current < 2000) return;
+    const visibleIds = rowVirtualizer
+      .getVirtualItems()
+      .map((vr) => renderItems[vr.index])
+      .filter((it): it is Extract<RenderItem, { kind: 'message' }> => !!it && it.kind === 'message')
+      .map((it) => it.msg.id);
+    if (visibleIds.length === 0) return;
+    lastReceiptRef.current = now;
+    markVisibleRead(visibleIds);
+  }, [markVisibleRead, renderItems]);
+
+  // Fire on new messages arriving (and on mount when messages first load).
+  useEffect(() => {
+    if (messages.length === 0) return;
+    markReceiptsForVisible();
+  }, [messages.length, markReceiptsForVisible]);
+
   // Track scroll position
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
@@ -172,6 +199,9 @@ export function MessageList({
     if (target.scrollTop <= 80 && hasMore && !loading) {
       loadOlder();
     }
+
+    // Send read receipts for whatever is now visible (self-throttled to 2s).
+    markReceiptsForVisible();
   };
 
   // Scroll to bottom on genuinely new messages only (not when loading older history)
@@ -283,6 +313,7 @@ export function MessageList({
                     resendMessage={resendMessage}
                     removeFailedMessage={removeFailedMessage}
                     isAdmin={isAdmin}
+                    recipientId={recipientId}
                   />
                 )}
               </div>
