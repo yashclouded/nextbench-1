@@ -26,6 +26,7 @@ import {
   collection,
   setDoc,
   addDoc,
+  updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 
@@ -277,6 +278,40 @@ test('forwardedFrom missing senderId is rejected', async () => {
       text: 'forwarded text',
       forwardedFrom: { senderName: 'Carol' },
       createdAt: serverTimestamp(),
+    })
+  );
+});
+
+// ── delete-for-everyone clears video/audio media (Phase 4 review fix) ──
+test('sender can clear video+audioUrl on delete-for-everyone', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'clubs', 'c1'), clubData());
+    await setDoc(doc(db, 'clubs', 'c1', 'messages', 'm1'), {
+      senderId: 'alice', type: 'video',
+      video: { url: 'https://example.com/v.mp4', poster: 'https://example.com/p.jpg' },
+      audioUrl: 'https://example.com/a.webm',
+      createdAt: serverTimestamp(),
+    });
+  });
+  await assertSucceeds(
+    updateDoc(doc(verified('alice').firestore(), 'clubs', 'c1', 'messages', 'm1'), {
+      isDeletedForEveryone: true, text: '', image: '', video: null, audioUrl: '',
+    })
+  );
+});
+
+test('non-sender cannot delete-for-everyone (clear media)', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'clubs', 'c1'), clubData());
+    await setDoc(doc(db, 'clubs', 'c1', 'messages', 'm1'), {
+      senderId: 'alice', type: 'video',
+      video: { url: 'https://example.com/v.mp4' },
+      createdAt: serverTimestamp(),
+    });
+  });
+  await assertFails(
+    updateDoc(doc(verified('bob').firestore(), 'clubs', 'c1', 'messages', 'm1'), {
+      isDeletedForEveryone: true, text: '', image: '', video: null, audioUrl: '',
     })
   );
 });

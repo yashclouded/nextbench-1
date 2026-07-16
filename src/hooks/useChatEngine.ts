@@ -400,6 +400,8 @@ export function useChatEngine({
           isDeletedForEveryone: true,
           text: '',
           image: '',
+          video: null,
+          audioUrl: '',
         });
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `${collectionPath}/${roomId}/messages/${messageId}`);
@@ -423,6 +425,8 @@ export function useChatEngine({
               isDeletedForEveryone: true,
               text: '',
               image: '',
+              video: null,
+              audioUrl: '',
             });
           }
           await batch.commit();
@@ -514,6 +518,7 @@ export function useChatEngine({
           const roomData = roomSnap.data() as any;
 
           let lastPreview = '';
+          let deliveredToTarget = 0;
           for (const src of sources) {
             const msgData: any = {
               senderId: user.uid,
@@ -535,30 +540,47 @@ export function useChatEngine({
               if (src.fileSize !== undefined) msgData.fileSize = src.fileSize;
               if (src.mimeType) msgData.mimeType = src.mimeType;
             }
-            await addDoc(collection(db, target.collection, target.roomId, 'messages'), msgData);
-            lastPreview =
-              src.type === 'video' ? '📹 Video'
-              : src.type === 'voice' ? '🎤 Voice message'
-              : src.image ? '📷 Image'
-              : (src.text || '');
+            // Per-message try/catch: one rejected message doesn't abort the
+            // remaining sources for this target.
+            try {
+              await addDoc(collection(db, target.collection, target.roomId, 'messages'), msgData);
+              deliveredToTarget++;
+              lastPreview =
+                src.type === 'video' ? '📹 Video'
+                : src.type === 'voice' ? '🎤 Voice message'
+                : src.image ? '📷 Image'
+                : (src.text || '');
+            } catch (err) {
+              console.error('Failed to forward a message to target:', target, err);
+            }
           }
 
-          // Update target room metadata (unread for the other members/recipient).
-          const meta: any = {
-            lastMessage: lastPreview,
-            lastSenderId: user.uid,
-            updatedAt: serverTimestamp(),
-          };
-          if (target.collection === 'clubs') {
-            meta.lastSenderName = userData?.name || 'Unknown';
-            const others = ((roomData.memberIds as string[]) || []).filter((id) => id !== user.uid);
-            if (others.length > 0) meta.unreadBy = arrayUnion(...others);
+          // A target counts as delivered if at least one message landed. The
+          // metadata write is best-effort — its failure must NOT flip a
+          // delivered target to "failed".
+          if (deliveredToTarget > 0) {
+            try {
+              const meta: any = {
+                lastMessage: lastPreview,
+                lastSenderId: user.uid,
+                updatedAt: serverTimestamp(),
+              };
+              if (target.collection === 'clubs') {
+                meta.lastSenderName = userData?.name || 'Unknown';
+                const others = ((roomData.memberIds as string[]) || []).filter((id) => id !== user.uid);
+                if (others.length > 0) meta.unreadBy = arrayUnion(...others);
+              } else {
+                const others = ((roomData.participants as string[]) || []).filter((id) => id !== user.uid);
+                if (others.length > 0) meta.unreadBy = arrayUnion(...others);
+              }
+              await updateDoc(roomRef, meta);
+            } catch (err) {
+              console.error('Forward: metadata update failed (messages still delivered):', target, err);
+            }
+            ok++;
           } else {
-            const others = ((roomData.participants as string[]) || []).filter((id) => id !== user.uid);
-            if (others.length > 0) meta.unreadBy = arrayUnion(...others);
+            failed++;
           }
-          await updateDoc(roomRef, meta);
-          ok++;
         } catch (err) {
           console.error('Failed to forward to target:', target, err);
           failed++;

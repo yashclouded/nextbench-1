@@ -14,8 +14,8 @@ import { firstUrl, getLinkPreview, LinkPreview } from '../../lib/linkPreview';
 import { LinkPreviewCard } from './LinkPreviewCard';
 
 // Lazily resolve an OpenGraph preview for the first URL in a message's text.
-// Keyed on the message id so a virtualized row remounting doesn't refetch
-// (the lib-level cache also dedupes across the session).
+// Keyed on the URL; the lib-level Map cache dedupes across the session so a
+// virtualized row remounting or an unrelated re-render doesn't refetch.
 function useLinkPreview(text?: string): LinkPreview | null {
   const url = firstUrl(text);
   const [preview, setPreview] = useState<LinkPreview | null>(null);

@@ -20,6 +20,8 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import * as dns from "dns";
+import * as net from "net";
+import { Agent } from "undici";
 
 const db = admin.firestore();
 
@@ -95,33 +97,79 @@ function isBlockedIpv4(ip: string): boolean {
   );
 }
 
+/**
+ * Expand ANY IPv6 textual form to its 16 bytes. Handles `::` compression,
+ * zone ids, and embedded IPv4 in BOTH dotted (`::ffff:1.2.3.4`) and hex
+ * (`::ffff:0102:0304`) forms. Returns null if unparseable.
+ */
+function ipv6ToBytes(input: string): number[] | null {
+  let addr = input.toLowerCase().split("%")[0]; // drop zone id
+  // Split off a trailing embedded IPv4 (dotted) and convert to two hextets.
+  const dotted = addr.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const v4 = ipv4ToInt(dotted[1]);
+    if (v4 === null) return null;
+    const hi = ((v4 >>> 16) & 0xffff).toString(16);
+    const lo = (v4 & 0xffff).toString(16);
+    addr = addr.slice(0, dotted.index) + hi + ":" + lo;
+  }
+  const halves = addr.split("::");
+  if (halves.length > 2) return null;
+  const toHextets = (s: string) => (s === "" ? [] : s.split(":"));
+  const head = toHextets(halves[0]);
+  const tail = halves.length === 2 ? toHextets(halves[1]) : [];
+  const missing = 8 - (head.length + tail.length);
+  if (halves.length === 2) {
+    if (missing < 0) return null;
+  } else if (head.length !== 8) {
+    return null;
+  }
+  const hextets = halves.length === 2
+    ? [...head, ...Array(missing).fill("0"), ...tail]
+    : head;
+  if (hextets.length !== 8) return null;
+  const bytes: number[] = [];
+  for (const h of hextets) {
+    if (!/^[0-9a-f]{1,4}$/.test(h)) return null;
+    const n = parseInt(h, 16);
+    bytes.push((n >> 8) & 0xff, n & 0xff);
+  }
+  return bytes;
+}
+
 /** True if an IPv6 address is loopback/link-local/unique-local/mapped-internal. */
 function isBlockedIpv6(ip: string): boolean {
-  const addr = ip.toLowerCase().split("%")[0]; // drop zone id
-  if (addr === "::1" || addr === "::") return true;
-  // IPv4-mapped (::ffff:a.b.c.d) — validate the embedded v4
-  const mapped = addr.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isBlockedIpv4(mapped[1]);
-  const firstHextet = addr.split(":")[0] || "";
-  const h = parseInt(firstHextet || "0", 16);
-  if (Number.isNaN(h)) return true;
-  // fc00::/7 unique-local
-  if ((h & 0xfe00) === 0xfc00) return true;
-  // fe80::/10 link-local
-  if ((h & 0xffc0) === 0xfe80) return true;
+  const b = ipv6ToBytes(ip);
+  if (b === null) return true; // unparseable → block
+  // IPv4-mapped ::ffff:0:0/96 — check the embedded v4 regardless of encoding.
+  const isMapped = b.slice(0, 10).every((x) => x === 0) && b[10] === 0xff && b[11] === 0xff;
+  if (isMapped) {
+    const v4 = `${b[12]}.${b[13]}.${b[14]}.${b[15]}`;
+    return isBlockedIpv4(v4);
+  }
+  // IPv4-compatible / all-zero high bits (::x) incl. ::1 loopback and ::.
+  const allZeroHigh = b.slice(0, 12).every((x) => x === 0);
+  if (allZeroHigh) return true;
+  const first = b[0];
+  if ((first & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
+  if (first === 0xfe && (b[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
   return false;
 }
 
+/** Unified block check for any IP string (v4 or v6). */
+function isBlockedIp(ip: string): boolean {
+  if (net.isIPv4(ip)) return isBlockedIpv4(ip);
+  if (net.isIPv6(ip)) return isBlockedIpv6(ip);
+  return true; // not a valid IP → block
+}
+
+
 /** Resolve a hostname and reject if ANY resolved address is internal. */
 async function assertPublicHost(hostname: string): Promise<void> {
-  // Direct IP literal?
+  // Direct IP literal? (strip IPv6 brackets)
   const stripped = hostname.replace(/^\[|\]$/g, "");
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(stripped)) {
-    if (isBlockedIpv4(stripped)) throw new HttpsError("invalid-argument", "URL host not allowed.");
-    return;
-  }
-  if (stripped.includes(":")) {
-    if (isBlockedIpv6(stripped)) throw new HttpsError("invalid-argument", "URL host not allowed.");
+  if (net.isIP(stripped)) {
+    if (isBlockedIp(stripped)) throw new HttpsError("invalid-argument", "URL host not allowed.");
     return;
   }
   let addrs: dns.LookupAddress[];
@@ -132,10 +180,26 @@ async function assertPublicHost(hostname: string): Promise<void> {
   }
   if (addrs.length === 0) throw new HttpsError("invalid-argument", "Could not resolve URL host.");
   for (const a of addrs) {
-    const blocked = a.family === 6 ? isBlockedIpv6(a.address) : isBlockedIpv4(a.address);
-    if (blocked) throw new HttpsError("invalid-argument", "URL host not allowed.");
+    if (isBlockedIp(a.address)) throw new HttpsError("invalid-argument", "URL host not allowed.");
   }
 }
+
+// A custom undici Agent whose DNS lookup re-validates the resolved address at
+// CONNECT time, closing the DNS-rebinding gap between assertPublicHost's lookup
+// and the actual socket connection (the checked IP is the connected IP).
+const ssrfSafeAgent = new Agent({
+  connect: {
+    lookup: (hostname, options, callback) => {
+      dns.lookup(hostname, { ...options, all: false }, (err, address, family) => {
+        if (err) return callback(err, address as any, family as any);
+        if (isBlockedIp(String(address))) {
+          return callback(new Error("Blocked internal address"), address as any, family as any);
+        }
+        callback(null, address as any, family as any);
+      });
+    },
+  },
+});
 
 // ── Fetch + parse ────────────────────────────────────────
 
@@ -153,12 +217,15 @@ async function fetchHtml(startUrl: URL): Promise<{ html: string; finalUrl: URL }
         method: "GET",
         redirect: "manual",
         signal: controller.signal,
+        // Pin the connect-time DNS lookup through the SSRF-safe agent so the
+        // validated IP is the one actually connected (defeats DNS rebinding).
+        dispatcher: ssrfSafeAgent,
         headers: {
           // A realistic UA; many sites gate OG tags behind one.
           "user-agent": "Mozilla/5.0 (compatible; NextbenchLinkPreview/1.0; +https://nextbench.in)",
           accept: "text/html,application/xhtml+xml",
         },
-      });
+      } as any);
     } catch {
       throw new HttpsError("unavailable", "Failed to fetch URL.");
     } finally {

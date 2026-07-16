@@ -398,7 +398,7 @@ service cloud.firestore {
              incoming().diff(existing()).affectedKeys().hasOnly(['deletedFor'])
              ||
              (canAccessRoom(get(/databases/$(database)/documents/chatRooms/$(roomId)).data)
-              && incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image']) 
+              && incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image', 'video', 'audioUrl'])
               && request.auth.uid == existing().senderId)
               ||
              (canAccessRoom(get(/databases/$(database)/documents/chatRooms/$(roomId)).data)
@@ -503,7 +503,7 @@ service cloud.firestore {
             ||
             incoming().diff(existing()).affectedKeys().hasOnly(['reactions'])
             ||
-            (incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image'])
+            (incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image', 'video', 'audioUrl'])
               && request.auth.uid == existing().senderId)
           );
       }
