@@ -519,6 +519,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === LINK PREVIEWS (chat) ===
+    // Server-side cache of OpenGraph previews. Any signed-in user may read a
+    // cached preview; only the getLinkPreview Cloud Function (admin SDK, which
+    // bypasses rules) writes them.
+    match /linkPreviews/{urlHash} {
+      allow get: if isSignedIn();
+      allow list, write: if false;
+    }
+
     // === NOTIFICATIONS ===
     match /notifications/{notifId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
