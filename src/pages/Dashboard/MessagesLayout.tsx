@@ -733,7 +733,7 @@ export default function MessagesLayout() {
   return (
     <>
       {/* ── Main Layout ── */}
-      <div className="flex h-screen overflow-hidden bg-surface-base">
+      <div className="flex h-full overflow-hidden bg-surface-base">
         {/* Sidebar — always visible on desktop, hidden on mobile when chat is open */}
         <div
           className={`

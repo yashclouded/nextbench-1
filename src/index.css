@@ -81,6 +81,24 @@
 }
 
 /* ═══════════════════════════════════════════════════
+   SAFE-AREA UTILITIES (notched phones / home indicator)
+   Tailwind v4 has no built-in `pb-safe`; define them so the
+   bottom nav, lightbox, and chat composer clear the home bar.
+   ═══════════════════════════════════════════════════ */
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+/* Adds the safe-area inset ON TOP of an existing 1rem of padding —
+   for the chat composer, which already wants p-4. */
+@utility pb-safe-4 {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ═══════════════════════════════════════════════════
    BASE STYLES
    ═══════════════════════════════════════════════════ */
 

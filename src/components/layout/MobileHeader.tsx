@@ -6,6 +6,7 @@ import { db } from '../../lib/firebase';
 import { useEffect, useState } from 'react';
 import { useTheme } from '../../lib/ThemeContext';
 import { isChatMessageNotification } from '../../lib/notifications';
+import { isChatConversationRoute } from '../../lib/chatRoutes';
 
 export default function MobileHeader() {
   const { user } = useAuth();
@@ -33,8 +34,9 @@ export default function MobileHeader() {
     return () => unsubscribe();
   }, [user?.uid]);
 
-  // Hide header on chat routes to avoid double header issues
-  if (location.pathname.startsWith('/messages/') || location.pathname.startsWith('/club/')) {
+  // Hide the global header when a conversation is open — it renders its own
+  // sticky ChatHeader. (Covers /chat/:id, /club/:id, /messages/:id.)
+  if (isChatConversationRoute(location.pathname)) {
     return null;
   }
 

@@ -258,7 +258,7 @@ export function Composer({
   useEffect(() => () => { if (pendingVideoPoster) URL.revokeObjectURL(pendingVideoPoster); }, [pendingVideoPoster]);
 
   return (
-    <div className="p-4 border-t border-luxury-ink/5 bg-surface-base shrink-0 z-30">
+    <div className="p-4 pb-safe-4 border-t border-luxury-ink/5 bg-surface-base shrink-0 z-30">
       {/* Reply Preview Bar */}
       {replyingTo && (
         <div className="mb-3 bg-surface-card border border-luxury-ink/5 rounded-2xl px-4 py-3 flex items-start justify-between shadow-xs relative">
@@ -458,7 +458,7 @@ export function Composer({
                     : 'Type your message...'
                 }
                 disabled={isBlocked || !isMember || !canPost}
-                className="w-full bg-transparent py-3.5 text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
+                className="w-full bg-transparent py-3.5 text-base md:text-sm font-medium focus:outline-none text-luxury-ink placeholder:text-luxury-ink/30"
               />
             </div>
 
