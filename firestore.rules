@@ -373,7 +373,7 @@ service cloud.firestore {
         || (isSignedIn()
           && isValidId(roomId)
           && canAccessRoom(existing())
-          && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt', 'pinnedMessageId', 'pinnedMessageText', 'unreadBy', 'status', 'requestedBy', 'mutedBy', 'archivedBy', 'pinnedBy', 'deletedBy', 'lastMessageType' ]));
+          && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'lastSenderId', 'updatedAt', 'pinnedMessageId', 'pinnedMessageText', 'unreadBy', 'status', 'requestedBy', 'mutedBy', 'archivedBy', 'pinnedBy', 'deletedBy', 'lastMessageType', 'typingUsers' ]));
 
       allow delete: if isVerified() && isValidId(roomId)
         && request.auth.uid in existing().participants
@@ -403,9 +403,12 @@ service cloud.firestore {
               ||
              (canAccessRoom(get(/databases/$(database)/documents/chatRooms/$(roomId)).data)
               && incoming().diff(existing()).affectedKeys().hasOnly(['reactions']))
+              ||
+             // Read receipt: any participant may add ONLY to readBy (Phase 5).
+             incoming().diff(existing()).affectedKeys().hasOnly(['readBy'])
           );
 
-        allow delete: if isVerified() 
+        allow delete: if isVerified()
           && request.auth.uid in get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants
           && canAccessRoom(get(/databases/$(database)/documents/chatRooms/$(roomId)).data)
           && get(/databases/$(database)/documents/chatRooms/$(roomId)).data.get('status', '') == 'pending';
@@ -463,6 +466,12 @@ service cloud.firestore {
             && incoming().diff(existing()).affectedKeys().hasOnly(['mutedBy', 'archivedBy', 'pinnedBy', 'unreadBy', 'deletedBy'])
             && incoming().updatedAt == existing().updatedAt)
           ||
+          // Member: write live typing state (Phase 5). Only typingUsers, and
+          // updatedAt must NOT change (typing must never reorder the inbox).
+          (request.auth.uid in existing().memberIds
+            && incoming().diff(existing()).affectedKeys().hasOnly(['typingUsers'])
+            && incoming().updatedAt == existing().updatedAt)
+          ||
           // Member: leave the club — may remove only themselves
           (request.auth.uid in existing().memberIds
             && incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'coLeadIds', 'memberCount', 'updatedAt'])
@@ -505,6 +514,9 @@ service cloud.firestore {
             ||
             (incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image', 'video', 'audioUrl'])
               && request.auth.uid == existing().senderId)
+            ||
+            // Read receipt: any member may add ONLY to readBy (Phase 5).
+            incoming().diff(existing()).affectedKeys().hasOnly(['readBy'])
           );
       }
     }
