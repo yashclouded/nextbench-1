@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { X, Pin } from 'lucide-react';
 
 import { useAuth } from '../../lib/AuthContext';
@@ -10,6 +11,7 @@ import { MessageList } from './MessageList';
 import { MessageContextMenu } from './MessageContextMenu';
 import { ChatHeader } from './ChatHeader';
 import { Composer } from './Composer';
+import { ForwardModal } from './ForwardModal';
 
 interface ChatViewProps {
   collectionPath: 'chatRooms' | 'clubs';
@@ -78,6 +80,11 @@ export default function ChatView({
   // Message Info state
   const [msgInfoId, setMsgInfoId] = useState<string | null>(null);
 
+  // Forward modal — holds the message ids being forwarded.
+  const [forwardingMsgIds, setForwardingMsgIds] = useState<string[]>([]);
+  // Bulk delete dialog for the in-chat message multi-select.
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
   const {
     messages,
     loading,
@@ -88,7 +95,10 @@ export default function ChatView({
     removeFailedMessage,
     deleteForMe,
     deleteForEveryone,
+    deleteForEveryoneBulk,
     sendVoiceMessage,
+    sendVideoMessage,
+    forwardMessage,
     markAsRead,
   } = useChatEngine({
     collectionPath,
@@ -111,13 +121,36 @@ export default function ChatView({
     });
   }, []);
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedMessages.size === 0) return;
-    if (!confirm(`Delete ${selectedMessages.size} messages?`)) return;
+    setShowBulkDeleteDialog(true);
+  };
 
+  // Every selected message is the current user's own → delete-for-everyone is offered.
+  const allSelectedAreOwn =
+    selectedMessages.size > 0 &&
+    Array.from(selectedMessages).every((id) => {
+      const m = messages.find((x) => x.id === id);
+      return m && m.senderId === user?.uid;
+    });
+
+  const runBulkDeleteForMe = async () => {
+    setShowBulkDeleteDialog(false);
     try {
       await Promise.all(Array.from(selectedMessages).map((id) => deleteForMe(id)));
       showToast('Messages deleted', 'success');
+      setSelectedMessages(new Set());
+      setIsSelectMode(false);
+    } catch {
+      showToast('Failed to delete messages', 'error');
+    }
+  };
+
+  const runBulkDeleteForEveryone = async () => {
+    setShowBulkDeleteDialog(false);
+    try {
+      await deleteForEveryoneBulk(Array.from(selectedMessages));
+      showToast('Messages deleted for everyone', 'success');
       setSelectedMessages(new Set());
       setIsSelectMode(false);
     } catch {
@@ -210,6 +243,7 @@ export default function ChatView({
         setReplyingTo={setReplyingTo}
         sendMessage={sendMessage}
         sendVoiceMessage={sendVoiceMessage}
+        sendVideoMessage={sendVideoMessage}
       />
 
       <MessageContextMenu
@@ -233,7 +267,50 @@ export default function ChatView({
         deleteForMe={deleteForMe}
         deleteForEveryone={deleteForEveryone}
         onCopyText={handleCopyMessageText}
+        onForward={(msgId) => setForwardingMsgIds([msgId])}
       />
+
+      <ForwardModal
+        isOpen={forwardingMsgIds.length > 0}
+        sources={messages.filter((m) => forwardingMsgIds.includes(m.id))}
+        onForward={forwardMessage}
+        onClose={() => setForwardingMsgIds([])}
+      />
+
+      {/* Bulk delete dialog — offers delete-for-everyone when all selected are own */}
+      <AnimatePresence>
+        {showBulkDeleteDialog && (
+          <div className="fixed inset-0 z-[2100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs" onClick={() => setShowBulkDeleteDialog(false)}>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface-card rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-luxury-ink/5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-bold text-luxury-ink mb-2">Delete {selectedMessages.size} message{selectedMessages.size === 1 ? '' : 's'}</h3>
+              <p className="text-xs text-luxury-ink/65 mb-6">
+                {allSelectedAreOwn
+                  ? 'Delete just for you, or for everyone in this chat?'
+                  : 'These messages will be deleted for you. Other members will still see them.'}
+              </p>
+              <div className="flex flex-col gap-2">
+                {allSelectedAreOwn && (
+                  <button onClick={runBulkDeleteForEveryone} className="w-full py-2.5 bg-red-500 text-white rounded-full text-xs font-bold hover:bg-red-600 shadow-lg transition-colors">
+                    Delete for everyone
+                  </button>
+                )}
+                <button onClick={runBulkDeleteForMe} className="w-full py-2.5 bg-surface-soft text-luxury-ink rounded-full text-xs font-bold hover:bg-luxury-ink/5 transition-colors">
+                  Delete for me
+                </button>
+                <button onClick={() => setShowBulkDeleteDialog(false)} className="w-full py-2.5 rounded-full text-xs font-bold text-luxury-ink/50 hover:bg-surface-soft transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

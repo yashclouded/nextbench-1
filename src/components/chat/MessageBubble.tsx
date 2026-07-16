@@ -1,14 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { X, SmilePlus, CheckCircle2, Circle, RefreshCw, Trash2 } from 'lucide-react';
+import { X, SmilePlus, CheckCircle2, Circle, RefreshCw, Trash2, CornerUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import Avatar from '../ui/Avatar';
 import SmartImage from '../ui/SmartImage';
 import VoiceMessageBubble from '../ui/VoiceMessageBubble';
+import VideoPlayer from '../ui/VideoPlayer';
 import MessageReactions from '../ui/MessageReactions';
 import LinkifiedText from '../ui/LinkifiedText';
 import { Message } from '../../hooks/useChatEngine';
+import { firstUrl, getLinkPreview, LinkPreview } from '../../lib/linkPreview';
+import { LinkPreviewCard } from './LinkPreviewCard';
+
+// Lazily resolve an OpenGraph preview for the first URL in a message's text.
+// Keyed on the URL; the lib-level Map cache dedupes across the session so a
+// virtualized row remounting or an unrelated re-render doesn't refetch.
+function useLinkPreview(text?: string): LinkPreview | null {
+  const url = firstUrl(text);
+  const [preview, setPreview] = useState<LinkPreview | null>(null);
+  useEffect(() => {
+    if (!url) { setPreview(null); return; }
+    let alive = true;
+    getLinkPreview(url).then((p) => { if (alive) setPreview(p); });
+    return () => { alive = false; };
+  }, [url]);
+  return preview;
+}
 
 function ClubSenderAvatar({ msg }: { msg: Message }) {
   const navigate = useNavigate();
@@ -123,6 +141,8 @@ export const MessageBubble = React.memo(function MessageBubble({
   const isDeleted = msg.isDeletedForEveryone;
   const isOptimistic = msg.status === 'pending';
   const isFailed = msg.status === 'failed';
+  // Resolve a link preview only for delivered, non-deleted text messages.
+  const linkPreview = useLinkPreview(!isDeleted && !isOptimistic && !isFailed ? msg.text : undefined);
 
   return (
     <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} pb-2 relative group`}>
@@ -191,6 +211,13 @@ export const MessageBubble = React.memo(function MessageBubble({
             </div>
           )}
 
+          {/* Forwarded label */}
+          {!isDeleted && msg.forwardedFrom && (
+            <div className={`text-[10px] font-semibold italic mb-1 flex items-center gap-1 ${isMe ? 'text-white/60' : 'text-luxury-ink/40'}`}>
+              <CornerUpRight size={11} /> Forwarded
+            </div>
+          )}
+
           {/* Reply Preview */}
           {!isDeleted && msg.replyToText && (
             <div className={`text-xs mb-2 p-2 rounded-lg border-l-2 ${isMe ? 'bg-black/10 border-white/40' : 'bg-surface-soft border-brand-teal'}`}>
@@ -236,12 +263,25 @@ export const MessageBubble = React.memo(function MessageBubble({
                 <VoiceMessageBubble audioUrl={msg.audioUrl} duration={msg.duration} isSent={true} />
               )}
 
+              {/* Video attachment */}
+              {msg.type === 'video' && msg.video?.url && (
+                <div
+                  className={`relative overflow-hidden rounded-lg -mx-4 ${((collectionPath === 'clubs' && !isMe) || msg.replyToText) ? 'mt-2' : '-mt-3'} w-[280px] max-w-full ${msg.text ? 'mb-2' : '-mb-3'}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <VideoPlayer src={msg.video.url} poster={msg.video.poster} className="w-full" />
+                </div>
+              )}
+
               {/* Message text */}
               {msg.text && (
                 <div className="break-words whitespace-pre-wrap leading-relaxed">
                   <LinkifiedText text={msg.text} />
                 </div>
               )}
+
+              {/* Link preview card (first URL in the text) */}
+              {linkPreview && <LinkPreviewCard preview={linkPreview} isMe={isMe} />}
             </>
           )}
 

@@ -26,6 +26,7 @@ import {
   collection,
   setDoc,
   addDoc,
+  updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 
@@ -204,3 +205,114 @@ test('message with an image object missing url is rejected', async () => {
     })
   );
 });
+
+// ── video messages (Phase 4) ─────────────────────────────
+test('club video message with a {url,poster,w,h,duration} video is accepted', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertSucceeds(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      type: 'video',
+      video: { url: 'https://example.com/v.mp4', poster: 'https://example.com/p.jpg', w: 720, h: 1280, duration: 12 },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('DM video message is accepted (regression)', async () => {
+  await seed((db) =>
+    setDoc(doc(db, 'chatRooms', 'r1'), { participants: ['alice', 'bob'], updatedAt: serverTimestamp() })
+  );
+  await assertSucceeds(
+    addDoc(collection(verified('alice').firestore(), 'chatRooms', 'r1', 'messages'), {
+      senderId: 'alice',
+      type: 'video',
+      video: { url: 'https://example.com/v.mp4' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('video message missing video.url is rejected', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertFails(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      type: 'video',
+      video: { poster: 'https://example.com/p.jpg' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('message with a bad type is rejected', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertFails(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      text: 'hi',
+      type: 'malware',
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+// ── forwarded messages (Phase 4) ─────────────────────────
+test('forwarded message with forwardedFrom map is accepted', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertSucceeds(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      text: 'forwarded text',
+      forwardedFrom: { senderId: 'carol', senderName: 'Carol' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('forwardedFrom missing senderId is rejected', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertFails(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      text: 'forwarded text',
+      forwardedFrom: { senderName: 'Carol' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+// ── delete-for-everyone clears video/audio media (Phase 4 review fix) ──
+test('sender can clear video+audioUrl on delete-for-everyone', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'clubs', 'c1'), clubData());
+    await setDoc(doc(db, 'clubs', 'c1', 'messages', 'm1'), {
+      senderId: 'alice', type: 'video',
+      video: { url: 'https://example.com/v.mp4', poster: 'https://example.com/p.jpg' },
+      audioUrl: 'https://example.com/a.webm',
+      createdAt: serverTimestamp(),
+    });
+  });
+  await assertSucceeds(
+    updateDoc(doc(verified('alice').firestore(), 'clubs', 'c1', 'messages', 'm1'), {
+      isDeletedForEveryone: true, text: '', image: '', video: null, audioUrl: '',
+    })
+  );
+});
+
+test('non-sender cannot delete-for-everyone (clear media)', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'clubs', 'c1'), clubData());
+    await setDoc(doc(db, 'clubs', 'c1', 'messages', 'm1'), {
+      senderId: 'alice', type: 'video',
+      video: { url: 'https://example.com/v.mp4' },
+      createdAt: serverTimestamp(),
+    });
+  });
+  await assertFails(
+    updateDoc(doc(verified('bob').firestore(), 'clubs', 'c1', 'messages', 'm1'), {
+      isDeletedForEveryone: true, text: '', image: '', video: null, audioUrl: '',
+    })
+  );
+});
+

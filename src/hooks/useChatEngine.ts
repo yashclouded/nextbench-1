@@ -41,8 +41,9 @@ export interface Message {
   senderAvatar?: string | null;
   text?: string;
   image?: any;
-  type?: 'text' | 'voice';
+  type?: 'text' | 'voice' | 'video';
   audioUrl?: string;
+  video?: { url: string; poster?: string; w?: number; h?: number; duration?: number };
   duration?: number;
   fileSize?: number;
   mimeType?: string;
@@ -54,6 +55,7 @@ export interface Message {
   reactions?: Record<string, string[]>;
   clientMessageId?: string;
   status?: 'pending' | 'failed' | 'sent';
+  forwardedFrom?: { senderId: string; senderName?: string };
 }
 
 export interface ChatEngineOptions {
@@ -398,9 +400,39 @@ export function useChatEngine({
           isDeletedForEveryone: true,
           text: '',
           image: '',
+          video: null,
+          audioUrl: '',
         });
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `${collectionPath}/${roomId}/messages/${messageId}`);
+      }
+    },
+    [user?.uid, roomId, collectionPath]
+  );
+
+  // Bulk delete-for-everyone. Only the sender's own messages pass the rules;
+  // the caller gates the UI so every id is an own-message. Chunked at 450/batch
+  // (Firestore's 500-op limit with headroom).
+  const deleteForEveryoneBulk = useCallback(
+    async (ids: string[]) => {
+      if (!user || !roomId || ids.length === 0) return;
+      try {
+        for (let i = 0; i < ids.length; i += 450) {
+          const chunk = ids.slice(i, i + 450);
+          const batch = writeBatch(db);
+          for (const id of chunk) {
+            batch.update(doc(db, collectionPath, roomId, 'messages', id), {
+              isDeletedForEveryone: true,
+              text: '',
+              image: '',
+              video: null,
+              audioUrl: '',
+            });
+          }
+          await batch.commit();
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `${collectionPath}/${roomId}/messages`);
       }
     },
     [user?.uid, roomId, collectionPath]
@@ -437,6 +469,128 @@ export function useChatEngine({
     [user, roomId, collectionPath, getRoomMetadataUpdate]
   );
 
+  // Send video message
+  const sendVideoMessage = useCallback(
+    async (video: { url: string; poster?: string; w?: number; h?: number; duration?: number }) => {
+      if (!user || !roomId || !video?.url) return;
+      try {
+        const messageData: any = {
+          senderId: user.uid,
+          senderName: userData?.name || 'Unknown',
+          senderAvatar: userData?.profilePicture || null,
+          type: 'video' as const,
+          video,
+          createdAt: serverTimestamp(),
+        };
+
+        await addDoc(collection(db, collectionPath, roomId, 'messages'), messageData);
+
+        const updateData = await getRoomMetadataUpdate('📹 Video');
+        await updateDoc(doc(db, collectionPath, roomId), updateData);
+      } catch (err) {
+        console.error('Failed to send video message:', err);
+        throw err;
+      }
+    },
+    [user, roomId, collectionPath, userData, getRoomMetadataUpdate]
+  );
+
+  // Forward messages to one or more target conversations. Writes one new
+  // message doc per (target × source), copying the media/text and stamping
+  // forwardedFrom with the ORIGINAL author. Writes to arbitrary rooms the
+  // current user belongs to; each write is rules-gated (membership/canPost),
+  // so a target that rejects is counted as failed without aborting the rest.
+  const forwardMessage = useCallback(
+    async (
+      sources: Message[],
+      targets: { collection: 'chatRooms' | 'clubs'; roomId: string }[]
+    ): Promise<{ ok: number; failed: number }> => {
+      if (!user || sources.length === 0 || targets.length === 0) return { ok: 0, failed: 0 };
+      let ok = 0;
+      let failed = 0;
+
+      for (const target of targets) {
+        try {
+          // Resolve the target's members once for the unread/metadata write.
+          const roomRef = doc(db, target.collection, target.roomId);
+          const roomSnap = await getDoc(roomRef);
+          if (!roomSnap.exists()) { failed++; continue; }
+          const roomData = roomSnap.data() as any;
+
+          let lastPreview = '';
+          let deliveredToTarget = 0;
+          for (const src of sources) {
+            const msgData: any = {
+              senderId: user.uid,
+              senderName: userData?.name || 'Unknown',
+              senderAvatar: userData?.profilePicture || null,
+              createdAt: serverTimestamp(),
+              forwardedFrom: {
+                senderId: src.senderId,
+                senderName: src.senderName || 'Unknown',
+              },
+            };
+            if (src.text) msgData.text = src.text;
+            if (src.image) msgData.image = src.image;
+            if (src.type === 'video' && src.video) { msgData.type = 'video'; msgData.video = src.video; }
+            if (src.type === 'voice' && src.audioUrl) {
+              msgData.type = 'voice';
+              msgData.audioUrl = src.audioUrl;
+              if (src.duration !== undefined) msgData.duration = src.duration;
+              if (src.fileSize !== undefined) msgData.fileSize = src.fileSize;
+              if (src.mimeType) msgData.mimeType = src.mimeType;
+            }
+            // Per-message try/catch: one rejected message doesn't abort the
+            // remaining sources for this target.
+            try {
+              await addDoc(collection(db, target.collection, target.roomId, 'messages'), msgData);
+              deliveredToTarget++;
+              lastPreview =
+                src.type === 'video' ? '📹 Video'
+                : src.type === 'voice' ? '🎤 Voice message'
+                : src.image ? '📷 Image'
+                : (src.text || '');
+            } catch (err) {
+              console.error('Failed to forward a message to target:', target, err);
+            }
+          }
+
+          // A target counts as delivered if at least one message landed. The
+          // metadata write is best-effort — its failure must NOT flip a
+          // delivered target to "failed".
+          if (deliveredToTarget > 0) {
+            try {
+              const meta: any = {
+                lastMessage: lastPreview,
+                lastSenderId: user.uid,
+                updatedAt: serverTimestamp(),
+              };
+              if (target.collection === 'clubs') {
+                meta.lastSenderName = userData?.name || 'Unknown';
+                const others = ((roomData.memberIds as string[]) || []).filter((id) => id !== user.uid);
+                if (others.length > 0) meta.unreadBy = arrayUnion(...others);
+              } else {
+                const others = ((roomData.participants as string[]) || []).filter((id) => id !== user.uid);
+                if (others.length > 0) meta.unreadBy = arrayUnion(...others);
+              }
+              await updateDoc(roomRef, meta);
+            } catch (err) {
+              console.error('Forward: metadata update failed (messages still delivered):', target, err);
+            }
+            ok++;
+          } else {
+            failed++;
+          }
+        } catch (err) {
+          console.error('Failed to forward to target:', target, err);
+          failed++;
+        }
+      }
+      return { ok, failed };
+    },
+    [user, userData]
+  );
+
   // Merge Firestore-synced real messages with pending/failed optimistic ones.
   // useMemo prevents the O(n log n) sort from running on every render (e.g. on each keystroke).
   const mergedMessages = useMemo(() => {
@@ -465,7 +619,10 @@ export function useChatEngine({
     removeFailedMessage,
     deleteForMe,
     deleteForEveryone,
+    deleteForEveryoneBulk,
     sendVoiceMessage,
+    sendVideoMessage,
+    forwardMessage,
     markAsRead,
   };
 }

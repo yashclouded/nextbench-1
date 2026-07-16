@@ -2934,3 +2934,6 @@ export const maintainMarketplaceLifecycle = onSchedule(
     console.log("maintainMarketplaceLifecycle", { writes, renewalCandidates: renewals.size, expiryCandidates: expirations.size, reservationCandidates: staleReservations.size });
   },
 );
+
+// ── Chat link previews (Phase 4) ─────────────────────────────────────────────
+export { getLinkPreview } from "./linkPreview";
