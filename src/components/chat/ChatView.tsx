@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Pin } from 'lucide-react';
 
@@ -168,6 +168,15 @@ export default function ChatView({
 
   // Active typers: other users whose typing timestamp is within the stale
   // window. A Firestore Timestamp has .toMillis(); tolerate a raw number too.
+  // A 1s tick while any typing entry exists guarantees stale entries age out
+  // of the view even if the peer closed their tab without a clear-write.
+  const [, forceTick] = useState(0);
+  const hasTypingEntries = Object.keys(typingUsers || {}).length > 0;
+  useEffect(() => {
+    if (!hasTypingEntries) return;
+    const t = setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [hasTypingEntries]);
   const now = Date.now();
   const typingUserIds = Object.entries(typingUsers || {})
     .filter(([uid, ts]) => {

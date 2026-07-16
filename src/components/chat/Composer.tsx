@@ -171,6 +171,7 @@ export function Composer({
     setNewMessage('');
     setShowQuickReplies(false);
     setReplyingTo(null);
+    if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
     setTyping(false); // sending stops the typing indicator
 
     // Send mention notifications for @tagged users in the message

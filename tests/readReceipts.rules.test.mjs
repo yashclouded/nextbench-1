@@ -81,6 +81,28 @@ test('readBy write that also edits text is rejected', async () => {
   );
 });
 
+test('a member cannot clear or shrink readBy', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chatRooms', 'r1'), { participants: ['alice', 'bob'], updatedAt: SEED_TS });
+    await setDoc(doc(db, 'chatRooms', 'r1', 'messages', 'm1'), { senderId: 'alice', text: 'hi', readBy: ['carol'], createdAt: SEED_TS });
+  });
+  // Wiping the array (dropping carol) must fail — not a superset of the old.
+  await assertFails(
+    updateDoc(doc(verified('bob').firestore(), 'chatRooms', 'r1', 'messages', 'm1'), { readBy: [] })
+  );
+});
+
+test('a member cannot add someone else to readBy without themselves', async () => {
+  await seed(async (db) => {
+    await setDoc(doc(db, 'chatRooms', 'r1'), { participants: ['alice', 'bob', 'carol'], updatedAt: SEED_TS });
+    await setDoc(doc(db, 'chatRooms', 'r1', 'messages', 'm1'), { senderId: 'alice', text: 'hi', createdAt: SEED_TS });
+  });
+  // bob forging that carol read it (bob not in the new array) must fail.
+  await assertFails(
+    updateDoc(doc(verified('bob').firestore(), 'chatRooms', 'r1', 'messages', 'm1'), { readBy: ['carol'] })
+  );
+});
+
 // ── readBy on club messages ──────────────────────────────
 test('club member can add self to a message readBy', async () => {
   await seed(async (db) => {

@@ -404,8 +404,12 @@ service cloud.firestore {
              (canAccessRoom(get(/databases/$(database)/documents/chatRooms/$(roomId)).data)
               && incoming().diff(existing()).affectedKeys().hasOnly(['reactions']))
               ||
-             // Read receipt: any participant may add ONLY to readBy (Phase 5).
-             incoming().diff(existing()).affectedKeys().hasOnly(['readBy'])
+             // Read receipt: any participant may add ONLY themselves to readBy —
+             // superset of the old array + self (can't clear or forge others).
+             (incoming().diff(existing()).affectedKeys().hasOnly(['readBy'])
+              && incoming().readBy is list
+              && incoming().readBy.hasAll(existing().get('readBy', []))
+              && request.auth.uid in incoming().readBy)
           );
 
         allow delete: if isVerified()
@@ -515,8 +519,12 @@ service cloud.firestore {
             (incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image', 'video', 'audioUrl'])
               && request.auth.uid == existing().senderId)
             ||
-            // Read receipt: any member may add ONLY to readBy (Phase 5).
-            incoming().diff(existing()).affectedKeys().hasOnly(['readBy'])
+            // Read receipt: any member may add ONLY themselves to readBy —
+            // superset of the old array + self (can't clear or forge others).
+            (incoming().diff(existing()).affectedKeys().hasOnly(['readBy'])
+              && incoming().readBy is list
+              && incoming().readBy.hasAll(existing().get('readBy', []))
+              && request.auth.uid in incoming().readBy)
           );
       }
     }
