@@ -41,8 +41,9 @@ export interface Message {
   senderAvatar?: string | null;
   text?: string;
   image?: any;
-  type?: 'text' | 'voice';
+  type?: 'text' | 'voice' | 'video';
   audioUrl?: string;
+  video?: { url: string; poster?: string; w?: number; h?: number; duration?: number };
   duration?: number;
   fileSize?: number;
   mimeType?: string;
@@ -54,6 +55,7 @@ export interface Message {
   reactions?: Record<string, string[]>;
   clientMessageId?: string;
   status?: 'pending' | 'failed' | 'sent';
+  forwardedFrom?: { senderId: string; senderName?: string };
 }
 
 export interface ChatEngineOptions {

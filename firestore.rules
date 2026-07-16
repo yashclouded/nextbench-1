@@ -335,14 +335,27 @@ service cloud.firestore {
             && (!img.keys().hasAny(['h']) || img.h is number));
     }
 
+    function isValidMessageVideo(vid) {
+      return vid is map
+        && vid.keys().hasAll(['url'])
+        && vid.url is string && vid.url.size() <= 2000
+        && (!vid.keys().hasAny(['poster']) || (vid.poster is string && vid.poster.size() <= 2000))
+        && (!vid.keys().hasAny(['w']) || vid.w is number)
+        && (!vid.keys().hasAny(['h']) || vid.h is number)
+        && (!vid.keys().hasAny(['duration']) || vid.duration is number);
+    }
+
     function isValidMessage(data) {
       return data.keys().hasAll(['senderId', 'createdAt'])
-        && (data.keys().hasAny(['text', 'image', 'sharedPost', 'postId', 'audioUrl']))
+        && (data.keys().hasAny(['text', 'image', 'sharedPost', 'postId', 'audioUrl', 'video']))
         && (!data.keys().hasAny(['text']) || (data.text is string && data.text.size() <= 2000))
         && (!data.keys().hasAny(['image']) || isValidMessageImage(data.image))
         && (!data.keys().hasAny(['sharedPost']) || (data.sharedPost is map))
         && (!data.keys().hasAny(['postId']) || (data.postId is string))
-        && (!data.keys().hasAny(['audioUrl']) || (data.audioUrl is string && data.audioUrl.size() <= 2000));
+        && (!data.keys().hasAny(['audioUrl']) || (data.audioUrl is string && data.audioUrl.size() <= 2000))
+        && (!data.keys().hasAny(['video']) || isValidMessageVideo(data.video))
+        && (!data.keys().hasAny(['type']) || (data.type in ['text', 'voice', 'video']))
+        && (!data.keys().hasAny(['forwardedFrom']) || (data.forwardedFrom is map && data.forwardedFrom.senderId is string));
     }
 
     match /chatRooms/{roomId} {

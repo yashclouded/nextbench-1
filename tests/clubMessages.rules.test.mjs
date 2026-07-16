@@ -204,3 +204,80 @@ test('message with an image object missing url is rejected', async () => {
     })
   );
 });
+
+// ── video messages (Phase 4) ─────────────────────────────
+test('club video message with a {url,poster,w,h,duration} video is accepted', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertSucceeds(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      type: 'video',
+      video: { url: 'https://example.com/v.mp4', poster: 'https://example.com/p.jpg', w: 720, h: 1280, duration: 12 },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('DM video message is accepted (regression)', async () => {
+  await seed((db) =>
+    setDoc(doc(db, 'chatRooms', 'r1'), { participants: ['alice', 'bob'], updatedAt: serverTimestamp() })
+  );
+  await assertSucceeds(
+    addDoc(collection(verified('alice').firestore(), 'chatRooms', 'r1', 'messages'), {
+      senderId: 'alice',
+      type: 'video',
+      video: { url: 'https://example.com/v.mp4' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('video message missing video.url is rejected', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertFails(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      type: 'video',
+      video: { poster: 'https://example.com/p.jpg' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('message with a bad type is rejected', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertFails(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      text: 'hi',
+      type: 'malware',
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+// ── forwarded messages (Phase 4) ─────────────────────────
+test('forwarded message with forwardedFrom map is accepted', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertSucceeds(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      text: 'forwarded text',
+      forwardedFrom: { senderId: 'carol', senderName: 'Carol' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('forwardedFrom missing senderId is rejected', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertFails(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      text: 'forwarded text',
+      forwardedFrom: { senderName: 'Carol' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
