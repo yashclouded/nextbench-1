@@ -9,6 +9,23 @@ import VoiceMessageBubble from '../ui/VoiceMessageBubble';
 import MessageReactions from '../ui/MessageReactions';
 import LinkifiedText from '../ui/LinkifiedText';
 import { Message } from '../../hooks/useChatEngine';
+import { firstUrl, getLinkPreview, LinkPreview } from '../../lib/linkPreview';
+import { LinkPreviewCard } from './LinkPreviewCard';
+
+// Lazily resolve an OpenGraph preview for the first URL in a message's text.
+// Keyed on the message id so a virtualized row remounting doesn't refetch
+// (the lib-level cache also dedupes across the session).
+function useLinkPreview(text?: string): LinkPreview | null {
+  const url = firstUrl(text);
+  const [preview, setPreview] = useState<LinkPreview | null>(null);
+  useEffect(() => {
+    if (!url) { setPreview(null); return; }
+    let alive = true;
+    getLinkPreview(url).then((p) => { if (alive) setPreview(p); });
+    return () => { alive = false; };
+  }, [url]);
+  return preview;
+}
 
 function ClubSenderAvatar({ msg }: { msg: Message }) {
   const navigate = useNavigate();
@@ -123,6 +140,8 @@ export const MessageBubble = React.memo(function MessageBubble({
   const isDeleted = msg.isDeletedForEveryone;
   const isOptimistic = msg.status === 'pending';
   const isFailed = msg.status === 'failed';
+  // Resolve a link preview only for delivered, non-deleted text messages.
+  const linkPreview = useLinkPreview(!isDeleted && !isOptimistic && !isFailed ? msg.text : undefined);
 
   return (
     <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} pb-2 relative group`}>
@@ -242,6 +261,9 @@ export const MessageBubble = React.memo(function MessageBubble({
                   <LinkifiedText text={msg.text} />
                 </div>
               )}
+
+              {/* Link preview card (first URL in the text) */}
+              {linkPreview && <LinkPreviewCard preview={linkPreview} isMe={isMe} />}
             </>
           )}
 
