@@ -439,6 +439,32 @@ export function useChatEngine({
     [user, roomId, collectionPath, getRoomMetadataUpdate]
   );
 
+  // Send video message
+  const sendVideoMessage = useCallback(
+    async (video: { url: string; poster?: string; w?: number; h?: number; duration?: number }) => {
+      if (!user || !roomId || !video?.url) return;
+      try {
+        const messageData: any = {
+          senderId: user.uid,
+          senderName: userData?.name || 'Unknown',
+          senderAvatar: userData?.profilePicture || null,
+          type: 'video' as const,
+          video,
+          createdAt: serverTimestamp(),
+        };
+
+        await addDoc(collection(db, collectionPath, roomId, 'messages'), messageData);
+
+        const updateData = await getRoomMetadataUpdate('📹 Video');
+        await updateDoc(doc(db, collectionPath, roomId), updateData);
+      } catch (err) {
+        console.error('Failed to send video message:', err);
+        throw err;
+      }
+    },
+    [user, roomId, collectionPath, userData, getRoomMetadataUpdate]
+  );
+
   // Merge Firestore-synced real messages with pending/failed optimistic ones.
   // useMemo prevents the O(n log n) sort from running on every render (e.g. on each keystroke).
   const mergedMessages = useMemo(() => {
@@ -468,6 +494,7 @@ export function useChatEngine({
     deleteForMe,
     deleteForEveryone,
     sendVoiceMessage,
+    sendVideoMessage,
     markAsRead,
   };
 }

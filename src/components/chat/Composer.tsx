@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Camera, Zap, Mic, CornerDownRight } from 'lucide-react';
+import { X, Send, Camera, Zap, Mic, CornerDownRight, Film } from 'lucide-react';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { stopAllVoicePlayback } from '../../hooks/useVoicePlayer';
 import { uploadChatImageDetailed } from '../../lib/storage';
+import { uploadChatVideo, uploadChatVideoPoster } from '../../lib/storage';
+import { prepareChatVideo, type PreparedChatVideo } from '../../lib/chatVideo';
 import { uploadVoiceMessage } from '../../lib/voiceMessage';
 import { notifyMentionedUsers } from '../../lib/mentions';
 import { useToast } from '../../lib/ToastContext';
@@ -32,6 +34,7 @@ interface ComposerProps {
   setReplyingTo: React.Dispatch<React.SetStateAction<Message | null>>;
   sendMessage: (text?: string, image?: any, replyTo?: Message | null) => void;
   sendVoiceMessage: (url: string, durationSec: number, size: number, mime: string) => Promise<void> | void;
+  sendVideoMessage: (video: { url: string; poster?: string; w?: number; h?: number; duration?: number }) => Promise<void> | void;
 }
 
 export function Composer({
@@ -46,6 +49,7 @@ export function Composer({
   setReplyingTo,
   sendMessage,
   sendVoiceMessage,
+  sendVideoMessage,
 }: ComposerProps) {
   const { showToast } = useToast();
 
@@ -55,12 +59,19 @@ export function Composer({
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
 
+  // Pending video (poster preview shown before upload)
+  const [pendingVideo, setPendingVideo] = useState<PreparedChatVideo | null>(null);
+  const [pendingVideoPoster, setPendingVideoPoster] = useState<string | null>(null);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+
   // Voice recording state
   const [voiceUploading, setVoiceUploading] = useState(false);
   const [voiceUploadProgress, setVoiceUploadProgress] = useState(0);
   const [voiceUploadError, setVoiceUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   const {
@@ -198,6 +209,54 @@ export function Composer({
     setPendingImagePreview(null);
   };
 
+  // Video: validate + capture poster on pick; upload + send on confirm.
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (videoInputRef.current) videoInputRef.current.value = '';
+    if (!file) return;
+    try {
+      const prepared = await prepareChatVideo(file);
+      if (pendingVideoPoster) URL.revokeObjectURL(pendingVideoPoster);
+      setPendingVideo(prepared);
+      setPendingVideoPoster(URL.createObjectURL(prepared.posterBlob));
+    } catch (err: any) {
+      showToast(err?.message || 'Could not process video', 'error');
+    }
+  };
+
+  const clearPendingVideo = () => {
+    if (pendingVideoPoster) URL.revokeObjectURL(pendingVideoPoster);
+    setPendingVideo(null);
+    setPendingVideoPoster(null);
+  };
+
+  const handleSendVideo = async () => {
+    if (!pendingVideo || videoUploading || isBlocked || !isMember || !canPost) return;
+    setVideoUploading(true);
+    setVideoUploadProgress(0);
+    try {
+      const [videoUrl, posterUrl] = await Promise.all([
+        uploadChatVideo(pendingVideo.file, roomId, (pct) => setVideoUploadProgress(pct)),
+        uploadChatVideoPoster(pendingVideo.posterBlob, roomId),
+      ]);
+      await sendVideoMessage({
+        url: videoUrl,
+        poster: posterUrl,
+        w: pendingVideo.width,
+        h: pendingVideo.height,
+        duration: Math.round(pendingVideo.durationMs / 1000),
+      });
+      clearPendingVideo();
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to send video', 'error');
+    } finally {
+      setVideoUploading(false);
+    }
+  };
+
+  // Revoke the poster object URL on unmount.
+  useEffect(() => () => { if (pendingVideoPoster) URL.revokeObjectURL(pendingVideoPoster); }, [pendingVideoPoster]);
+
   return (
     <div className="p-4 border-t border-luxury-ink/5 bg-surface-base shrink-0 z-30">
       {/* Reply Preview Bar */}
@@ -257,6 +316,52 @@ export function Composer({
         </div>
       )}
 
+      {/* Pending Video Preview */}
+      {pendingVideoPoster && (
+        <div className="mb-3 flex items-center gap-3 bg-surface-card border border-luxury-ink/10 rounded-2xl px-3 py-2 shadow-xs">
+          <div className="relative shrink-0">
+            <img src={pendingVideoPoster} alt="Video preview" className="h-16 w-16 object-cover rounded-xl border border-luxury-ink/10" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="bg-black/50 rounded-full p-1"><Film size={14} className="text-white" /></div>
+            </div>
+            {!videoUploading && (
+              <button
+                type="button"
+                onClick={clearPendingVideo}
+                className="absolute -top-1.5 -right-1.5 bg-luxury-ink text-white rounded-full p-0.5 hover:bg-red-500 transition-colors"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            {videoUploading ? (
+              <>
+                <p className="text-xs font-bold text-luxury-ink/50 mb-1">Sending video... {videoUploadProgress}%</p>
+                <div className="w-full bg-surface-soft h-1 rounded-full overflow-hidden">
+                  <div className="bg-brand-teal h-full transition-all duration-100" style={{ width: `${videoUploadProgress}%` }} />
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-luxury-ink/40 font-medium">
+                Video ready · {Math.round((pendingVideo?.durationMs || 0) / 1000)}s
+              </p>
+            )}
+          </div>
+          {!videoUploading && (
+            <button
+              type="button"
+              onClick={handleSendVideo}
+              disabled={isBlocked || !isMember || !canPost}
+              className="p-2.5 bg-brand-teal text-white rounded-full hover:opacity-90 transition-all shadow-xs disabled:opacity-30 shrink-0 active:scale-95"
+              title="Send video"
+            >
+              <Send size={16} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Action Panel Composers */}
       <AnimatePresence mode="wait">
         {isRecording ? (
@@ -299,6 +404,7 @@ export function Composer({
         ) : (
           <form ref={formRef} onSubmit={handleSendMessage} className="flex items-center gap-2">
             <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+            <input type="file" ref={videoInputRef} onChange={handleVideoUpload} accept="video/*" className="hidden" />
 
             <button
               type="button"
@@ -312,6 +418,16 @@ export function Composer({
               ) : (
                 <Camera size={18} />
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={isBlocked || !isMember || !canPost || !!pendingVideo}
+              className="p-3 bg-surface-card border border-luxury-ink/10 text-brand-teal hover:bg-brand-teal/10 rounded-full transition-all shrink-0 shadow-xs active:scale-95 disabled:opacity-50"
+              title="Send video"
+            >
+              <Film size={18} />
             </button>
 
             <div className="flex-1 flex items-center gap-1.5 bg-surface-card rounded-full border border-luxury-ink/10 shadow-xs px-3.5 relative">

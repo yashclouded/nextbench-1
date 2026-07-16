@@ -6,6 +6,7 @@ import { db } from '../../lib/firebase';
 import Avatar from '../ui/Avatar';
 import SmartImage from '../ui/SmartImage';
 import VoiceMessageBubble from '../ui/VoiceMessageBubble';
+import VideoPlayer from '../ui/VideoPlayer';
 import MessageReactions from '../ui/MessageReactions';
 import LinkifiedText from '../ui/LinkifiedText';
 import { Message } from '../../hooks/useChatEngine';
@@ -253,6 +254,16 @@ export const MessageBubble = React.memo(function MessageBubble({
               {/* Voice recording bubble */}
               {msg.type === 'voice' && msg.audioUrl && (
                 <VoiceMessageBubble audioUrl={msg.audioUrl} duration={msg.duration} isSent={true} />
+              )}
+
+              {/* Video attachment */}
+              {msg.type === 'video' && msg.video?.url && (
+                <div
+                  className={`relative overflow-hidden rounded-lg -mx-4 ${((collectionPath === 'clubs' && !isMe) || msg.replyToText) ? 'mt-2' : '-mt-3'} w-[280px] max-w-full ${msg.text ? 'mb-2' : '-mb-3'}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <VideoPlayer src={msg.video.url} poster={msg.video.poster} className="w-full" />
+                </div>
               )}
 
               {/* Message text */}

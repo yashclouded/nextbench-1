@@ -320,3 +320,54 @@ export async function uploadPostVideo(file: File, onProgress?: UploadProgressCal
     );
   });
 }
+
+/**
+ * Uploads a chat video to Firebase Storage under nextbench/chat_videos/{roomId}/.
+ * Mirrors uploadPostVideo (resumable + progress). Returns the download URL.
+ */
+export async function uploadChatVideo(file: File | Blob, roomId: string, onProgress?: UploadProgressCallback): Promise<string> {
+  if (!storage) {
+    throw new Error('Firebase Storage is not initialized. Check your VITE_FIREBASE_STORAGE_BUCKET env variable.');
+  }
+  const randomId = Math.random().toString(36).substring(2, 15);
+  const fileExt = (file instanceof File ? file.name.split('.').pop() : '') || 'mp4';
+  const fileName = `nextbench/chat_videos/${roomId}/${randomId}_${Date.now()}.${fileExt}`;
+  const storageRef = ref(storage, fileName);
+
+  return new Promise<string>((resolve, reject) => {
+    const task = uploadBytesResumable(storageRef, file);
+    task.on(
+      'state_changed',
+      (snapshot) => {
+        if (onProgress && snapshot.totalBytes > 0) {
+          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          onProgress(pct, snapshot.bytesTransferred, snapshot.totalBytes);
+        }
+      },
+      (error) => reject(error),
+      async () => {
+        try {
+          resolve(await getDownloadURL(task.snapshot.ref));
+        } catch (e) {
+          reject(e);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Uploads a chat video's poster frame (JPEG blob) to Firebase Storage under
+ * nextbench/chat_video_posters/{roomId}/. Returns the download URL.
+ */
+export async function uploadChatVideoPoster(blob: Blob, roomId: string): Promise<string> {
+  if (!storage) {
+    throw new Error('Firebase Storage is not initialized. Check your VITE_FIREBASE_STORAGE_BUCKET env variable.');
+  }
+  const randomId = Math.random().toString(36).substring(2, 15);
+  const fileName = `nextbench/chat_video_posters/${roomId}/${randomId}_${Date.now()}.jpg`;
+  const storageRef = ref(storage, fileName);
+  const task = uploadBytesResumable(storageRef, blob);
+  await task;
+  return getDownloadURL(task.snapshot.ref);
+}

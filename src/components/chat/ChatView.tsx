@@ -89,6 +89,7 @@ export default function ChatView({
     deleteForMe,
     deleteForEveryone,
     sendVoiceMessage,
+    sendVideoMessage,
     markAsRead,
   } = useChatEngine({
     collectionPath,
@@ -210,6 +211,7 @@ export default function ChatView({
         setReplyingTo={setReplyingTo}
         sendMessage={sendMessage}
         sendVoiceMessage={sendVoiceMessage}
+        sendVideoMessage={sendVideoMessage}
       />
 
       <MessageContextMenu
