@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { MessageBubble } from './MessageBubble';
@@ -37,6 +37,7 @@ interface MessageListProps {
   roomId: string;
   recipientId?: string;
   onPin?: (msgId: string, text?: string) => void;
+  onJumpToMessage?: (msgId: string) => void;
   showLightbox: (urls: string[]) => void;
   resendMessage: (tempId: string) => void;
   removeFailedMessage: (tempId: string) => void;
@@ -55,7 +56,13 @@ interface MessageListProps {
   setDeleteEveryoneConfirmMsgId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
-export function MessageList({
+export interface MessageListHandle {
+  /** Scroll the message with the given id into view and flash it. Returns
+   *  false if the message isn't currently loaded (caller can hint the user). */
+  jumpToMessage: (msgId: string) => boolean;
+}
+
+export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList({
   messages,
   loading,
   hasMore,
@@ -70,6 +77,7 @@ export function MessageList({
   roomId,
   recipientId,
   onPin,
+  onJumpToMessage,
   showLightbox,
   resendMessage,
   removeFailedMessage,
@@ -85,10 +93,14 @@ export function MessageList({
   setReplyingTo,
   setDeleteConfirmMsgId,
   setDeleteEveryoneConfirmMsgId,
-}: MessageListProps) {
+}: MessageListProps, ref) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [newMessageCount, setNewMessageCount] = useState(0);
+  // Transiently highlighted message id (set when jumped to from the pin banner
+  // or a reply preview). Cleared after the flash animation.
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Throttle markAsRead to prevent write→read→render feedback loops in club chats
   const lastMarkAsReadRef = useRef<number>(0);
   // Track the last-seen message ID to distinguish new messages from loaded-older ones
@@ -151,6 +163,31 @@ export function MessageList({
     getItemKey: (index) => renderItems[index].key,
   });
 
+  // Expose an imperative jump-to-message: scroll the target row into view and
+  // flash it briefly. Returns false when the message isn't loaded so the caller
+  // can surface a hint (e.g. "scroll up to load older messages").
+  const flashMessage = useCallback((msgId: string) => {
+    setHighlightedMsgId(msgId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightedMsgId(null), 2000);
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    jumpToMessage: (msgId: string) => {
+      const index = renderItems.findIndex((it) => it.kind === 'message' && it.msg.id === msgId);
+      if (index === -1) return false;
+      rowVirtualizer.scrollToIndex(index, { align: 'center' });
+      // Re-scroll after dynamic measurement settles the real row heights, then flash.
+      setTimeout(() => {
+        rowVirtualizer.scrollToIndex(index, { align: 'center' });
+        flashMessage(msgId);
+      }, 60);
+      return true;
+    },
+  }), [renderItems, rowVirtualizer, flashMessage]);
+
+  useEffect(() => () => { if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current); }, []);
+
   // Mark chat as read — throttled to at most once per 2 s to prevent write→read→render loops
   useEffect(() => {
     if (!isNearBottom || messages.length === 0) return;
@@ -160,13 +197,15 @@ export function MessageList({
     markAsRead();
   }, [messages.length, isNearBottom, markAsRead]);
 
-  // Read receipts — batched, throttled to once per 2 s. Marks the messages
-  // currently visible in the virtualizer (regardless of near-bottom, so reading
-  // older history still sends receipts) as read by the current user.
+  // Read receipts — batched. Marks the messages currently visible in the
+  // virtualizer (regardless of near-bottom, so reading older history still
+  // sends receipts) as read by the current user. Scroll-driven calls are
+  // throttled to once per 2s; `force` bypasses the throttle for a freshly
+  // arrived incoming message so the sender sees "read" without a 2s lag.
   const lastReceiptRef = useRef<number>(0);
-  const markReceiptsForVisible = useCallback(() => {
+  const markReceiptsForVisible = useCallback((force = false) => {
     const now = Date.now();
-    if (now - lastReceiptRef.current < 2000) return;
+    if (!force && now - lastReceiptRef.current < 2000) return;
     const visibleIds = rowVirtualizer
       .getVirtualItems()
       .map((vr) => renderItems[vr.index])
@@ -175,7 +214,24 @@ export function MessageList({
     if (visibleIds.length === 0) return;
     lastReceiptRef.current = now;
     markVisibleRead(visibleIds);
-  }, [markVisibleRead, renderItems]);
+  }, [markVisibleRead, renderItems, rowVirtualizer]);
+
+  // Fast path: when a new incoming (not-mine) message lands while the user is
+  // viewing the bottom of the thread, send its receipt immediately rather than
+  // waiting on the 2s throttle. markVisibleRead is idempotent + self-filtering,
+  // so the redundant own/already-read ids are cheap no-ops.
+  const lastReceiptMsgIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const latest = messages[messages.length - 1];
+    if (!latest) return;
+    if (latest.id === lastReceiptMsgIdRef.current) return;
+    lastReceiptMsgIdRef.current = latest.id;
+    const isIncoming = latest.senderId !== user?.uid;
+    if (isIncoming && isNearBottom) {
+      // Defer one frame so the virtualizer has the new row in its visible set.
+      requestAnimationFrame(() => markReceiptsForVisible(true));
+    }
+  }, [messages, user?.uid, isNearBottom, markReceiptsForVisible]);
 
   // Fire on new messages arriving (and on mount when messages first load).
   useEffect(() => {
@@ -296,6 +352,8 @@ export function MessageList({
                     user={user}
                     isSelectMode={isSelectMode}
                     isSelected={selectedMessages.has(item.msg.id)}
+                    isHighlighted={highlightedMsgId === item.msg.id}
+                    onJumpToMessage={onJumpToMessage}
                     toggleMessageSelection={toggleMessageSelection}
                     activeReactionMsgId={activeReactionMsgId}
                     setActiveReactionMsgId={setActiveReactionMsgId}
@@ -337,4 +395,4 @@ export function MessageList({
       )}
     </>
   );
-}
+});

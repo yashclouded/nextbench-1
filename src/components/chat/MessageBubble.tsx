@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { X, SmilePlus, CheckCircle2, Circle, RefreshCw, Trash2, CornerUpRight, Check, CheckCheck, FileText, Paperclip } from 'lucide-react';
+import { X, SmilePlus, CheckCircle2, Circle, RefreshCw, Trash2, CornerUpRight, Check, CheckCheck, FileText, Paperclip, Film, Mic, Image as ImageIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -97,6 +97,8 @@ interface MessageBubbleProps {
   user: any;
   isSelectMode: boolean;
   isSelected: boolean;
+  isHighlighted?: boolean;
+  onJumpToMessage?: (msgId: string) => void;
   toggleMessageSelection: (msgId: string) => void;
   activeReactionMsgId: string | null;
   setActiveReactionMsgId: React.Dispatch<React.SetStateAction<string | null>>;
@@ -123,6 +125,8 @@ export const MessageBubble = React.memo(function MessageBubble({
   user,
   isSelectMode,
   isSelected,
+  isHighlighted,
+  onJumpToMessage,
   toggleMessageSelection,
   activeReactionMsgId,
   setActiveReactionMsgId,
@@ -219,13 +223,13 @@ export const MessageBubble = React.memo(function MessageBubble({
             setSelectedMessageId(selectedMessageId === msg.id ? null : msg.id);
             setActiveReactionMsgId(null);
           }}
-          className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer relative shadow-xs border ${
+          className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm font-medium cursor-pointer relative shadow-xs border transition-shadow duration-300 ${
             isDeleted
               ? 'bg-surface-soft border-luxury-ink/5 text-luxury-ink/30 italic'
               : isMe
               ? 'bg-brand-teal text-white border-brand-teal/20 rounded-tr-xs'
               : 'bg-surface-card text-luxury-ink border-luxury-ink/5 rounded-tl-xs'
-          } ${isOptimistic ? 'opacity-50' : ''} ${isFailed ? 'border-red-400 bg-red-50/10' : ''}`}
+          } ${isOptimistic ? 'opacity-50' : ''} ${isFailed ? 'border-red-400 bg-red-50/10' : ''} ${isHighlighted ? 'ring-2 ring-brand-teal ring-offset-2 ring-offset-surface-base' : ''}`}
         >
           {/* Sender Name (Group Chats Only) */}
           {collectionPath === 'clubs' && !isMe && !isDeleted && (
@@ -241,11 +245,48 @@ export const MessageBubble = React.memo(function MessageBubble({
             </div>
           )}
 
-          {/* Reply Preview */}
-          {!isDeleted && msg.replyToText && (
-            <div className={`text-xs mb-2 p-2 rounded-lg border-l-2 ${isMe ? 'bg-black/10 border-white/40' : 'bg-surface-soft border-brand-teal'}`}>
-              <p className="opacity-70 line-clamp-1">{msg.replyToText}</p>
-            </div>
+          {/* Reply Preview — WhatsApp style: colored bar, sender name, a type
+              icon + thumbnail for media, and a short label. Tapping it jumps to
+              the original message. */}
+          {!isDeleted && msg.replyToId && (msg.replyToText || msg.replyToType) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (msg.replyToId) onJumpToMessage?.(msg.replyToId);
+              }}
+              className={`w-full text-left flex items-stretch gap-2 mb-2 rounded-lg overflow-hidden border-l-[3px] transition-colors ${
+                isMe ? 'bg-black/10 border-white/50 hover:bg-black/15' : 'bg-surface-soft border-brand-teal hover:bg-brand-teal/5'
+              }`}
+            >
+              <div className="flex-1 min-w-0 py-1.5 pl-2 pr-1">
+                <div className={`text-[11px] font-bold truncate ${isMe ? 'text-white/90' : 'text-brand-teal'}`}>
+                  {msg.replyToSenderId && msg.replyToSenderId === user?.uid ? 'You' : (msg.replyToSenderName || 'user')}
+                </div>
+                <div className={`text-xs truncate flex items-center gap-1 ${isMe ? 'text-white/70' : 'text-luxury-ink/55'}`}>
+                  {msg.replyToType === 'image' && <ImageIcon size={12} className="shrink-0" />}
+                  {msg.replyToType === 'video' && <Film size={12} className="shrink-0" />}
+                  {msg.replyToType === 'voice' && <Mic size={12} className="shrink-0" />}
+                  {msg.replyToType === 'file' && <Paperclip size={12} className="shrink-0" />}
+                  <span className="truncate">
+                    {msg.replyToType === 'image' ? (msg.replyToText && msg.replyToText !== 'Photo' ? msg.replyToText : 'Photo')
+                      : msg.replyToType === 'video' ? (msg.replyToText && msg.replyToText !== 'Video' ? msg.replyToText : 'Video')
+                      : msg.replyToType === 'voice' ? 'Voice message'
+                      : msg.replyToText || 'Message'}
+                  </span>
+                </div>
+              </div>
+              {msg.replyToImage && (
+                <div className="w-11 shrink-0 self-stretch bg-black/10 relative">
+                  <img src={msg.replyToImage} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  {msg.replyToType === 'video' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <Film size={12} className="text-white" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </button>
           )}
 
           {isDeleted ? (
@@ -320,7 +361,7 @@ export const MessageBubble = React.memo(function MessageBubble({
               {/* Message text */}
               {msg.text && (
                 <div className="break-words whitespace-pre-wrap leading-relaxed">
-                  <LinkifiedText text={msg.text} />
+                  <LinkifiedText text={msg.text} isMe={isMe} />
                 </div>
               )}
 

@@ -31,6 +31,7 @@ interface ComposerProps {
   canPost: boolean;
   user: any;
   userData: any;
+  clubMembers?: string[];
   replyingTo: Message | null;
   setReplyingTo: React.Dispatch<React.SetStateAction<Message | null>>;
   sendMessage: (text?: string, image?: any, replyTo?: Message | null) => void;
@@ -48,6 +49,7 @@ export function Composer({
   canPost,
   user,
   userData,
+  clubMembers,
   replyingTo,
   setReplyingTo,
   sendMessage,
@@ -60,6 +62,10 @@ export function Composer({
 
   const [newMessage, setNewMessage] = useState('');
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  // Track club members explicitly tagged via the autocomplete this compose
+  // session (id → inserted @handle), so we can notify them by id even when they
+  // have no username — but only if their handle is still present at send time.
+  const taggedUsersRef = useRef<Map<string, string>>(new Map());
   const [isUploading, setIsUploading] = useState(false);
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
@@ -186,13 +192,22 @@ export function Composer({
     if (messageTextForMentions && user) {
       const chatType = collectionPath === 'clubs' ? 'club_chat' : 'dm';
       const link = collectionPath === 'clubs' ? `/club/${roomId}` : `/chat/${roomId}`;
+      // Include club members picked from the autocomplete (notify by id, which
+      // works even for members without a username). Only those whose @handle is
+      // still present in the final text would be caught by the username parser;
+      // the explicit id set covers the rest.
+      const extraIds = Array.from(taggedUsersRef.current.entries())
+        .filter(([, handle]) => messageTextForMentions.toLowerCase().includes(`@${handle.toLowerCase()}`))
+        .map(([id]) => id);
       notifyMentionedUsers(
         messageTextForMentions,
         user.uid,
         userData?.name || 'Someone',
-        { type: chatType, link }
+        { type: chatType, link },
+        extraIds
       ).catch(err => console.warn('Failed to notify mentioned users in chat:', err));
     }
+    taggedUsersRef.current = new Map();
   };
 
   // Handle Enter key from MentionInput to submit form programmatically
@@ -401,22 +416,41 @@ export function Composer({
       )}
       {/* Reply Preview Bar */}
       {replyingTo && (
-        <div className="mb-3 bg-surface-card border border-luxury-ink/5 rounded-2xl px-4 py-3 flex items-start justify-between shadow-xs relative">
+        <div className="mb-3 bg-surface-card border border-luxury-ink/5 rounded-2xl px-4 py-3 flex items-center justify-between shadow-xs relative gap-3">
           <div className="flex-1 overflow-hidden">
             <div className="text-[10px] font-bold text-brand-teal uppercase tracking-wider mb-1 flex items-center gap-1.5">
               <CornerDownRight size={12} />
               Replying to {replyingTo.senderId === user?.uid ? 'yourself' : replyingTo.senderName || 'user'}
             </div>
-            <p className="text-xs text-luxury-ink/60 truncate leading-relaxed">
-              {replyingTo.text || (
-                replyingTo.type === 'video' ? '📹 Video'
-                : replyingTo.type === 'file' ? `📎 ${replyingTo.file?.name || 'File'}`
-                : replyingTo.type === 'voice' ? '🎤 Voice message'
-                : '📷 Image'
-              )}
+            <p className="text-xs text-luxury-ink/60 truncate leading-relaxed flex items-center gap-1">
+              {replyingTo.type === 'video' && <Film size={12} className="shrink-0" />}
+              {replyingTo.type === 'file' && <Paperclip size={12} className="shrink-0" />}
+              {replyingTo.type === 'voice' && <Mic size={12} className="shrink-0" />}
+              {!replyingTo.text && replyingTo.image && <ImageIcon size={12} className="shrink-0" />}
+              <span className="truncate">
+                {replyingTo.text || (
+                  replyingTo.type === 'video' ? 'Video'
+                  : replyingTo.type === 'file' ? (replyingTo.file?.name || 'File')
+                  : replyingTo.type === 'voice' ? 'Voice message'
+                  : 'Photo'
+                )}
+              </span>
             </p>
           </div>
-          <button onClick={() => setReplyingTo(null)} className="p-1 text-luxury-ink/40 hover:text-luxury-ink rounded-full ml-3 transition-colors">
+          {(() => {
+            const thumb = replyingTo.image
+              ? (typeof replyingTo.image === 'object' && replyingTo.image !== null ? replyingTo.image.url : replyingTo.image)
+              : replyingTo.type === 'video' ? replyingTo.video?.poster : undefined;
+            return thumb ? (
+              <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-black/5 relative">
+                <img src={thumb} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                {replyingTo.type === 'video' && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20"><Film size={12} className="text-white" /></div>
+                )}
+              </div>
+            ) : null;
+          })()}
+          <button onClick={() => setReplyingTo(null)} className="p-1 text-luxury-ink/40 hover:text-luxury-ink rounded-full transition-colors shrink-0">
             <X size={14} />
           </button>
         </div>
@@ -638,6 +672,8 @@ export function Composer({
                 onChange={handleTextChange}
                 onKeyDown={handleInputKeyDown}
                 onPaste={handlePaste}
+                scopeUserIds={collectionPath === 'clubs' ? clubMembers : undefined}
+                onMentionUser={(userId, handle) => { taggedUsersRef.current.set(userId, handle); }}
                 placeholder={
                   isBlocked
                     ? 'Messaging is disabled'

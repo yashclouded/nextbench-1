@@ -153,6 +153,7 @@ export default function ClubChat({ panelMode, roomIdOverride, onBack }: ClubChat
         onBack={handleBack}
         showOptions={showOptions}
         setShowOptions={setShowOptions}
+        pinnedMessageId={club.pinnedMessageId}
         pinnedMessageText={club.pinnedMessageText}
         onPin={handlePinMessage}
         onUnpin={handleUnpinMessage}

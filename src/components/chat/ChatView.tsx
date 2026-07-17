@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Pin } from 'lucide-react';
 
@@ -7,7 +7,7 @@ import { useToast } from '../../lib/ToastContext';
 import { useLightbox } from '../../lib/LightboxContext';
 
 import { useChatEngine, Message, TYPING_STALE_MS } from '../../hooks/useChatEngine';
-import { MessageList } from './MessageList';
+import { MessageList, MessageListHandle } from './MessageList';
 import { MessageContextMenu } from './MessageContextMenu';
 import { ChatHeader } from './ChatHeader';
 import { Composer } from './Composer';
@@ -33,6 +33,7 @@ interface ChatViewProps {
   showReport?: boolean;
   setShowReport?: (show: boolean) => void;
   recipientId?: string;
+  pinnedMessageId?: string | null;
   pinnedMessageText?: string | null;
   onUnpin?: () => void;
   onPin?: (msgId: string, text?: string) => void;
@@ -57,6 +58,7 @@ export default function ChatView({
   showReport = false,
   setShowReport,
   recipientId,
+  pinnedMessageId,
   pinnedMessageText,
   onUnpin,
   onPin,
@@ -79,6 +81,16 @@ export default function ChatView({
 
   // Message Info state
   const [msgInfoId, setMsgInfoId] = useState<string | null>(null);
+
+  // Imperative handle to the message list so the pinned banner and reply
+  // previews can scroll/flash a target message into view.
+  const messageListRef = useRef<MessageListHandle>(null);
+  const jumpToMessage = useCallback((msgId: string) => {
+    const found = messageListRef.current?.jumpToMessage(msgId);
+    if (found === false) {
+      showToast('Message not loaded yet — scroll up to load older messages', 'info');
+    }
+  }, [showToast]);
 
   // Forward modal — holds the message ids being forwarded.
   const [forwardingMsgIds, setForwardingMsgIds] = useState<string[]>([]);
@@ -213,10 +225,14 @@ export default function ChatView({
       {/* Pinned Message Banner */}
       {pinnedMessageText && (
         <div className="bg-surface-soft border-b px-6 py-2.5 flex items-center justify-between z-10 relative" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="flex items-center gap-3 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => pinnedMessageId && jumpToMessage(pinnedMessageId)}
+            className="flex items-center gap-3 overflow-hidden flex-1 text-left cursor-pointer group"
+          >
             <Pin size={14} className="text-brand-teal shrink-0" />
-            <div className="text-xs font-semibold text-luxury-ink/75 truncate">{pinnedMessageText}</div>
-          </div>
+            <div className="text-xs font-semibold text-luxury-ink/75 truncate group-hover:text-brand-teal transition-colors">{pinnedMessageText}</div>
+          </button>
           {onUnpin && (
             <button onClick={onUnpin} className="p-1 hover:bg-surface-base rounded-full transition-colors shrink-0 ml-2 cursor-pointer">
               <X size={14} className="text-luxury-ink/40" />
@@ -227,6 +243,7 @@ export default function ChatView({
 
       {/* Messages Scroll Area + Jump-to-Bottom FAB */}
       <MessageList
+        ref={messageListRef}
         messages={messages}
         loading={loading}
         hasMore={hasMore}
@@ -241,6 +258,7 @@ export default function ChatView({
         roomId={roomId}
         recipientId={recipientId}
         onPin={onPin}
+        onJumpToMessage={jumpToMessage}
         showLightbox={showLightbox}
         resendMessage={resendMessage}
         removeFailedMessage={removeFailedMessage}
@@ -267,6 +285,7 @@ export default function ChatView({
         canPost={canPost}
         user={user}
         userData={userData}
+        clubMembers={clubMembers}
         replyingTo={replyingTo}
         setReplyingTo={setReplyingTo}
         sendMessage={sendMessage}
