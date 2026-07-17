@@ -57,9 +57,10 @@ export interface Message {
   senderAvatar?: string | null;
   text?: string;
   image?: any;
-  type?: 'text' | 'voice' | 'video';
+  type?: 'text' | 'voice' | 'video' | 'file';
   audioUrl?: string;
   video?: { url: string; poster?: string; w?: number; h?: number; duration?: number };
+  file?: { url: string; name: string; size?: number; mime?: string; pages?: number };
   duration?: number;
   fileSize?: number;
   mimeType?: string;
@@ -499,6 +500,7 @@ export function useChatEngine({
           text: '',
           image: '',
           video: null,
+          file: null,
           audioUrl: '',
         });
       } catch (err) {
@@ -524,6 +526,7 @@ export function useChatEngine({
               text: '',
               image: '',
               video: null,
+              file: null,
               audioUrl: '',
             });
           }
@@ -593,9 +596,35 @@ export function useChatEngine({
     [user, roomId, collectionPath, userData, getRoomMetadataUpdate]
   );
 
-  // Forward messages to one or more target conversations. Writes one new
-  // message doc per (target × source), copying the media/text and stamping
-  // forwardedFrom with the ORIGINAL author. Writes to arbitrary rooms the
+  // Send a file/document message (PDF, docs, any type). Mirrors sendVideoMessage.
+  const sendFileMessage = useCallback(
+    async (file: { url: string; name: string; size?: number; mime?: string; pages?: number }, caption?: string) => {
+      if (!user || !roomId || !file?.url) return;
+      try {
+        const messageData: any = {
+          senderId: user.uid,
+          senderName: userData?.name || 'Unknown',
+          senderAvatar: userData?.profilePicture || null,
+          type: 'file' as const,
+          file,
+          createdAt: serverTimestamp(),
+        };
+        const trimmed = caption?.trim();
+        if (trimmed) messageData.text = trimmed;
+
+        await addDoc(collection(db, collectionPath, roomId, 'messages'), messageData);
+
+        const updateData = await getRoomMetadataUpdate('📎 File');
+        await updateDoc(doc(db, collectionPath, roomId), updateData);
+      } catch (err) {
+        console.error('Failed to send file message:', err);
+        throw err;
+      }
+    },
+    [user, roomId, collectionPath, userData, getRoomMetadataUpdate]
+  );
+
+
   // current user belongs to; each write is rules-gated (membership/canPost),
   // so a target that rejects is counted as failed without aborting the rest.
   const forwardMessage = useCallback(
@@ -631,6 +660,7 @@ export function useChatEngine({
             if (src.text) msgData.text = src.text;
             if (src.image) msgData.image = src.image;
             if (src.type === 'video' && src.video) { msgData.type = 'video'; msgData.video = src.video; }
+            if (src.type === 'file' && src.file) { msgData.type = 'file'; msgData.file = src.file; }
             if (src.type === 'voice' && src.audioUrl) {
               msgData.type = 'voice';
               msgData.audioUrl = src.audioUrl;
@@ -645,6 +675,7 @@ export function useChatEngine({
               deliveredToTarget++;
               lastPreview =
                 src.type === 'video' ? '📹 Video'
+                : src.type === 'file' ? '📎 File'
                 : src.type === 'voice' ? '🎤 Voice message'
                 : src.image ? '📷 Image'
                 : (src.text || '');
@@ -720,6 +751,7 @@ export function useChatEngine({
     deleteForEveryoneBulk,
     sendVoiceMessage,
     sendVideoMessage,
+    sendFileMessage,
     forwardMessage,
     markAsRead,
     markVisibleRead,

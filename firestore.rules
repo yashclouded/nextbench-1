@@ -345,16 +345,27 @@ service cloud.firestore {
         && (!vid.keys().hasAny(['duration']) || vid.duration is number);
     }
 
+    function isValidMessageFile(f) {
+      return f is map
+        && f.keys().hasAll(['url', 'name'])
+        && f.url is string && f.url.size() <= 2000
+        && f.name is string && f.name.size() <= 500
+        && (!f.keys().hasAny(['size']) || f.size is number)
+        && (!f.keys().hasAny(['mime']) || (f.mime is string && f.mime.size() <= 200))
+        && (!f.keys().hasAny(['pages']) || f.pages is number);
+    }
+
     function isValidMessage(data) {
       return data.keys().hasAll(['senderId', 'createdAt'])
-        && (data.keys().hasAny(['text', 'image', 'sharedPost', 'postId', 'audioUrl', 'video']))
+        && (data.keys().hasAny(['text', 'image', 'sharedPost', 'postId', 'audioUrl', 'video', 'file']))
         && (!data.keys().hasAny(['text']) || (data.text is string && data.text.size() <= 2000))
         && (!data.keys().hasAny(['image']) || isValidMessageImage(data.image))
         && (!data.keys().hasAny(['sharedPost']) || (data.sharedPost is map))
         && (!data.keys().hasAny(['postId']) || (data.postId is string))
         && (!data.keys().hasAny(['audioUrl']) || (data.audioUrl is string && data.audioUrl.size() <= 2000))
         && (!data.keys().hasAny(['video']) || isValidMessageVideo(data.video))
-        && (!data.keys().hasAny(['type']) || (data.type in ['text', 'voice', 'video']))
+        && (!data.keys().hasAny(['file']) || isValidMessageFile(data.file))
+        && (!data.keys().hasAny(['type']) || (data.type in ['text', 'voice', 'video', 'file']))
         && (!data.keys().hasAny(['forwardedFrom']) || (data.forwardedFrom is map && data.forwardedFrom.senderId is string));
     }
 
@@ -398,7 +409,7 @@ service cloud.firestore {
              incoming().diff(existing()).affectedKeys().hasOnly(['deletedFor'])
              ||
              (canAccessRoom(get(/databases/$(database)/documents/chatRooms/$(roomId)).data)
-              && incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image', 'video', 'audioUrl'])
+              && incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image', 'video', 'file', 'audioUrl'])
               && request.auth.uid == existing().senderId)
               ||
              (canAccessRoom(get(/databases/$(database)/documents/chatRooms/$(roomId)).data)
@@ -516,7 +527,7 @@ service cloud.firestore {
             ||
             incoming().diff(existing()).affectedKeys().hasOnly(['reactions'])
             ||
-            (incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image', 'video', 'audioUrl'])
+            (incoming().diff(existing()).affectedKeys().hasOnly(['isDeletedForEveryone', 'text', 'image', 'video', 'file', 'audioUrl'])
               && request.auth.uid == existing().senderId)
             ||
             // Read receipt: any member may add ONLY themselves to readBy —

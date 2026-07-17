@@ -316,3 +316,42 @@ test('non-sender cannot delete-for-everyone (clear media)', async () => {
   );
 });
 
+// ── file/document messages ───────────────────────────────
+test('club file message with {url,name,size,mime,pages} is accepted', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertSucceeds(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      type: 'file',
+      file: { url: 'https://example.com/doc.pdf', name: 'doc.pdf', size: 12345, mime: 'application/pdf', pages: 3 },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('DM file message is accepted (regression)', async () => {
+  await seed((db) =>
+    setDoc(doc(db, 'chatRooms', 'r1'), { participants: ['alice', 'bob'], updatedAt: serverTimestamp() })
+  );
+  await assertSucceeds(
+    addDoc(collection(verified('alice').firestore(), 'chatRooms', 'r1', 'messages'), {
+      senderId: 'alice',
+      type: 'file',
+      file: { url: 'https://example.com/notes.zip', name: 'notes.zip' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+
+test('file message missing file.name is rejected', async () => {
+  await seed((db) => setDoc(doc(db, 'clubs', 'c1'), clubData()));
+  await assertFails(
+    addDoc(collection(verified('alice').firestore(), 'clubs', 'c1', 'messages'), {
+      senderId: 'alice',
+      type: 'file',
+      file: { url: 'https://example.com/doc.pdf' },
+      createdAt: serverTimestamp(),
+    })
+  );
+});
+

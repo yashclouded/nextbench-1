@@ -160,6 +160,60 @@ export async function uploadChatImageDetailed(file: File, roomId: string): Promi
 }
 
 /**
+ * Uploads an arbitrary chat file (PDF, doc, zip, etc.) to Cloudinary.
+ * PDFs go through the `image` endpoint so the existing PdfViewer page-transform
+ * URLs work and Cloudinary returns a page count; everything else uses `raw`.
+ * Returns the download URL, and `pages` for PDFs.
+ */
+export async function uploadChatFile(
+  file: File,
+  roomId: string,
+  onProgress?: UploadProgressCallback,
+): Promise<{ url: string; pages?: number }> {
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error('Cloudinary environment variables are missing.');
+  }
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const resourceType = isPdf ? 'image' : 'raw';
+  const folder = `nextbench/chat_files/${roomId}`;
+
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('folder', folder);
+
+    const xhr = new XMLHttpRequest();
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100), e.loaded, e.total);
+      });
+    }
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve({ url: data.secure_url, pages: data.pages });
+        } catch {
+          reject(new Error('Failed to parse Cloudinary response.'));
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.error?.message || 'Failed to upload file.'));
+        } catch {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      }
+    });
+    xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
+    xhr.addEventListener('abort', () => reject(new Error('Upload aborted.')));
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
+    xhr.send(formData);
+  });
+}
+
+/**
  * Uploads an image file to Cloudinary and returns the download URL.
  */
 export async function uploadProductImage(file: File, userId: string, onProgress?: UploadProgressCallback): Promise<string> {
