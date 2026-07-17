@@ -11,6 +11,7 @@ interface MentionInputProps {
   disabled?: boolean;
   id?: string;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onPaste?: (e: React.ClipboardEvent<HTMLInputElement>) => void;
   /** If true, renders as a single-line input. Default: true */
   singleLine?: boolean;
 }
@@ -31,6 +32,7 @@ export default function MentionInput({
   disabled,
   id,
   onKeyDown,
+  onPaste,
   singleLine = true,
 }: MentionInputProps) {
   const { user } = useAuth();
@@ -169,6 +171,7 @@ export default function MentionInput({
         type="text"
         value={value}
         onChange={handleChange}
+        onPaste={onPaste}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={className}

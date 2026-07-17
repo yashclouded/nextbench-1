@@ -340,8 +340,62 @@ export function Composer({
   // Revoke the poster object URL on unmount.
   useEffect(() => () => { if (pendingVideoPoster) URL.revokeObjectURL(pendingVideoPoster); }, [pendingVideoPoster]);
 
+  // ── Paste + drag-drop ──────────────────────────────────
+  const [dragActive, setDragActive] = useState(false);
+  const canAttach = !isBlocked && isMember && canPost;
+
+  // Route an arbitrary dropped/pasted file to the right pending slot by type.
+  const ingestFile = (file: File) => {
+    if (!canAttach) return;
+    if (file.type.startsWith('image/')) acceptImageFile(file);
+    else if (file.type.startsWith('video/')) ingestVideoFile(file);
+    else acceptDocFile(file);
+  };
+
+  // Paste an image from the clipboard (screenshots, copied images).
+  const handlePaste = (e: React.ClipboardEvent) => {
+    if (!canAttach) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItem = items.find((it) => it.kind === 'file' && it.type.startsWith('image/'));
+    if (imageItem) {
+      const file = imageItem.getAsFile();
+      if (file) {
+        e.preventDefault();
+        acceptImageFile(file);
+      }
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (!canAttach) return;
+    const file = e.dataTransfer?.files?.[0];
+    if (file) ingestFile(file);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!canAttach) return;
+    e.preventDefault();
+    if (!dragActive) setDragActive(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only clear when leaving the composer, not when moving over a child.
+    if (e.currentTarget === e.target) setDragActive(false);
+  };
+
   return (
-    <div className="p-4 pb-safe-4 border-t border-luxury-ink/5 bg-surface-base shrink-0 z-30">
+    <div
+      className="p-4 pb-safe-4 border-t border-luxury-ink/5 bg-surface-base shrink-0 z-30 relative"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+    >
+      {/* Drag-and-drop overlay */}
+      {dragActive && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-brand-teal/10 border-2 border-dashed border-brand-teal rounded-2xl m-1 pointer-events-none">
+          <p className="text-sm font-bold text-brand-teal">Drop to attach</p>
+        </div>
+      )}
       {/* Reply Preview Bar */}
       {replyingTo && (
         <div className="mb-3 bg-surface-card border border-luxury-ink/5 rounded-2xl px-4 py-3 flex items-start justify-between shadow-xs relative">
@@ -575,6 +629,7 @@ export function Composer({
                 value={newMessage}
                 onChange={handleTextChange}
                 onKeyDown={handleInputKeyDown}
+                onPaste={handlePaste}
                 placeholder={
                   isBlocked
                     ? 'Messaging is disabled'
