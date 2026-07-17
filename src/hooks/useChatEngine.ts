@@ -67,6 +67,11 @@ export interface Message {
   createdAt: any;
   replyToId?: string | null;
   replyToText?: string | null;
+  /** Structured reply metadata for WhatsApp-style previews. */
+  replyToType?: 'text' | 'image' | 'video' | 'file' | 'voice';
+  replyToImage?: string | null;
+  replyToSenderName?: string | null;
+  replyToSenderId?: string | null;
   deletedFor?: string[];
   isDeletedForEveryone?: boolean;
   reactions?: Record<string, string[]>;
@@ -74,6 +79,61 @@ export interface Message {
   clientMessageId?: string;
   status?: 'pending' | 'failed' | 'sent';
   forwardedFrom?: { senderId: string; senderName?: string };
+}
+
+// Derive WhatsApp-style structured reply metadata from the message being
+// replied to. Returns the fields to spread onto both the optimistic message and
+// the persisted document (undefined-free so Firestore accepts them).
+export function buildReplyMeta(replyTo?: Message | null): {
+  replyToId: string;
+  replyToType: NonNullable<Message['replyToType']>;
+  replyToText: string;
+  replyToSenderName: string;
+  replyToSenderId: string;
+  replyToImage?: string;
+} | null {
+  if (!replyTo) return null;
+  const type: NonNullable<Message['replyToType']> =
+    replyTo.type === 'video' ? 'video'
+    : replyTo.type === 'file' ? 'file'
+    : replyTo.type === 'voice' ? 'voice'
+    : replyTo.image ? 'image'
+    : 'text';
+
+  // A short human-readable label used as fallback text (and in list previews).
+  const text =
+    replyTo.text
+    || (type === 'video' ? 'Video'
+      : type === 'file' ? (replyTo.file?.name || 'File')
+      : type === 'voice' ? 'Voice message'
+      : type === 'image' ? 'Photo'
+      : '');
+
+  const meta: {
+    replyToId: string;
+    replyToType: NonNullable<Message['replyToType']>;
+    replyToText: string;
+    replyToSenderName: string;
+    replyToSenderId: string;
+    replyToImage?: string;
+  } = {
+    replyToId: replyTo.id,
+    replyToType: type,
+    replyToText: text,
+    replyToSenderName: replyTo.senderName || 'user',
+    replyToSenderId: replyTo.senderId,
+  };
+
+  // Thumbnail for image/video replies (video poster).
+  const thumb =
+    type === 'image'
+      ? (typeof replyTo.image === 'object' && replyTo.image !== null ? replyTo.image.url : replyTo.image)
+      : type === 'video'
+      ? replyTo.video?.poster
+      : undefined;
+  if (thumb) meta.replyToImage = thumb;
+
+  return meta;
 }
 
 export interface ChatEngineOptions {
@@ -366,6 +426,7 @@ export function useChatEngine({
 
       const messageText = text?.trim();
       const tempId = 'temp_' + Date.now();
+      const replyMeta = buildReplyMeta(replyTo);
 
       const newOptimisticMsg: Message = {
         id: tempId,
@@ -375,14 +436,12 @@ export function useChatEngine({
         createdAt: new Date(),
         text: messageText,
         image,
-        replyToId: replyTo?.id || null,
-        replyToText: replyTo?.text || (
-          replyTo?.type === 'video' ? '📹 Video'
-          : replyTo?.type === 'file' ? `📎 ${replyTo.file?.name || 'File'}`
-          : replyTo?.type === 'voice' ? '🎤 Voice message'
-          : replyTo?.image ? '📷 Image'
-          : null
-        ),
+        replyToId: replyMeta?.replyToId || null,
+        replyToText: replyMeta?.replyToText || null,
+        replyToType: replyMeta?.replyToType,
+        replyToImage: replyMeta?.replyToImage || null,
+        replyToSenderName: replyMeta?.replyToSenderName || null,
+        replyToSenderId: replyMeta?.replyToSenderId || null,
         status: 'pending',
         clientMessageId: tempId,
       };
@@ -404,6 +463,10 @@ export function useChatEngine({
           if (msg.replyToId) {
             msgData.replyToId = msg.replyToId;
             msgData.replyToText = msg.replyToText;
+            if (msg.replyToType) msgData.replyToType = msg.replyToType;
+            if (msg.replyToImage) msgData.replyToImage = msg.replyToImage;
+            if (msg.replyToSenderName) msgData.replyToSenderName = msg.replyToSenderName;
+            if (msg.replyToSenderId) msgData.replyToSenderId = msg.replyToSenderId;
           }
 
           // 1. Write the message document
@@ -458,6 +521,10 @@ export function useChatEngine({
         if (msg.replyToId) {
           msgData.replyToId = msg.replyToId;
           msgData.replyToText = msg.replyToText;
+          if (msg.replyToType) msgData.replyToType = msg.replyToType;
+          if (msg.replyToImage) msgData.replyToImage = msg.replyToImage;
+          if (msg.replyToSenderName) msgData.replyToSenderName = msg.replyToSenderName;
+          if (msg.replyToSenderId) msgData.replyToSenderId = msg.replyToSenderId;
         }
 
         await addDoc(collection(db, collectionPath, roomId, 'messages'), msgData);

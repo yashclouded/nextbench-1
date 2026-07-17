@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { doc, getDoc, updateDoc, serverTimestamp, writeBatch, collection, getDocs, deleteField, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, writeBatch, collection, getDocs, deleteField, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useToast } from '../../lib/ToastContext';
@@ -60,33 +60,35 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride, panelState
   const hasBlockedMe = otherUserId ? blockedByIds.has(otherUserId) : false;
   const isBlocked = isBlockedByMe || hasBlockedMe;
 
-  // Listen to room metadata changes
+  // Listen to room metadata changes (live — so pin/unpin, request status, etc.
+  // reflect immediately without a manual refetch).
   useEffect(() => {
     if (!roomId || !user) return;
 
-    const fetchRoom = async () => {
-      try {
-        const roomDoc = await getDoc(doc(db, 'chatRooms', roomId));
-        if (roomDoc.exists()) {
-          const data = { id: roomDoc.id, ...roomDoc.data() } as ChatRoomData;
-          setRoomData(data);
+    const unsub = onSnapshot(doc(db, 'chatRooms', roomId), (roomDoc) => {
+      if (!roomDoc.exists()) return;
+      const data = { id: roomDoc.id, ...roomDoc.data() } as ChatRoomData;
+      setRoomData(data);
 
-          const resolvedOtherUserId = data.participants?.find((id) => id !== user.uid);
-          if (resolvedOtherUserId && !otherUser) {
-            const userDoc = await getDoc(doc(db, 'users', resolvedOtherUserId));
+      const resolvedOtherUserId = data.participants?.find((id) => id !== user.uid);
+      if (resolvedOtherUserId) {
+        setOtherUser((prev: any) => {
+          if (prev) return prev; // already resolved
+          getDoc(doc(db, 'users', resolvedOtherUserId)).then((userDoc) => {
             if (userDoc.exists()) {
               setOtherUser({ id: resolvedOtherUserId, ...userDoc.data() });
             } else {
               setOtherUser({ id: resolvedOtherUserId, name: 'Deleted User', profilePicture: null });
             }
-          }
-        }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `chatRooms/${roomId}`);
+          });
+          return prev;
+        });
       }
-    };
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, `chatRooms/${roomId}`);
+    });
 
-    fetchRoom();
+    return () => unsub();
   }, [roomId, user?.uid]);
 
   // Handle pin message
@@ -237,6 +239,7 @@ export default function ChatRoom({ panelMode, onBack, roomIdOverride, panelState
         showReport={showReport}
         setShowReport={setShowReport}
         recipientId={otherUserId}
+        pinnedMessageId={roomData?.pinnedMessageId}
         pinnedMessageText={roomData?.pinnedMessageText}
         onPin={handlePinMessage}
         onUnpin={handleUnpinMessage}

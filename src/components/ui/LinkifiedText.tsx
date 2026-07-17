@@ -4,10 +4,21 @@ import { Link } from 'react-router-dom';
 interface LinkifiedTextProps {
   text: string;
   className?: string;
+  /** When rendered inside the current user's own (teal) bubble, links need a
+   *  light color to stay legible — teal-on-teal is invisible. */
+  isMe?: boolean;
 }
 
-const LinkifiedText = React.forwardRef<HTMLSpanElement, LinkifiedTextProps>(function LinkifiedText({ text, className = '' }, ref) {
+const LinkifiedText = React.forwardRef<HTMLSpanElement, LinkifiedTextProps>(function LinkifiedText({ text, className = '', isMe = false }, ref) {
   if (!text) return null;
+
+  // On own (teal) bubbles use white/underline; otherwise the brand-teal accent.
+  const linkClass = isMe
+    ? 'underline decoration-white/60 hover:decoration-white break-all text-white font-medium'
+    : 'text-brand-teal hover:underline break-all';
+  const mentionClass = isMe
+    ? 'underline decoration-white/60 hover:decoration-white text-white font-semibold'
+    : 'text-brand-teal font-semibold hover:underline';
 
   // Combined regex to detect URLs and @mentions
   // Group 1: URL, Group 2: @username
@@ -33,7 +44,7 @@ const LinkifiedText = React.forwardRef<HTMLSpanElement, LinkifiedTextProps>(func
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-brand-teal hover:underline break-all"
+          className={linkClass}
           onClick={(e) => e.stopPropagation()}
         >
           {url}
@@ -47,7 +58,7 @@ const LinkifiedText = React.forwardRef<HTMLSpanElement, LinkifiedTextProps>(func
         <Link
           key={`mention-${match.index}`}
           to={`/u/${username}`}
-          className="text-brand-teal font-semibold hover:underline"
+          className={mentionClass}
           onClick={(e) => e.stopPropagation()}
         >
           {mention}

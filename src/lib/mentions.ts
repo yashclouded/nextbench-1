@@ -8,7 +8,15 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { createNotification } from './notifications';
-import { getPublicProfile, searchPublicUsers } from './discovery';
+import { getPublicProfile, searchPublicUsers, getPublicUsers } from './discovery';
+
+export interface MentionUser {
+  id: string;
+  name: string;
+  username?: string;
+  profilePicture?: string;
+  school?: string;
+}
 
 /**
  * Extract all @username mentions from text.
@@ -88,6 +96,54 @@ export async function searchUsersForMention(
   }));
 }
 
+// Cache resolved member rosters per membership signature so we don't re-fetch
+// the club's members on every keystroke while typing a mention.
+const scopedRosterCache = new Map<string, MentionUser[]>();
+
+/**
+ * Search a FIXED set of users (e.g. a club's members) for @-mention autocomplete.
+ * Resolves the roster once (cached), then filters locally by name/username prefix.
+ * Excludes the current user. Case-insensitive, matches at word boundaries.
+ */
+export async function searchScopedUsersForMention(
+  searchTerm: string,
+  userIds: string[],
+  currentUserId: string,
+  maxResults: number = 6
+): Promise<MentionUser[]> {
+  const others = Array.from(new Set(userIds.filter((id) => id && id !== currentUserId)));
+  if (others.length === 0) return [];
+
+  const cacheKey = others.slice().sort().join(',');
+  let roster = scopedRosterCache.get(cacheKey);
+  if (!roster) {
+    const users = await getPublicUsers(others);
+    roster = users.map((u) => ({
+      id: u.id,
+      name: u.name || 'User',
+      username: u.username || undefined,
+      profilePicture: u.profilePicture || undefined,
+      school: u.school || undefined,
+    }));
+    scopedRosterCache.set(cacheKey, roster);
+  }
+
+  const q = searchTerm.trim().toLowerCase();
+  const matches = q
+    ? roster.filter((u) => {
+        const name = u.name.toLowerCase();
+        const username = (u.username || '').toLowerCase();
+        return (
+          username.startsWith(q) ||
+          name.startsWith(q) ||
+          name.split(/\s+/).some((part) => part.startsWith(q))
+        );
+      })
+    : roster;
+
+  return matches.slice(0, maxResults);
+}
+
 /**
  * Send mention notifications to all mentioned users.
  * Skips the sender (currentUserId).
@@ -96,12 +152,20 @@ export async function notifyMentionedUsers(
   text: string,
   currentUserId: string,
   senderName: string,
-  context: { type: 'post_reply' | 'club_chat' | 'dm' | 'story'; link: string; postId?: string }
+  context: { type: 'post_reply' | 'club_chat' | 'dm' | 'story'; link: string; postId?: string },
+  extraUserIds: string[] = []
 ): Promise<void> {
   const usernames = parseMentions(text);
-  if (usernames.length === 0) return;
 
   const mentionedUsers = await resolveMentionUsers(usernames);
+
+  // Union resolved-by-username targets with any explicitly-tagged user ids
+  // (e.g. club members picked from the autocomplete who may lack a username).
+  const targetIds = new Set<string>();
+  mentionedUsers.forEach((u) => targetIds.add(u.userId));
+  extraUserIds.forEach((id) => targetIds.add(id));
+  targetIds.delete(currentUserId);
+  if (targetIds.size === 0) return;
 
   const contextLabel =
     context.type === 'post_reply' ? 'a comment'
@@ -110,17 +174,15 @@ export async function notifyMentionedUsers(
     : 'a message';
 
   await Promise.all(
-    mentionedUsers
-      .filter((u) => u.userId !== currentUserId)
-      .map((u) =>
-        createNotification({
-          userId: u.userId,
-          type: 'mention',
-          title: 'You were mentioned',
-          message: `${senderName} mentioned you in ${contextLabel}`,
-          link: context.link,
-          postId: context.postId,
-        })
-      )
+    Array.from(targetIds).map((userId) =>
+      createNotification({
+        userId,
+        type: 'mention',
+        title: 'You were mentioned',
+        message: `${senderName} mentioned you in ${contextLabel}`,
+        link: context.link,
+        postId: context.postId,
+      })
+    )
   );
 }
