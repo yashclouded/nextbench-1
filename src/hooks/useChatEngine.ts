@@ -607,12 +607,21 @@ export function useChatEngine({
     async (file: { url: string; name: string; size?: number; mime?: string; pages?: number }, caption?: string) => {
       if (!user || !roomId || !file?.url) return;
       try {
+        // Build the file object without undefined keys — Firestore rejects
+        // undefined values (ignoreUndefinedProperties is not set). A raw
+        // (non-PDF) upload has no `pages`, and files with an unknown type have
+        // no `mime`.
+        const fileData: any = { url: file.url, name: file.name };
+        if (file.size !== undefined) fileData.size = file.size;
+        if (file.mime) fileData.mime = file.mime;
+        if (file.pages !== undefined) fileData.pages = file.pages;
+
         const messageData: any = {
           senderId: user.uid,
           senderName: userData?.name || 'Unknown',
           senderAvatar: userData?.profilePicture || null,
           type: 'file' as const,
-          file,
+          file: fileData,
           createdAt: serverTimestamp(),
         };
         const trimmed = caption?.trim();

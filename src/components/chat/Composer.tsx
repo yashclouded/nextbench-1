@@ -337,8 +337,11 @@ export function Composer({
     }
   };
 
-  // Revoke the poster object URL on unmount.
-  useEffect(() => () => { if (pendingVideoPoster) URL.revokeObjectURL(pendingVideoPoster); }, [pendingVideoPoster]);
+  // Revoke pending object URLs on unmount.
+  useEffect(() => () => {
+    if (pendingVideoPoster) URL.revokeObjectURL(pendingVideoPoster);
+    if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview);
+  }, [pendingVideoPoster, pendingImagePreview]);
 
   // ── Paste + drag-drop ──────────────────────────────────
   const [dragActive, setDragActive] = useState(false);

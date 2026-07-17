@@ -384,8 +384,9 @@ export const MessageBubble = React.memo(function MessageBubble({
         </div>
       )}
 
-      {/* In-app PDF viewer (opened by tapping a PDF file card) */}
-      {isPdfFile && msg.file?.url && (
+      {/* In-app PDF viewer (opened by tapping a PDF file card). Mounted only
+          when open so the code-split chunk loads on demand. */}
+      {showPdf && msg.file?.url && (
         <Suspense fallback={null}>
           <LazyPdfViewer
             isOpen={showPdf}
