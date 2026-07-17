@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, SmilePlus, CheckCircle2, Circle, RefreshCw, Trash2, CornerUpRight, Check, CheckCheck } from 'lucide-react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { X, SmilePlus, CheckCircle2, Circle, RefreshCw, Trash2, CornerUpRight, Check, CheckCheck, FileText, Paperclip } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -9,7 +9,10 @@ import VoiceMessageBubble from '../ui/VoiceMessageBubble';
 import VideoPlayer from '../ui/VideoPlayer';
 import MessageReactions from '../ui/MessageReactions';
 import LinkifiedText from '../ui/LinkifiedText';
+import { formatFileSize } from '../../lib/formatFileSize';
 import { Message } from '../../hooks/useChatEngine';
+
+const LazyPdfViewer = lazy(() => import('../ui/PdfViewer'));
 import { firstUrl, getLinkPreview, LinkPreview } from '../../lib/linkPreview';
 import { LinkPreviewCard } from './LinkPreviewCard';
 
@@ -152,6 +155,18 @@ export const MessageBubble = React.memo(function MessageBubble({
   // Resolve a link preview only for delivered, non-deleted text messages.
   const linkPreview = useLinkPreview(!isDeleted && !isOptimistic && !isFailed ? msg.text : undefined);
 
+  // File/document: PDFs open in the in-app viewer; other files open in a new tab.
+  const fileName = msg.file?.name || '';
+  const isPdfFile = !!msg.file && (
+    (msg.file.mime === 'application/pdf') || fileName.toLowerCase().endsWith('.pdf') || !!msg.file.pages
+  );
+  const [showPdf, setShowPdf] = useState(false);
+  const openFile = () => {
+    if (!msg.file?.url) return;
+    if (isPdfFile) setShowPdf(true);
+    else window.open(msg.file.url, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} pb-2 relative group`}>
       {/* Bubble Row */}
@@ -281,6 +296,27 @@ export const MessageBubble = React.memo(function MessageBubble({
                 </div>
               )}
 
+              {/* File / document card */}
+              {msg.type === 'file' && msg.file?.url && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); openFile(); }}
+                  className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 w-[240px] max-w-full text-left transition-colors ${msg.text ? 'mb-2' : ''} ${
+                    isMe ? 'bg-black/10 border-white/20 hover:bg-black/15' : 'bg-surface-soft border-luxury-ink/10 hover:bg-surface-card'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMe ? 'bg-white/15' : 'bg-brand-teal/10'}`}>
+                    {isPdfFile ? <FileText size={20} className={isMe ? 'text-white' : 'text-brand-teal'} /> : <Paperclip size={20} className={isMe ? 'text-white' : 'text-brand-teal'} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold truncate ${isMe ? 'text-white' : 'text-luxury-ink'}`}>{msg.file.name}</p>
+                    <p className={`text-[10px] font-medium mt-0.5 ${isMe ? 'text-white/70' : 'text-luxury-ink/50'}`}>
+                      {isPdfFile ? `PDF${msg.file.pages ? ` · ${msg.file.pages} page${msg.file.pages > 1 ? 's' : ''}` : ''}` : (formatFileSize(msg.file.size) || 'File')}
+                    </p>
+                  </div>
+                </button>
+              )}
+
               {/* Message text */}
               {msg.text && (
                 <div className="break-words whitespace-pre-wrap leading-relaxed">
@@ -346,6 +382,19 @@ export const MessageBubble = React.memo(function MessageBubble({
             onOpenChange={(open) => setActiveReactionMsgId(open ? msg.id : null)}
           />
         </div>
+      )}
+
+      {/* In-app PDF viewer (opened by tapping a PDF file card) */}
+      {isPdfFile && msg.file?.url && (
+        <Suspense fallback={null}>
+          <LazyPdfViewer
+            isOpen={showPdf}
+            onClose={() => setShowPdf(false)}
+            pdfUrl={msg.file.url}
+            totalPages={msg.file.pages || 1}
+            title={msg.file.name}
+          />
+        </Suspense>
       )}
     </div>
   );
