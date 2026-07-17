@@ -405,7 +405,12 @@ export function Composer({
               Replying to {replyingTo.senderId === user?.uid ? 'yourself' : replyingTo.senderName || 'user'}
             </div>
             <p className="text-xs text-luxury-ink/60 truncate leading-relaxed">
-              {replyingTo.text || '📷 Image attachment'}
+              {replyingTo.text || (
+                replyingTo.type === 'video' ? '📹 Video'
+                : replyingTo.type === 'file' ? `📎 ${replyingTo.file?.name || 'File'}`
+                : replyingTo.type === 'voice' ? '🎤 Voice message'
+                : '📷 Image'
+              )}
             </p>
           </div>
           <button onClick={() => setReplyingTo(null)} className="p-1 text-luxury-ink/40 hover:text-luxury-ink rounded-full ml-3 transition-colors">

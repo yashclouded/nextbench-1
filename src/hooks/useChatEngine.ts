@@ -376,7 +376,13 @@ export function useChatEngine({
         text: messageText,
         image,
         replyToId: replyTo?.id || null,
-        replyToText: replyTo?.text || (replyTo?.image ? '📷 Image' : null),
+        replyToText: replyTo?.text || (
+          replyTo?.type === 'video' ? '📹 Video'
+          : replyTo?.type === 'file' ? `📎 ${replyTo.file?.name || 'File'}`
+          : replyTo?.type === 'voice' ? '🎤 Voice message'
+          : replyTo?.image ? '📷 Image'
+          : null
+        ),
         status: 'pending',
         clientMessageId: tempId,
       };
