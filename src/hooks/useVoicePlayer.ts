@@ -43,6 +43,10 @@ export function useVoicePlayer(audioUrl: string): UseVoicePlayerReturn {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const urlRef = useRef(audioUrl);
+  // Last currentTime we pushed to React state — lets the rAF loop skip renders
+  // when the change is imperceptible, so playback doesn't re-render 28 waveform
+  // bars 60×/sec (the source of the jank).
+  const lastPushedTimeRef = useRef(0);
 
   // Keep urlRef in sync
   useEffect(() => {
@@ -53,7 +57,12 @@ export function useVoicePlayer(audioUrl: string): UseVoicePlayerReturn {
   const startTimeUpdate = useCallback(() => {
     const update = () => {
       if (audioRef.current) {
-        setCurrentTime(audioRef.current.currentTime);
+        const t = audioRef.current.currentTime;
+        // Throttle: only re-render when the bar/progress would visibly move.
+        if (Math.abs(t - lastPushedTimeRef.current) >= 0.1) {
+          lastPushedTimeRef.current = t;
+          setCurrentTime(t);
+        }
       }
       animFrameRef.current = requestAnimationFrame(update);
     };
@@ -79,6 +88,7 @@ export function useVoicePlayer(audioUrl: string): UseVoicePlayerReturn {
     setIsPlaying(false);
     setIsLoading(false);
     setCurrentTime(0);
+    lastPushedTimeRef.current = 0;
   }, [stopTimeUpdate]);
 
   /** Cleanup on unmount */
@@ -121,6 +131,7 @@ export function useVoicePlayer(audioUrl: string): UseVoicePlayerReturn {
     audio.addEventListener('ended', () => {
       setIsPlaying(false);
       setCurrentTime(0);
+      lastPushedTimeRef.current = 0;
       stopTimeUpdate();
       audio.currentTime = 0;
       if (currentlyPlayingStop === stopPlaybackForSingleton) {
@@ -201,6 +212,7 @@ export function useVoicePlayer(audioUrl: string): UseVoicePlayerReturn {
   const seek = useCallback((time: number) => {
     if (audioRef.current) {
       audioRef.current.currentTime = time;
+      lastPushedTimeRef.current = time;
       setCurrentTime(time);
     }
   }, []);

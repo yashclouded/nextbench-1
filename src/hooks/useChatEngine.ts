@@ -563,10 +563,41 @@ export function useChatEngine({
     [user?.uid, roomId, collectionPath]
   );
 
+  // True when `messageId` is (one of) the newest message(s) currently loaded —
+  // i.e. it's what the room's lastMessage preview reflects. Used to decide
+  // whether a delete-for-everyone must also clear the inbox preview.
+  const isNewestMessage = useCallback((...ids: string[]) => {
+    let maxMillis = -1;
+    let newestId: string | null = null;
+    for (const m of messagesMapRef.current.values()) {
+      const t = messageMillis(m);
+      if (t >= maxMillis) { maxMillis = t; newestId = m.id; }
+    }
+    return newestId != null && ids.includes(newestId);
+  }, []);
+
+  // Overwrite the room's lastMessage preview to the deleted placeholder without
+  // bumping updatedAt (so the thread doesn't resurface to the top of the inbox).
+  // hasOnly() in the rules permits this subset of keys.
+  const clearRoomPreview = useCallback(async () => {
+    if (!user || !roomId) return;
+    try {
+      await updateDoc(doc(db, collectionPath, roomId), {
+        lastMessage: 'This message was deleted',
+        lastSenderId: user.uid,
+      });
+    } catch (err) {
+      // Non-fatal: the message is already deleted; a stale preview is cosmetic.
+      console.warn('Failed to clear room preview after delete-for-everyone:', err);
+    }
+  }, [user?.uid, roomId, collectionPath]);
+
   // Delete message for everyone
   const deleteForEveryone = useCallback(
     async (messageId: string) => {
       if (!user || !roomId) return;
+      // Capture before the local Map flips isDeletedForEveryone via the snapshot.
+      const wasLast = isNewestMessage(messageId);
       try {
         await updateDoc(doc(db, collectionPath, roomId, 'messages', messageId), {
           isDeletedForEveryone: true,
@@ -576,11 +607,12 @@ export function useChatEngine({
           file: null,
           audioUrl: '',
         });
+        if (wasLast) await clearRoomPreview();
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `${collectionPath}/${roomId}/messages/${messageId}`);
       }
     },
-    [user?.uid, roomId, collectionPath]
+    [user?.uid, roomId, collectionPath, isNewestMessage, clearRoomPreview]
   );
 
   // Bulk delete-for-everyone. Only the sender's own messages pass the rules;
@@ -589,6 +621,7 @@ export function useChatEngine({
   const deleteForEveryoneBulk = useCallback(
     async (ids: string[]) => {
       if (!user || !roomId || ids.length === 0) return;
+      const wasLast = isNewestMessage(...ids);
       try {
         for (let i = 0; i < ids.length; i += 450) {
           const chunk = ids.slice(i, i + 450);
@@ -605,11 +638,12 @@ export function useChatEngine({
           }
           await batch.commit();
         }
+        if (wasLast) await clearRoomPreview();
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `${collectionPath}/${roomId}/messages`);
       }
     },
-    [user?.uid, roomId, collectionPath]
+    [user?.uid, roomId, collectionPath, isNewestMessage, clearRoomPreview]
   );
 
   // Send voice message

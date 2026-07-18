@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, MapPin, School, Flame, ChevronLeft, ChevronRight, Heart, MessageSquare, Share2, Image as ImageIcon, Trash2, Pencil, Users as UsersIcon } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, query, where, getDocs, getDoc, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc, query, where, getDocs, getDoc, limit, increment } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
@@ -565,9 +565,15 @@ export default function PostDetailModal({
       getPostReplies(post.id).then(setReplies).catch(() => {});
 
       const postRef = doc(db, 'posts', post.id);
-      await updateDoc(postRef, {
-        repliesCount: (post.repliesCount || 0) + 1
-      });
+      // increment(1) makes the server compute the delta, so it's always exactly
+      // +1 and can't violate the firestore rule's [-1,+1] bound (a stale client
+      // count previously threw here and skipped every notification below).
+      // Guarded so a count-write hiccup can never block notifications again.
+      try {
+        await updateDoc(postRef, { repliesCount: increment(1) });
+      } catch (err) {
+        console.warn('Failed to bump post repliesCount:', err);
+      }
 
       // Send notification to post author
       if (post.authorId !== user.uid) {
@@ -585,10 +591,14 @@ export default function PostDetailModal({
         const parentReplyRef = doc(db, 'post_replies', replyingTo.id);
         const parentReply = replies.find(r => r.id === replyingTo.id);
         if (parentReply) {
-          await updateDoc(parentReplyRef, {
-            repliesCount: (parentReply.repliesCount || 0) + 1,
-            updatedAt: serverTimestamp()
-          });
+          try {
+            await updateDoc(parentReplyRef, {
+              repliesCount: increment(1),
+              updatedAt: serverTimestamp()
+            });
+          } catch (err) {
+            console.warn('Failed to bump parent reply repliesCount:', err);
+          }
 
           // Send notification to parent reply author
           if (parentReply.authorId !== user.uid) {

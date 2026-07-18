@@ -34,6 +34,10 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// Deterministic pseudo-random bar heights for the decorative waveform. Static,
+// so it lives at module scope instead of being rebuilt on every playback render.
+const WAVEFORM_HEIGHTS = [40, 65, 85, 50, 95, 70, 55, 90, 45, 75, 60, 100, 50, 80, 65, 95, 55, 70, 85, 45, 90, 60, 75, 50, 80, 95, 65, 70];
+
 const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({
   audioUrl,
   duration: totalDuration,
@@ -185,9 +189,7 @@ const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({
             {Array.from({ length: 28 }).map((_, i) => {
               const barProgress = (i / 28) * 100;
               const isActive = barProgress <= progress;
-              // Deterministic pseudo-random heights for visual variety
-              const heights = [40, 65, 85, 50, 95, 70, 55, 90, 45, 75, 60, 100, 50, 80, 65, 95, 55, 70, 85, 45, 90, 60, 75, 50, 80, 95, 65, 70];
-              const height = heights[i % heights.length];
+              const height = WAVEFORM_HEIGHTS[i % WAVEFORM_HEIGHTS.length];
               return (
                 <div
                   key={i}

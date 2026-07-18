@@ -324,7 +324,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 
               {/* Voice recording bubble */}
               {msg.type === 'voice' && msg.audioUrl && (
-                <VoiceMessageBubble audioUrl={msg.audioUrl} duration={msg.duration} isSent={true} />
+                <VoiceMessageBubble audioUrl={msg.audioUrl} duration={msg.duration} isSent={isMe} />
               )}
 
               {/* Video attachment */}
