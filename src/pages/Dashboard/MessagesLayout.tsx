@@ -48,7 +48,9 @@ interface ChatRoomItem {
   mutedBy?: string[];
   archivedBy?: string[];
   pinnedBy?: string[];
-  deletedBy?: string[];
+  // map<uid, Timestamp> — per-user delete cutoff. Room is hidden for a user
+  // while updatedAt <= clearedAt[uid]; new activity naturally un-hides it.
+  clearedAt?: Record<string, any>;
   // True when this row came from a snapshot with an unresolved local write
   // (just-sent updatedAt: serverTimestamp()). See lib/conversationSort.
   _pendingWrite?: boolean;
@@ -288,8 +290,10 @@ export default function MessagesLayout() {
   // Open a chat — on desktop: navigate to the in-panel route (same component,
   // no remount). On mobile: navigate to the full-screen route.
   const openChat = (roomId: string, state?: any, type: 'chat' | 'club' = 'chat') => {
-    // Opening un-deletes and clears unread instantly in the inbox (the chat
-    // engine also clears unread on view; this keeps the list responsive).
+    // Opening clears unread instantly in the inbox (the chat engine also
+    // clears unread on view; this keeps the list responsive). It deliberately
+    // does NOT touch clearedAt — opening a chat must never resurrect a
+    // previously-deleted thread's old history into the inbox.
     if (uid) {
       markConversationRead(type === 'club' ? 'clubs' : 'chatRooms', roomId, uid).catch(() => {});
     }
@@ -437,11 +441,29 @@ export default function MessagesLayout() {
     );
   }
 
-  // Per-user visibility: a room is hidden by soft-delete unless it has new
-  // activity (I'm back in unreadBy); archived rooms live in a separate view.
-  const isVisibleInView = (item: { deletedBy?: string[]; archivedBy?: string[]; unreadBy?: string[] }) => {
-    const isDeleted = !!item.deletedBy?.includes(uid) && !item.unreadBy?.includes(uid);
-    if (isDeleted) return false;
+  // Millis helper — mirrors useChatEngine's messageMillis for the same
+  // Timestamp | Date | string | number shapes a Firestore doc can surface
+  // through cache vs. server snapshots.
+  const toMillis = (v: any): number => {
+    if (v?.toMillis) return v.toMillis();
+    if (v instanceof Date) return v.getTime();
+    if (typeof v === 'string') return new Date(v).getTime();
+    if (typeof v === 'number') return v;
+    return 0;
+  };
+
+  // Per-user visibility: a room deleted by this user stays hidden only while
+  // there's been no activity since the delete. `clearedAt[uid]` is the
+  // moment they deleted it; once the room's `updatedAt` moves past that
+  // (a new message from either side, on any device), it naturally reappears
+  // — WhatsApp/Instagram semantics, no separate "un-delete" trigger needed.
+  // Archived rooms live in a separate view.
+  const isVisibleInView = (item: { clearedAt?: Record<string, any>; archivedBy?: string[]; updatedAt?: any }) => {
+    const clearedAtForMe = uid ? item.clearedAt?.[uid] : null;
+    if (clearedAtForMe) {
+      const isStillHidden = toMillis(item.updatedAt) <= toMillis(clearedAtForMe);
+      if (isStillHidden) return false;
+    }
     const isArchived = !!item.archivedBy?.includes(uid);
     return showArchived ? isArchived : !isArchived;
   };
@@ -460,10 +482,18 @@ export default function MessagesLayout() {
     .filter(isVisibleInView)
     .filter((c) => !chatSearchTerm.trim() || c.name.toLowerCase().includes(chatSearchTerm.toLowerCase()));
 
+  // A room counts as "still deleted" (excluded from the archived badge too)
+  // using the same cutoff rule as isVisibleInView.
+  const isStillCleared = (item: { clearedAt?: Record<string, any>; updatedAt?: any }) => {
+    const clearedAtForMe = uid ? item.clearedAt?.[uid] : null;
+    if (!clearedAtForMe) return false;
+    return toMillis(item.updatedAt) <= toMillis(clearedAtForMe);
+  };
+
   // Count archived rooms (across both collections) for the Archived toggle badge.
   const archivedCount =
-    chatRooms.filter((r) => r.archivedBy?.includes(uid) && !(r.deletedBy?.includes(uid) && !r.unreadBy?.includes(uid))).length +
-    clubs.filter((c) => c.archivedBy?.includes(uid) && !(c.deletedBy?.includes(uid) && !c.unreadBy?.includes(uid))).length;
+    chatRooms.filter((r) => r.archivedBy?.includes(uid) && !isStillCleared(r)).length +
+    clubs.filter((c) => c.archivedBy?.includes(uid) && !isStillCleared(c)).length;
 
   const combinedList = [
     ...filteredChatRooms.map(room => ({ ...room, isClub: false })),
@@ -495,7 +525,7 @@ export default function MessagesLayout() {
             </button>
           </div>
         ) : selectMode ? (
-          <div className="flex items-center justify-between mb-4 min-h-[36px]">
+          <div className="flex items-center justify-between mb-4 min-h-9">
             <span className="text-sm font-bold text-luxury-ink">{selectedRooms.size} selected</span>
             <SelectionToolbar count={selectedRooms.size} actions={bulkActions} onCancel={exitSelectMode} />
           </div>
